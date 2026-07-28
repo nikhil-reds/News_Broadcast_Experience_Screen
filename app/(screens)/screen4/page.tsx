@@ -109,21 +109,18 @@ export default function Screen4Page() {
     []
   );
 
-  // ---- Mount: show last transcript if available, else transcribe newest -----
+  // ---- Mount: always use the newest recording -----------------------------
   useEffect(() => {
     (async () => {
-      const files = await fetchAudioFiles();
+      const files = await fetchAudioFiles(); // newest first
       const existing = await fetchTranscript();
-      if (existing?.sourceAudio && files.some((f) => f.url === existing.sourceAudio)) {
-        // Last successful transcript matches an available file — show it instantly.
-        attemptedRef.current.add(existing.sourceAudio);
-        setSelectedUrl(existing.sourceAudio);
-      } else if (files.length > 0) {
-        const newest = files[0].url;
-        setSelectedUrl(newest);
-        attemptedRef.current.add(newest);
-        runTranscription(newest);
-      }
+      if (files.length === 0) return;
+      const newest = files[0].url;
+      setSelectedUrl(newest);
+      attemptedRef.current.add(newest);
+      // Reuse the cached transcript only if it already matches the newest audio.
+      const cachedMatches = existing && existing.sourceAudio === newest && existing.segments?.length > 0;
+      if (!cachedMatches) runTranscription(newest);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
