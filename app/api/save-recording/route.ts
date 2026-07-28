@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { prisma } from "@/lib/prisma";
+import { VIDEO_BUCKET, uploadObject } from "@/lib/minio";
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,41 +8,48 @@ export async function POST(req: NextRequest) {
     const file = formData.get("video") as File | null;
 
     if (!file) {
-      return NextResponse.json(
-        { error: "No video file provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No video file provided" }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Save directory inside public/recordings
-    const publicDir = path.join(process.cwd(), "public");
-    const recordingsDir = path.join(publicDir, "recordings");
-
-    if (!fs.existsSync(recordingsDir)) {
-      fs.mkdirSync(recordingsDir, { recursive: true });
-    }
-
-    // Generate filename with timestamp or use provided filename
+    const buffer = Buffer.from(await file.arrayBuffer());
     const timestamp = Date.now();
-    const customFilename = formData.get("filename") as string;
+    const customFilename = formData.get("filename") as string | null;
     const filename = customFilename || `camera-recording-${timestamp}.mp4`;
-    const filePath = path.join(recordingsDir, filename);
+    const contentType = file.type || (filename.endsWith(".webm") ? "video/webm" : "video/mp4");
 
-    // Write file to public/recordings/
-    await fs.promises.writeFile(filePath, buffer);
+    // Store in the MinIO `videos` bucket
+    await uploadObject(VIDEO_BUCKET, filename, buffer, contentType);
 
-    const relativeUrl = `/recordings/${filename}`;
+    const url = `/api/asset/${VIDEO_BUCKET}/${encodeURIComponent(filename)}`;
+
+    // Persist metadata to Postgres
+    const record = await prisma.videoRecording.upsert({
+      where: { filename },
+      create: {
+        filename,
+        url,
+        bucket: VIDEO_BUCKET,
+        objectKey: filename,
+        contentType,
+        size: buffer.length,
+      },
+      update: {
+        url,
+        bucket: VIDEO_BUCKET,
+        objectKey: filename,
+        contentType,
+        size: buffer.length,
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      message: "Recording saved successfully",
+      message: "Recording uploaded to MinIO and saved to database",
       filename,
-      filePath: relativeUrl,
-      size: file.size,
-      createdAt: new Date().toISOString(),
+      filePath: url,
+      url,
+      size: buffer.length,
+      createdAt: record.createdAt.toISOString(),
     });
   } catch (error: any) {
     console.error("Error saving recording:", error);
@@ -55,27 +62,18 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   try {
-    const recordingsDir = path.join(process.cwd(), "public", "recordings");
+    const rows = await prisma.videoRecording.findMany({
+      orderBy: { createdAt: "desc" },
+    });
 
-    if (!fs.existsSync(recordingsDir)) {
-      return NextResponse.json({ recordings: [] });
-    }
+    const recordings = rows.map((r) => ({
+      filename: r.filename,
+      url: r.url,
+      size: r.size,
+      createdAt: r.createdAt.toISOString(),
+    }));
 
-    const files = await fs.promises.readdir(recordingsDir);
-    const mp4Files = files
-      .filter((file) => file.endsWith(".mp4") || file.endsWith(".webm"))
-      .map((file) => {
-        const stats = fs.statSync(path.join(recordingsDir, file));
-        return {
-          filename: file,
-          url: `/recordings/${file}`,
-          size: stats.size,
-          createdAt: stats.birthtime.toISOString(),
-        };
-      })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    return NextResponse.json({ recordings: mp4Files });
+    return NextResponse.json({ recordings });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
