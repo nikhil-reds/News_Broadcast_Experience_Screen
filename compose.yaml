@@ -54,6 +54,35 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  db:
+    image: postgres:16-alpine
+    restart: always
+    shm_size: 128mb
+    ports:
+      - "38472:5432"
+    environment:
+      POSTGRES_USER: news_admin
+      POSTGRES_PASSWORD: R8vN9xW2pL5mQk
+      POSTGRES_DB: news_broadcast_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+
 volumes:
   whisper-models:
   qwen-models:
+  postgres-data:
+  minio-data:
