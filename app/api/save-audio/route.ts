@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { prisma } from "@/lib/prisma";
+import { AUDIO_BUCKET, uploadObject } from "@/lib/minio";
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,41 +8,48 @@ export async function POST(req: NextRequest) {
     const file = formData.get("audio") as File | null;
 
     if (!file) {
-      return NextResponse.json(
-        { error: "No audio file provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Directory path inside public/audio
-    const publicDir = path.join(process.cwd(), "public");
-    const audioDir = path.join(publicDir, "audio");
-
-    if (!fs.existsSync(audioDir)) {
-      fs.mkdirSync(audioDir, { recursive: true });
-    }
-
-    // Generate filename with timestamp
+    const buffer = Buffer.from(await file.arrayBuffer());
     const timestamp = Date.now();
-    const customFilename = formData.get("filename") as string;
+    const customFilename = formData.get("filename") as string | null;
     const filename = customFilename || `master-audio-${timestamp}.wav`;
-    const filePath = path.join(audioDir, filename);
+    const contentType = file.type || "audio/wav";
 
-    // Save audio file to public/audio/
-    await fs.promises.writeFile(filePath, buffer);
+    // Store in the MinIO `audio` bucket
+    await uploadObject(AUDIO_BUCKET, filename, buffer, contentType);
 
-    const relativeUrl = `/audio/${filename}`;
+    const url = `/api/asset/${AUDIO_BUCKET}/${encodeURIComponent(filename)}`;
+
+    // Persist metadata to Postgres
+    const record = await prisma.audioFile.upsert({
+      where: { filename },
+      create: {
+        filename,
+        url,
+        bucket: AUDIO_BUCKET,
+        objectKey: filename,
+        contentType,
+        size: buffer.length,
+      },
+      update: {
+        url,
+        bucket: AUDIO_BUCKET,
+        objectKey: filename,
+        contentType,
+        size: buffer.length,
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      message: "Audio saved successfully in public/audio/",
+      message: "Audio uploaded to MinIO and saved to database",
       filename,
-      filePath: relativeUrl,
-      size: file.size,
-      createdAt: new Date().toISOString(),
+      filePath: url,
+      url,
+      size: buffer.length,
+      createdAt: record.createdAt.toISOString(),
     });
   } catch (error: any) {
     console.error("Error saving audio:", error);
@@ -55,25 +62,16 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   try {
-    const audioDir = path.join(process.cwd(), "public", "audio");
+    const rows = await prisma.audioFile.findMany({
+      orderBy: { createdAt: "desc" },
+    });
 
-    if (!fs.existsSync(audioDir)) {
-      return NextResponse.json({ audioFiles: [] });
-    }
-
-    const files = await fs.promises.readdir(audioDir);
-    const audioFiles = files
-      .filter((file) => file.endsWith(".wav") || file.endsWith(".mp3") || file.endsWith(".webm") || file.endsWith(".m4a"))
-      .map((file) => {
-        const stats = fs.statSync(path.join(audioDir, file));
-        return {
-          filename: file,
-          url: `/audio/${file}`,
-          size: stats.size,
-          createdAt: stats.birthtime.toISOString(),
-        };
-      })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const audioFiles = rows.map((r) => ({
+      filename: r.filename,
+      url: r.url,
+      size: r.size,
+      createdAt: r.createdAt.toISOString(),
+    }));
 
     return NextResponse.json({ audioFiles });
   } catch (error: any) {
