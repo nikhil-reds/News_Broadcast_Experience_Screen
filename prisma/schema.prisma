@@ -55,9 +55,46 @@ model Transcript {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  segments    TranscriptSegment[]
+  segments     TranscriptSegment[]
+  translations TranscriptTranslation[]
 
   @@map("transcripts")
+}
+
+/// Stores per-language translations of a transcript's English text (Qwen), stored as .txt in MinIO `transcripts` bucket
+model TranscriptTranslation {
+  id           String     @id @default(uuid())
+  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
+  transcriptId String
+  language     String     // "German" | "Hindi" | "French" | "Spanish"
+  langCode     String     // "de" | "hi" | "fr" | "es"
+  text         String     @db.Text
+  bucket       String     @default("transcripts")
+  objectKey    String
+  url          String
+  model        String     @default("qwen2.5:3b")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  segments TranscriptTranslationSegment[]
+
+  @@unique([transcriptId, language])
+  @@map("transcript_translations")
+}
+
+/// Stores individual timestamped translated sentences/segments per language, mirrors TranscriptSegment
+model TranscriptTranslationSegment {
+  id            String                @id @default(uuid())
+  translation   TranscriptTranslation @relation(fields: [translationId], references: [id], onDelete: Cascade)
+  translationId String
+  segmentIndex  Int
+  start         Float
+  end           Float
+  text          String                @db.Text
+  createdAt     DateTime              @default(now())
+
+  @@index([translationId])
+  @@map("transcript_translation_segments")
 }
 
 /// Stores individual timestamped speech sentences/segments for live teleprompter audio sync
