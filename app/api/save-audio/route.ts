@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AUDIO_BUCKET, uploadObject } from "@/lib/minio";
+import { enqueueTranscription } from "@/lib/queue";
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,6 +43,16 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Recording is done and stored — enqueue a transcription job for the worker.
+    // Best-effort: a Redis/worker outage must not fail the upload.
+    let queued = false;
+    try {
+      await enqueueTranscription(filename);
+      queued = true;
+    } catch (queueErr: any) {
+      console.error("Failed to enqueue transcription job:", queueErr.message);
+    }
+
     return NextResponse.json({
       success: true,
       message: "Audio uploaded to MinIO and saved to database",
@@ -49,6 +60,7 @@ export async function POST(req: NextRequest) {
       filePath: url,
       url,
       size: buffer.length,
+      queuedForTranscription: queued,
       createdAt: record.createdAt.toISOString(),
     });
   } catch (error: any) {
