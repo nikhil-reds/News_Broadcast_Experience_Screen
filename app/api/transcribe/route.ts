@@ -225,18 +225,34 @@ export async function POST(req: NextRequest) {
     let inputBuffer: Buffer | null = null;
     let clientSegments: TranscriptSegment[] | null = null;
 
+    let reqApiKey: string | null = req.headers.get("x-whisper-api-key");
+    let reqApiUrl: string = req.headers.get("x-whisper-api-url") || process.env.WHISPER_API_URL || "https://api.openai.com/v1/audio/transcriptions";
+    let reqModel: string = req.headers.get("x-whisper-model") || "whisper-1";
+    // Which audio file to transcribe (filename inside public/audio). Optional.
+    let reqFilename: string | null = req.headers.get("x-audio-filename");
+
     const contentType = req.headers.get("content-type") || "";
 
     if (contentType.includes("application/json")) {
-      // Handle JSON body if client posts transcript segments directly
       const body = await req.json();
       if (body.segments && Array.isArray(body.segments)) {
         clientSegments = body.segments;
       }
+      if (body.apiKey) reqApiKey = body.apiKey;
+      if (body.apiUrl) reqApiUrl = body.apiUrl;
+      if (body.model) reqModel = body.model;
+      if (body.filename) reqFilename = body.filename;
     } else if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
       const file = formData.get("audio") as File | null;
       const clientTranscriptStr = formData.get("transcriptJson") as string | null;
+      const apiKeyForm = formData.get("apiKey") as string | null;
+      const apiUrlForm = formData.get("apiUrl") as string | null;
+      const modelForm = formData.get("model") as string | null;
+
+      if (apiKeyForm) reqApiKey = apiKeyForm;
+      if (apiUrlForm) reqApiUrl = apiUrlForm;
+      if (modelForm) reqModel = modelForm;
 
       if (clientTranscriptStr) {
         try {
@@ -254,14 +270,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Determine final API key from request, environment variables
+    const finalApiKey = reqApiKey || process.env.OPENAI_API_KEY || process.env.WHISPER_API_KEY || process.env.GROQ_API_KEY;
+
+    // If the client asked for a specific audio file, resolve it inside the audio dir
+    if (!inputBuffer && reqFilename) {
+      const safeName = path.basename(reqFilename);
+      const requestedPath = path.join(audioDir, safeName);
+      if (fs.existsSync(requestedPath)) {
+        masterAudioFilename = safeName;
+        masterAudioPath = requestedPath;
+      }
+    }
+
     // Read existing audio if not uploaded in request
     if (!inputBuffer) {
       if (fs.existsSync(masterAudioPath)) {
         inputBuffer = await fs.promises.readFile(masterAudioPath);
       } else {
-        const existingAudioFiles = fs.readdirSync(audioDir).filter((f) => f.endsWith(".wav") || f.endsWith(".mp3") || f.endsWith(".webm"));
+        // Pick the newest real recording, ignoring the derived 16kHz normaliser output
+        const existingAudioFiles = fs
+          .readdirSync(audioDir)
+          .filter(
+            (f) =>
+              (f.endsWith(".wav") || f.endsWith(".mp3") || f.endsWith(".webm") || f.endsWith(".m4a")) &&
+              f !== "master-audio-16k.wav"
+          )
+          .map((f) => ({ f, mtime: fs.statSync(path.join(audioDir, f)).mtimeMs }))
+          .sort((a, b) => b.mtime - a.mtime);
+
         if (existingAudioFiles.length > 0) {
-          masterAudioFilename = existingAudioFiles[0];
+          masterAudioFilename = existingAudioFiles[0].f;
           masterAudioPath = path.join(audioDir, masterAudioFilename);
           inputBuffer = await fs.promises.readFile(masterAudioPath);
         }
@@ -290,12 +329,117 @@ export async function POST(req: NextRequest) {
 
     const normalizedBuffer = await fs.promises.readFile(normalizedWavPath);
     const pcmDataBytes = Math.max(0, normalizedBuffer.length - 44);
-    const durationSec = Math.max(1, Math.round(pcmDataBytes / 32000));
+    let durationSec = Math.max(1, Math.round(pcmDataBytes / 32000));
 
-    // ================= STEP 2: LOCAL WHISPER STT ENGINE / SPEECH SEGMENTATION =================
+    // ================= STEP 2: WHISPER STT ENGINE & SPEECH TRANSCRIPTION =================
     let segments: TranscriptSegment[] = clientSegments || [];
     let sttEngineUsed = "Web Speech Client STT";
 
+    // 2A. Try Docker Live Faster-Whisper Container Service (Port 8000)
+    if (segments.length === 0) {
+      const dockerWhisperUrls = [
+        process.env.WHISPER_DOCKER_URL || "http://localhost:8000/transcribe",
+        "http://whisper:8000/transcribe",
+        "http://127.0.0.1:8000/transcribe",
+      ];
+
+      for (const dockerUrl of dockerWhisperUrls) {
+        try {
+          console.log(`Attempting Docker Whisper API call to ${dockerUrl}...`);
+          const dockerFormData = new FormData();
+          // Send the ORIGINAL audio: faster-whisper decodes/resamples internally,
+          // which is far more reliable than our JS fallback resampler.
+          const audioBlob = new Blob([inputBuffer], { type: "audio/wav" });
+          dockerFormData.append("file", audioBlob, masterAudioFilename);
+          dockerFormData.append("task", "transcribe");
+
+          const controller = new AbortController();
+          // Whisper on CPU can take a few minutes for longer clips; allow up to 5 min.
+          const timeoutId = setTimeout(() => controller.abort(), 300000);
+
+          const dockerRes = await fetch(dockerUrl, {
+            method: "POST",
+            body: dockerFormData,
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (dockerRes.ok) {
+            const dockerData = await dockerRes.json();
+            if (dockerData.segments && Array.isArray(dockerData.segments) && dockerData.segments.length > 0) {
+              segments = dockerData.segments.map((s: any, idx: number) => ({
+                id: idx,
+                start: Number(Number(s.start || 0).toFixed(2)),
+                end: Number(Number(s.end || 0).toFixed(2)),
+                text: String(s.text || "").trim(),
+              }));
+              if (dockerData.duration) durationSec = Number(Number(dockerData.duration).toFixed(2));
+              sttEngineUsed = "Docker Live Faster-Whisper Container (Port 8000)";
+              console.log("Successfully transcribed using Docker Whisper service!");
+              break;
+            }
+          }
+        } catch (err: any) {
+          console.log(`Docker Whisper endpoint ${dockerUrl} unavailable: ${err.message}`);
+        }
+      }
+    }
+
+    // 2B. Try Cloud Whisper API (OpenAI / Groq / Custom Whisper API) if API key is provided
+    if (segments.length === 0 && finalApiKey) {
+      try {
+        console.log(`Calling Cloud Whisper API (${reqApiUrl}) with model ${reqModel}...`);
+        const apiFormData = new FormData();
+        const audioBlob = new Blob([normalizedBuffer], { type: "audio/wav" });
+        apiFormData.append("file", audioBlob, "audio.wav");
+        apiFormData.append("model", reqModel);
+        apiFormData.append("response_format", "verbose_json");
+
+        const whisperRes = await fetch(reqApiUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${finalApiKey}`,
+          },
+          body: apiFormData,
+        });
+
+        if (whisperRes.ok) {
+          const apiData = await whisperRes.json();
+          if (apiData.segments && Array.isArray(apiData.segments)) {
+            segments = apiData.segments.map((s: any, idx: number) => ({
+              id: idx,
+              start: Number(Number(s.start || 0).toFixed(2)),
+              end: Number(Number(s.end || 0).toFixed(2)),
+              text: String(s.text || "").trim(),
+            }));
+          } else if (apiData.text) {
+            const textSentences = String(apiData.text)
+              .split(/(?<=[.?!])\s+/)
+              .filter((s) => s.trim().length > 0);
+            
+            const segDuration = Number((durationSec / Math.max(1, textSentences.length)).toFixed(2));
+            segments = textSentences.map((sent, idx) => ({
+              id: idx,
+              start: Number((idx * segDuration).toFixed(2)),
+              end: Number(((idx + 1) * segDuration).toFixed(2)),
+              text: sent.trim(),
+            }));
+          }
+
+          if (segments.length > 0) {
+            sttEngineUsed = `Cloud Whisper API (${reqModel})`;
+          }
+        } else {
+          const errText = await whisperRes.text();
+          console.warn("Cloud Whisper API Error Response:", errText);
+        }
+      } catch (apiErr: any) {
+        console.error("Cloud Whisper API Fetch Failure:", apiErr.message);
+      }
+    }
+
+    // 2B. Try Local Whisper CLI if API was not used or failed
     if (segments.length === 0) {
       try {
         await execAsync(`whisper "${normalizedWavPath}" --model base --output_format json --output_dir "${transcriptsDir}"`);
@@ -308,14 +452,14 @@ export async function POST(req: NextRequest) {
             end: Number(s.end.toFixed(2)),
             text: s.text.trim(),
           }));
-          sttEngineUsed = "System Whisper STT Model";
+          sttEngineUsed = "Local Whisper CLI Model";
         }
       } catch (err) {
-        console.log("Whisper CLI not found on system. Using Audio Waveform Speech Activity Detector.");
+        console.log("Local Whisper CLI not found on system. Using Audio Waveform Speech Activity Detector.");
       }
     }
 
-    // If still no segments, run Audio Waveform VAD segmenter on normalized audio buffer
+    // 2C. Fallback: Run Audio Waveform VAD segmenter on normalized audio buffer
     if (!segments || segments.length === 0) {
       segments = analyzeAudioWaveformSegments(normalizedBuffer, durationSec);
       sttEngineUsed = "Audio Waveform Speech Activity Segmenter";
