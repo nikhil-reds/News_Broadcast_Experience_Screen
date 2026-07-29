@@ -95,9 +95,19 @@ services:
       timeout: 5s
       retries: 10
 
+  cosyvoice:
+    build:
+      context: ./public/nextjs-faster-whisper/cosyvoice-service
+    ports:
+      - "9500:50000"
+    volumes:
+      - cosyvoice-models:/root/.cache
+    restart: unless-stopped
+
 volumes:
   whisper-models:
   qwen-models:
   postgres-data:
   minio-data:
   redis-data:
+  cosyvoice-models:
