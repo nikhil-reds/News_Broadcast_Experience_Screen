@@ -77,9 +77,28 @@ model TranscriptTranslation {
   updatedAt    DateTime   @updatedAt
 
   segments TranscriptTranslationSegment[]
+  audio    TranslationAudio?
 
   @@unique([transcriptId, language])
   @@map("transcript_translations")
+}
+
+/// Stores CosyVoice2-synthesized speech for a translation, stored as .wav in MinIO `tts-audio` bucket
+model TranslationAudio {
+  id            String                @id @default(uuid())
+  translation   TranscriptTranslation @relation(fields: [translationId], references: [id], onDelete: Cascade)
+  translationId String                @unique
+  language      String
+  langCode      String
+  bucket        String                @default("tts-audio")
+  objectKey     String
+  url           String
+  size          Int
+  engine        String                @default("CosyVoice2-0.5B")
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@map("translation_audio")
 }
 
 /// Stores individual timestamped translated sentences/segments per language, mirrors TranscriptSegment
