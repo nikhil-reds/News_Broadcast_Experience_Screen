@@ -108,3 +108,70 @@ export async function enqueueTranslations(
     })
   );
 }
+
+// ---------------------------------------------------------------------------
+// Audio-conversion queues: one per language, each with its own dedicated
+// worker that turns a translated transcript into CosyVoice 2 speech.
+// ---------------------------------------------------------------------------
+
+/** Job payload: synthesize speech for one language's already-persisted translation. */
+export interface AudioConversionJob {
+  translationId: string;
+  filename: string;
+  langCode: string;
+  text: string;
+}
+
+export const AUDIO_LANGUAGES = [
+  { queue: "german-audio", language: "German", langCode: "de" },
+  { queue: "hindi-audio", language: "Hindi", langCode: "hi" },
+  { queue: "french-audio", language: "French", langCode: "fr" },
+  { queue: "spanish-audio", language: "Spanish", langCode: "es" },
+] as const;
+
+const globalForAudioQueues = globalThis as unknown as {
+  __audioConversionQueues?: Map<string, Queue<AudioConversionJob>>;
+};
+
+const audioConversionQueues =
+  globalForAudioQueues.__audioConversionQueues ??
+  new Map(
+    AUDIO_LANGUAGES.map(({ queue }) => [
+      queue,
+      new Queue<AudioConversionJob>(queue, {
+        connection: redisConnection,
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5000 },
+          removeOnComplete: 50,
+          removeOnFail: 100,
+        },
+      }),
+    ])
+  );
+
+if (process.env.NODE_ENV !== "production") {
+  globalForAudioQueues.__audioConversionQueues = audioConversionQueues;
+}
+
+/**
+ * Enqueue one job on the matching `<langCode>-audio` queue so that language's
+ * dedicated worker converts the just-persisted translation into speech via
+ * CosyVoice 2. Best-effort: throws are left to the caller to catch so a queue
+ * outage never blocks translation.
+ */
+export async function enqueueAudioConversion(
+  langCode: string,
+  translationId: string,
+  filename: string,
+  text: string
+) {
+  const entry = AUDIO_LANGUAGES.find((l) => l.langCode === langCode);
+  if (!entry) throw new Error(`No audio-conversion queue for langCode "${langCode}"`);
+  const q = audioConversionQueues.get(entry.queue)!;
+  return q.add(
+    "synthesize",
+    { translationId, filename, langCode, text },
+    { jobId: `audio-${langCode}-${filename}` }
+  );
+}
