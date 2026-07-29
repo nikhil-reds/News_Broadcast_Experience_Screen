@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { TRANSCRIPTS_BUCKET, uploadObject } from "@/lib/minio";
 import { QWEN_MODEL, translateSegmentTexts } from "@/lib/qwen";
 import { generateSrt, type TranscriptSegment } from "@/lib/transcribe";
+import { enqueueAudioConversion } from "@/lib/queue";
 
 export interface LanguageOpts {
   language: string;
@@ -54,7 +55,7 @@ export async function persistTranslation(params: {
   );
   const url = `/api/asset/${TRANSCRIPTS_BUCKET}/${encodeURIComponent(objectKey)}`;
 
-  return prisma.$transaction(async (tx) => {
+  const translation = await prisma.$transaction(async (tx) => {
     const translation = await tx.transcriptTranslation.upsert({
       where: { transcriptId_language: { transcriptId, language } },
       create: {
@@ -85,6 +86,20 @@ export async function persistTranslation(params: {
 
     return translation;
   });
+
+  // A translation just became available — hand it off to that language's
+  // dedicated CosyVoice 2 audio-conversion worker. Best-effort: a queue
+  // outage must not fail the translation itself. Fires regardless of whether
+  // this was called by a background worker or the on-demand cache-fill path.
+  if (flatText.trim()) {
+    try {
+      await enqueueAudioConversion(langCode, translation.id, filename, flatText);
+    } catch (err: any) {
+      console.error(`Failed to enqueue audio conversion for "${filename}" (${language}): ${err.message}`);
+    }
+  }
+
+  return translation;
 }
 
 /**
