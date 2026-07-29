@@ -20,7 +20,8 @@ if (process.env.NODE_ENV !== "production") {
 export const AUDIO_BUCKET = process.env.MINIO_BUCKET_AUDIO || "audio";
 export const VIDEO_BUCKET = process.env.MINIO_BUCKET_VIDEO || "videos";
 export const TRANSCRIPTS_BUCKET = process.env.MINIO_BUCKET_TRANSCRIPTS || "transcripts";
-export const ALLOWED_BUCKETS = new Set([AUDIO_BUCKET, VIDEO_BUCKET, TRANSCRIPTS_BUCKET]);
+export const TTS_AUDIO_BUCKET = process.env.MINIO_BUCKET_TTS_AUDIO || "tts-audio";
+export const ALLOWED_BUCKETS = new Set([AUDIO_BUCKET, VIDEO_BUCKET, TRANSCRIPTS_BUCKET, TTS_AUDIO_BUCKET]);
 
 /** Create the bucket if it does not exist yet. */
 export async function ensureBucket(bucket: string): Promise<void> {
