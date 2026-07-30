@@ -16,6 +16,28 @@ interface SavedAudio {
   createdAt: string;
 }
 
+interface NexmosphereFrame {
+  raw: string;
+  address: string;
+  command: string;
+  value: string;
+  at: string;
+}
+
+interface NexmosphereStatus {
+  connected: boolean;
+  path: string;
+  baudRate: number;
+  lastError: string | null;
+}
+
+/**
+ * X-talk frames from the physical Nexmosphere panel. Button 1 arms the studio,
+ * button 2 stops it and hands the takes to the save/transcribe pipeline.
+ */
+const NEX_START_FRAME = "X001A[17]";
+const NEX_END_FRAME = "X001A[3]";
+
 export default function HomePage() {
   // --- Video States ---
   const [isVideoCameraActive, setIsVideoCameraActive] = useState<boolean>(false);
@@ -47,6 +69,14 @@ export default function HomePage() {
   const audioTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animFrameRef = useRef<number | null>(null);
+
+  // --- Nexmosphere Hardware Panel States ---
+  const [nexStatus, setNexStatus] = useState<NexmosphereStatus | null>(null);
+  const [lastNexFrame, setLastNexFrame] = useState<NexmosphereFrame | null>(null);
+  const nexTriggersRef = useRef<{ start: () => void; end: () => void }>({
+    start: () => {},
+    end: () => {},
+  });
 
   // Mount effects
   useEffect(() => {
@@ -169,7 +199,9 @@ export default function HomePage() {
   };
 
   const handleEndVideoRecording = () => {
-    if (videoRecorderRef.current && isVideoRecording) {
+    // Gate on the recorder itself rather than React state: the hardware panel can
+    // fire this from a subscription that never re-renders.
+    if (videoRecorderRef.current?.state === "recording") {
       videoRecorderRef.current.stop();
       setIsVideoRecording(false);
       if (videoTimerRef.current) clearInterval(videoTimerRef.current);
@@ -276,7 +308,7 @@ export default function HomePage() {
   };
 
   const handleEndAudioRecording = () => {
-    if (audioRecorderRef.current && isAudioRecording) {
+    if (audioRecorderRef.current?.state === "recording") {
       audioRecorderRef.current.stop();
       setIsAudioRecording(false);
 
@@ -331,6 +363,70 @@ export default function HomePage() {
     }
   };
 
+  // ================= NEXMOSPHERE PANEL TRIGGERS =================
+  // One physical button runs the whole studio, so both recorders move together.
+  // `recorder.state` is the synchronous source of truth — React state lags a
+  // render behind, and a double press would otherwise stack two MediaRecorders
+  // and orphan the first one's chunks.
+  const startAllRecording = () => {
+    if (videoRecorderRef.current?.state !== "recording") {
+      handleStartVideoRecording();
+    }
+    if (audioRecorderRef.current?.state !== "recording") {
+      startAudioRecording();
+    }
+  };
+
+  const endAllRecording = () => {
+    handleEndVideoRecording();
+    handleEndAudioRecording();
+  };
+
+  // Keep the triggers pointing at the newest closures so the subscription below
+  // can mount once without ever going stale.
+  useEffect(() => {
+    nexTriggersRef.current = { start: startAllRecording, end: endAllRecording };
+  });
+
+  // Physical panel -> recording. EventSource handles its own reconnects, so this
+  // mounts once and stays up for the life of the page.
+  useEffect(() => {
+    const source = new EventSource("/api/nexmosphere/events");
+
+    source.addEventListener("status", (e) => {
+      try {
+        setNexStatus(JSON.parse((e as MessageEvent).data));
+      } catch (err) {
+        console.error("Bad Nexmosphere status payload:", err);
+      }
+    });
+
+    source.addEventListener("frame", (e) => {
+      let frame: NexmosphereFrame;
+      try {
+        frame = JSON.parse((e as MessageEvent).data);
+      } catch (err) {
+        console.error("Bad Nexmosphere frame payload:", err);
+        return;
+      }
+
+      setLastNexFrame(frame);
+      setNexStatus((prev) => (prev ? { ...prev, connected: true } : prev));
+
+      if (frame.raw === NEX_START_FRAME) {
+        nexTriggersRef.current.start();
+      } else if (frame.raw === NEX_END_FRAME) {
+        nexTriggersRef.current.end();
+      }
+    });
+
+    source.onerror = () => {
+      setNexStatus((prev) => (prev ? { ...prev, connected: false } : prev));
+    };
+
+    return () => source.close();
+  }, []);
+
   // Utilities
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -362,6 +458,27 @@ export default function HomePage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Nexmosphere panel telemetry — lets the operator confirm the cable is
+              live before going on air. */}
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800">
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                nexStatus?.connected ? "bg-emerald-400 animate-pulse" : "bg-slate-600"
+              }`}
+            />
+            <div className="leading-tight">
+              <p className="text-[11px] font-semibold text-slate-200">
+                Panel {nexStatus?.connected ? "Live" : "Offline"}
+                {nexStatus?.path ? ` · ${nexStatus.path}` : ""}
+              </p>
+              <p className="text-[10px] font-mono text-slate-500">
+                {lastNexFrame
+                  ? `${lastNexFrame.raw} received`
+                  : `${NEX_START_FRAME} start · ${NEX_END_FRAME} stop`}
+              </p>
+            </div>
+          </div>
+
           <a
             href="/screen1"
             className="text-xs px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold transition shadow-lg shadow-rose-950"
