@@ -87,6 +87,44 @@ function scheduleReconnect(hub: Hub) {
   hub.reconnectTimer.unref?.();
 }
 
+/**
+ * Parse one line from the controller and hand it to every subscriber.
+ * Split out from the serial parser so a simulated frame travels exactly the
+ * same path as a real one.
+ */
+function dispatchLine(hub: Hub, line: string): NexmosphereEvent | null {
+  const raw = line.trim();
+  if (!raw) return null;
+
+  const match = FRAME.exec(raw);
+  if (!match) {
+    // Boot banners and status text share the line; not an error.
+    console.log(`[nexmosphere] ignored non-frame line: ${JSON.stringify(raw)}`);
+    return null;
+  }
+
+  const event: NexmosphereEvent = {
+    raw,
+    address: match[2],
+    command: match[3],
+    value: match[4],
+    at: new Date().toISOString(),
+  };
+
+  hub.status.lastEventAt = event.at;
+  hub.status.lastEventRaw = raw;
+
+  for (const listener of hub.listeners) {
+    try {
+      listener(event);
+    } catch (listenerErr) {
+      console.error("[nexmosphere] listener threw:", listenerErr);
+    }
+  }
+
+  return event;
+}
+
 function openPort(hub: Hub) {
   if (hub.port?.isOpen) return;
 
@@ -112,36 +150,7 @@ function openPort(hub: Hub) {
 
   const parser = port.pipe(new ReadlineParser({ delimiter: "\n" }));
 
-  parser.on("data", (line: string) => {
-    const raw = line.trim();
-    if (!raw) return;
-
-    const match = FRAME.exec(raw);
-    if (!match) {
-      // Boot banners and status text share the line; not an error.
-      console.log(`[nexmosphere] ignored non-frame line: ${JSON.stringify(raw)}`);
-      return;
-    }
-
-    const event: NexmosphereEvent = {
-      raw,
-      address: match[2],
-      command: match[3],
-      value: match[4],
-      at: new Date().toISOString(),
-    };
-
-    hub.status.lastEventAt = event.at;
-    hub.status.lastEventRaw = raw;
-
-    for (const listener of hub.listeners) {
-      try {
-        listener(event);
-      } catch (listenerErr) {
-        console.error("[nexmosphere] listener threw:", listenerErr);
-      }
-    }
-  });
+  parser.on("data", (line: string) => dispatchLine(hub, line));
 
   port.on("error", (err) => {
     hub.status.connected = false;
@@ -172,6 +181,16 @@ export function subscribe(listener: Listener): () => void {
     hub.listeners.delete(listener);
     hub.status.subscribers = hub.listeners.size;
   };
+}
+
+/**
+ * Feed a frame in as if the controller had sent it, e.g. "X002A[1]".
+ * For developing the screens when the cable isn't plugged in — the serial port
+ * is untouched and subscribers cannot tell the difference. Returns null when
+ * the string isn't a valid X-talk frame.
+ */
+export function emitFrame(raw: string): NexmosphereEvent | null {
+  return dispatchLine(getHub(), raw);
 }
 
 export function getStatus(): NexmosphereStatus {
