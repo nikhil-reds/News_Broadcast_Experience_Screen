@@ -1,6 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNexmosphere } from "@/lib/use-nexmosphere";
+
+/** Volume moved per detent of the Nexmosphere knob (5% per click). */
+const VOLUME_STEP = 0.05;
+const DEFAULT_VOLUME = 0.8;
+
+const clampVolume = (v: number) => Math.min(1, Math.max(0, v));
 
 interface TranscriptSegment {
   id: number;
@@ -38,11 +45,41 @@ export default function Screen4Page() {
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
   const [status, setStatus] = useState<string>("");
 
+  // Playback volume, driven by the physical rotary knob (and the slider below).
+  const [volume, setVolume] = useState<number>(DEFAULT_VOLUME);
+  const [knobDirection, setKnobDirection] = useState<"up" | "down" | null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeLineRef = useRef<HTMLParagraphElement | null>(null);
   const attemptedRef = useRef<Set<string>>(new Set());
+  const knobFlashRef = useRef<NodeJS.Timeout | null>(null);
 
   const filenameFromUrl = (url: string) => url.split("/").pop() || "";
+
+  // ---- Physical rotary knob -> volume ---------------------------------------
+  // Clockwise detents come in positive, counter-clockwise negative, so one
+  // clamped accumulation covers both directions. The functional update keeps
+  // fast spins (several frames inside one render) from dropping detents.
+  const { status: nexStatus, lastFrame: lastNexFrame } = useNexmosphere({
+    onRotate: (delta) => {
+      setVolume((prev) => clampVolume(prev + delta * VOLUME_STEP));
+      setKnobDirection(delta > 0 ? "up" : "down");
+      if (knobFlashRef.current) clearTimeout(knobFlashRef.current);
+      knobFlashRef.current = setTimeout(() => setKnobDirection(null), 900);
+    },
+  });
+
+  useEffect(() => {
+    return () => {
+      if (knobFlashRef.current) clearTimeout(knobFlashRef.current);
+    };
+  }, []);
+
+  // The <audio> element is the source of truth for output level; re-apply on
+  // every change and whenever the element gets a new source.
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume, selectedUrl]);
 
   // ---- Data loading ---------------------------------------------------------
   const fetchAudioFiles = useCallback(async () => {
@@ -225,6 +262,24 @@ export default function Screen4Page() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Rotary panel telemetry — confirms the knob is actually reaching this
+              screen, and shows the raw frame when a mapping needs checking. */}
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800">
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                nexStatus?.connected ? "bg-emerald-400 animate-pulse" : "bg-slate-600"
+              }`}
+            />
+            <div className="leading-tight">
+              <p className="text-[11px] font-semibold text-slate-200">
+                Knob {nexStatus?.connected ? "Live" : "Offline"}
+              </p>
+              <p className="text-[10px] font-mono text-slate-500">
+                {lastNexFrame ? lastNexFrame.raw : "turn to set volume"}
+              </p>
+            </div>
+          </div>
+
           <select
             value={selectedUrl}
             onChange={(e) => setSelectedUrl(e.target.value)}
@@ -336,6 +391,46 @@ export default function Screen4Page() {
               <span>{formatTime(currentTime)}</span>
               <span>{formatTime(duration)}</span>
             </div>
+          </div>
+
+          {/* Volume — the rotary knob writes here, the slider is the manual
+              fallback when the panel is offline. */}
+          <div
+            className={`w-52 shrink-0 space-y-1 rounded-xl border px-3 py-2 transition-colors ${
+              knobDirection
+                ? "border-emerald-500/60 bg-emerald-500/10"
+                : "border-slate-800 bg-slate-950/60"
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <span className="text-base leading-none">
+                  {volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
+                </span>
+                Volume
+                {knobDirection && (
+                  <span className="text-emerald-400 font-bold">
+                    {knobDirection === "up" ? "↻ +" : "↺ −"}
+                  </span>
+                )}
+              </span>
+              <span className="text-slate-200 font-bold">{Math.round(volume * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={volume}
+              onChange={(e) => setVolume(clampVolume(parseFloat(e.target.value)))}
+              aria-label="Volume"
+              className="w-full accent-emerald-500 h-2 rounded-lg cursor-pointer appearance-none"
+              style={{
+                background: `linear-gradient(to right, #10b981 ${volume * 100}%, #1e293b ${
+                  volume * 100
+                }%)`,
+              }}
+            />
           </div>
         </div>
 
