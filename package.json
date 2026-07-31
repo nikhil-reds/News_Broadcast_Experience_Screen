@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "worker:audio": "tsx app/worker/audio-transcription.ts",
+    "worker:highlight": "tsx app/worker/highlight-reel.ts",
     "worker:german-transcript": "tsx app/worker/german-transcript.ts",
     "worker:hindi-transcript": "tsx app/worker/hindi-transcript.ts",
     "worker:french-transcript": "tsx app/worker/french-transcript.ts",
