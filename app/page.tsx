@@ -383,6 +383,13 @@ export default function HomePage() {
           >
             Screen 02 →
           </a>
+          <a
+            href="/screen6"
+            className="text-xs px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold transition shadow-lg shadow-amber-950"
+            title="Gemini-cut highlight reel of both cameras"
+          >
+            Screen 06 ✦ →
+          </a>
         </div>
       </header>
 
