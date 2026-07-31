@@ -57,6 +57,18 @@ export async function presignedGetUrl(
   return minioClient.presignedGetObject(bucket, key, expirySeconds);
 }
 
+/** Stream an object straight to disk — for video, where buffering is wasteful. */
+export async function downloadObjectToFile(
+  bucket: string,
+  key: string,
+  destPath: string
+): Promise<void> {
+  const { createWriteStream } = await import("node:fs");
+  const { pipeline } = await import("node:stream/promises");
+  const stream = await minioClient.getObject(bucket, key);
+  await pipeline(stream, createWriteStream(destPath));
+}
+
 /** Read an object fully into a Buffer. */
 export async function getObjectBuffer(bucket: string, key: string): Promise<Buffer> {
   const stream = await minioClient.getObject(bucket, key);
