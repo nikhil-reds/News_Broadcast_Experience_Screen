@@ -34,7 +34,7 @@ function pcmToWav(pcm: Buffer, sampleRate = SAMPLE_RATE): Buffer {
 export async function synthesizeCrossLingual(text: string, promptWav: Buffer): Promise<Buffer> {
   const form = new FormData();
   form.append("tts_text", text);
-  form.append("prompt_wav", new Blob([promptWav], { type: "audio/wav" }), "prompt.wav");
+  form.append("prompt_wav", new Blob([new Uint8Array(promptWav)], { type: "audio/wav" }), "prompt.wav");
 
   const controller = new AbortController();
   // CosyVoice on CPU can be slow; allow up to 5 minutes (same as Whisper/Qwen).
