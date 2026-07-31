@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import type { CameraId } from "@/lib/camera-recordings";
+import { recordingSourceQuery, type RecordingSource } from "@/lib/camera-recordings";
 
 interface RecordingItem {
   filename: string;
@@ -9,18 +9,19 @@ interface RecordingItem {
 }
 
 /**
- * Full-bleed loop of the newest take from one camera. Each screen pins its own
- * camera, so Screen 01 and Screen 02 never show each other's footage.
+ * Full-bleed loop of the newest video from one source. Each screen pins its
+ * own: Screen 01 and 02 take a camera each, Screen 06 takes the Gemini reel.
  */
-export default function RecordingLooper({ cameraId }: { cameraId: CameraId }) {
+export default function RecordingLooper({ source }: { source: RecordingSource }) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const query = recordingSourceQuery(source);
 
   useEffect(() => {
     let cancelled = false;
 
     const fetchLatestRecording = async () => {
       try {
-        const res = await fetch(`/api/save-recording?camera=${cameraId}`);
+        const res = await fetch(`/api/save-recording?${query}`);
         if (res.ok) {
           const data = await res.json();
           const list: RecordingItem[] = data.recordings || [];
@@ -40,7 +41,7 @@ export default function RecordingLooper({ cameraId }: { cameraId: CameraId }) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [cameraId]);
+  }, [query]);
 
   if (!videoUrl) {
     return <div className="w-screen h-screen bg-black" />;
