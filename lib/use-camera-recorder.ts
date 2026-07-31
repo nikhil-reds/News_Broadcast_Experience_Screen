@@ -110,16 +110,35 @@ export function useCameraRecorder(
     async (deviceId?: string) => {
       setError(null);
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            // Pinning the deviceId is what keeps the two cameras off each
-            // other's hardware; without it both would open the default device.
-            ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
-          },
-          audio: captureAudio,
-        });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              // Pinning the deviceId is what keeps the two cameras off each
+              // other's hardware; without it both would open the default device.
+              ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+            },
+            audio: captureAudio,
+          });
+        } catch (audioErr: any) {
+          // If audio capture was requested but failed (e.g. mic busy or blocked),
+          // fallback to video-only so camera 1 feed still works.
+          if (captureAudio) {
+            console.warn("Camera audio capture failed, falling back to video-only:", audioErr);
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+              },
+              audio: false,
+            });
+          } else {
+            throw audioErr;
+          }
+        }
 
         // Release the previous device only once the new one is open, so a failed
         // switch leaves the operator with the feed they already had.
@@ -180,7 +199,13 @@ export function useCameraRecorder(
         options = { mimeType: "video/webm" };
       }
 
-      const recorder = new MediaRecorder(streamRef.current, options);
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(streamRef.current, options);
+      } catch (mimeErr) {
+        console.warn("MediaRecorder with explicit options failed, falling back to default:", mimeErr);
+        recorder = new MediaRecorder(streamRef.current);
+      }
 
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
