@@ -36,6 +36,52 @@ export async function enqueueTranscription(filename: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Highlight-reel queue: one job per completed two-camera session.
+// ---------------------------------------------------------------------------
+
+export const HIGHLIGHT_QUEUE = "highlight-reel";
+
+/** Job payload: the two camera takes (in the MinIO `videos` bucket) to cut. */
+export interface HighlightReelJob {
+  cam1Filename: string;
+  cam2Filename: string;
+}
+
+const globalForHighlightQueue = globalThis as unknown as {
+  __highlightQueue?: Queue<HighlightReelJob>;
+};
+
+export const highlightQueue =
+  globalForHighlightQueue.__highlightQueue ??
+  new Queue<HighlightReelJob>(HIGHLIGHT_QUEUE, {
+    connection: redisConnection,
+    defaultJobOptions: {
+      // Gemini + ffmpeg is expensive; one retry rather than the usual three.
+      attempts: 2,
+      backoff: { type: "exponential", delay: 15000 },
+      removeOnComplete: 50,
+      removeOnFail: 100,
+    },
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForHighlightQueue.__highlightQueue = highlightQueue;
+}
+
+/**
+ * Enqueue the reel for one session. The jobId is derived from the camera-1
+ * take, so whichever upload lands second can enqueue without racing the other
+ * into a duplicate job.
+ */
+export async function enqueueHighlightReel(cam1Filename: string, cam2Filename: string) {
+  return highlightQueue.add(
+    "build-reel",
+    { cam1Filename, cam2Filename },
+    { jobId: `highlight-${cam1Filename}` }
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Translation queues: one per language, each with its own dedicated worker.
 // ---------------------------------------------------------------------------
 
