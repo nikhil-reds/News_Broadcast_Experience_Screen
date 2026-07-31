@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { VIDEO_BUCKET, uploadObject } from "@/lib/minio";
+import { CAMERA_FILENAME_PREFIX, parseCameraId } from "@/lib/camera-recordings";
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,9 +61,17 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // `?camera=1|2` narrows the list to one camera's takes; camera 1 is
+    // everything that isn't explicitly camera 2, so pre-existing single-camera
+    // recordings keep belonging to it. No param still returns every take.
+    const cameraId = parseCameraId(req.nextUrl.searchParams.get("camera"));
+    const camera2Only = { filename: { startsWith: CAMERA_FILENAME_PREFIX[2] } };
+
     const rows = await prisma.videoRecording.findMany({
+      where:
+        cameraId === 2 ? camera2Only : cameraId === 1 ? { NOT: camera2Only } : undefined,
       orderBy: { createdAt: "desc" },
     });
 
