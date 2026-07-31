@@ -1,13 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-
-interface SavedRecording {
-  filename: string;
-  url: string;
-  size: number;
-  createdAt: string;
-}
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import CameraStudioCard from "@/components/camera-studio-card";
+import { formatSize, formatTime } from "@/lib/format";
+import { useCameraRecorder, type CameraRecorder } from "@/lib/use-camera-recorder";
 
 interface SavedAudio {
   filename: string;
@@ -39,20 +35,12 @@ const NEX_START_FRAME = "X001A[17]";
 const NEX_END_FRAME = "X001A[3]";
 
 export default function HomePage() {
-  // --- Video States ---
-  const [isVideoCameraActive, setIsVideoCameraActive] = useState<boolean>(false);
-  const [isVideoRecording, setIsVideoRecording] = useState<boolean>(false);
-  const [videoRecordingTime, setVideoRecordingTime] = useState<number>(0);
-  const [videoError, setVideoError] = useState<string | null>(null);
-  const [isVideoSaving, setIsVideoSaving] = useState<boolean>(false);
-  const [lastSavedVideo, setLastSavedVideo] = useState<SavedRecording | null>(null);
-  const [savedVideos, setSavedVideos] = useState<SavedRecording[]>([]);
-
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const videoStreamRef = useRef<MediaStream | null>(null);
-  const videoRecorderRef = useRef<MediaRecorder | null>(null);
-  const videoChunksRef = useRef<Blob[]>([]);
-  const videoTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // --- Camera States ---
+  // Two independent capture chains. Only camera 1 carries the mic so the takes
+  // don't fight over the input device or double up the room sound.
+  const camera1 = useCameraRecorder(1, { captureAudio: true });
+  const camera2 = useCameraRecorder(2);
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
 
   // --- Audio States ---
   const [isAudioRecording, setIsAudioRecording] = useState<boolean>(false);
@@ -78,32 +66,30 @@ export default function HomePage() {
     end: () => {},
   });
 
-  // Mount effects
-  useEffect(() => {
-    startCamera();
-    fetchSavedVideos();
-    fetchSavedAudioFiles();
-
-    return () => {
-      stopCamera();
-      stopAudioRecordingStream();
-      if (videoTimerRef.current) clearInterval(videoTimerRef.current);
-      if (audioTimerRef.current) clearInterval(audioTimerRef.current);
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
+  const refreshVideoDevices = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((d) => d.kind === "videoinput" && d.deviceId);
+      setVideoDevices(inputs);
+      return inputs;
+    } catch (err) {
+      console.error("Failed to enumerate video devices:", err);
+      return [] as MediaDeviceInfo[];
+    }
   }, []);
 
-  // Fetch Videos
-  const fetchSavedVideos = async () => {
-    try {
-      const res = await fetch("/api/save-recording");
-      if (res.ok) {
-        const data = await res.json();
-        setSavedVideos(data.recordings || []);
-      }
-    } catch (err) {
-      console.error("Failed to fetch saved videos:", err);
-    }
+  // Cameras get hot-plugged mid-show; keep the pickers honest.
+  useEffect(() => {
+    const onDeviceChange = () => refreshVideoDevices();
+    navigator.mediaDevices?.addEventListener("devicechange", onDeviceChange);
+    return () =>
+      navigator.mediaDevices?.removeEventListener("devicechange", onDeviceChange);
+  }, [refreshVideoDevices]);
+
+  const handleSelectDevice = (recorder: CameraRecorder) => async (deviceId: string) => {
+    if (!deviceId) return;
+    await recorder.startCamera(deviceId);
+    refreshVideoDevices();
   };
 
   // Fetch Audio Files
@@ -116,127 +102,6 @@ export default function HomePage() {
       }
     } catch (err) {
       console.error("Failed to fetch saved audio files:", err);
-    }
-  };
-
-  // ================= VIDEO CAPTURE LOGIC =================
-  const startCamera = async () => {
-    setVideoError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: true,
-      });
-
-      videoStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setIsVideoCameraActive(true);
-    } catch (err: any) {
-      setVideoError("Camera access failed: " + err.message);
-      setIsVideoCameraActive(false);
-    }
-  };
-
-  const stopCamera = () => {
-    if (videoStreamRef.current) {
-      videoStreamRef.current.getTracks().forEach((track) => track.stop());
-      videoStreamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setIsVideoCameraActive(false);
-  };
-
-  const handleStartVideoRecording = () => {
-    if (!videoStreamRef.current) {
-      setVideoError("Camera stream is not active.");
-      return;
-    }
-
-    videoChunksRef.current = [];
-    setVideoRecordingTime(0);
-    setVideoError(null);
-    setLastSavedVideo(null);
-
-    try {
-      let options: MediaRecorderOptions = {};
-      if (MediaRecorder.isTypeSupported("video/mp4;codecs=avc1")) {
-        options = { mimeType: "video/mp4;codecs=avc1" };
-      } else if (MediaRecorder.isTypeSupported("video/mp4")) {
-        options = { mimeType: "video/mp4" };
-      } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
-        options = { mimeType: "video/webm;codecs=vp9" };
-      } else if (MediaRecorder.isTypeSupported("video/webm")) {
-        options = { mimeType: "video/webm" };
-      }
-
-      const recorder = new MediaRecorder(videoStreamRef.current, options);
-
-      recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) videoChunksRef.current.push(e.data);
-      };
-
-      recorder.onstop = async () => {
-        const blob = new Blob(videoChunksRef.current, {
-          type: recorder.mimeType || "video/mp4",
-        });
-        await saveVideoToServer(blob);
-      };
-
-      recorder.start(1000);
-      videoRecorderRef.current = recorder;
-      setIsVideoRecording(true);
-
-      videoTimerRef.current = setInterval(() => {
-        setVideoRecordingTime((prev) => prev + 1);
-      }, 1000);
-    } catch (err: any) {
-      setVideoError("Video recording failed: " + err.message);
-    }
-  };
-
-  const handleEndVideoRecording = () => {
-    // Gate on the recorder itself rather than React state: the hardware panel can
-    // fire this from a subscription that never re-renders.
-    if (videoRecorderRef.current?.state === "recording") {
-      videoRecorderRef.current.stop();
-      setIsVideoRecording(false);
-      if (videoTimerRef.current) clearInterval(videoTimerRef.current);
-    }
-  };
-
-  const saveVideoToServer = async (blob: Blob) => {
-    setIsVideoSaving(true);
-    try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `camera-recording-${timestamp}.mp4`;
-      const formData = new FormData();
-      formData.append("video", blob, filename);
-
-      const res = await fetch("/api/save-recording", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setLastSavedVideo({
-          filename: data.filename,
-          url: data.filePath,
-          size: data.size || blob.size,
-          createdAt: data.createdAt || new Date().toISOString(),
-        });
-        fetchSavedVideos();
-      } else {
-        setVideoError(data.error || "Failed to save video.");
-      }
-    } catch (err: any) {
-      setVideoError("Video save error: " + err.message);
-    } finally {
-      setIsVideoSaving(false);
     }
   };
 
@@ -363,14 +228,52 @@ export default function HomePage() {
     }
   };
 
+  // Mount effects
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      // Camera 1 opens the default device first: that grants the permission that
+      // makes enumerateDevices() hand back real deviceIds and labels, which is
+      // what camera 2 needs to pin a *different* piece of hardware.
+      const primaryDeviceId = await camera1.startCamera();
+      const inputs = await refreshVideoDevices();
+      if (cancelled) return;
+
+      const secondary = inputs.find((d) => d.deviceId !== primaryDeviceId);
+      if (secondary) {
+        await camera2.startCamera(secondary.deviceId);
+      } else {
+        camera2.setError(
+          "No second camera detected. Connect one, then pick it in the list below."
+        );
+      }
+    })();
+
+    camera1.fetchSaved();
+    camera2.fetchSaved();
+    fetchSavedAudioFiles();
+
+    return () => {
+      cancelled = true;
+      stopAudioRecordingStream();
+      if (audioTimerRef.current) clearInterval(audioTimerRef.current);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ================= NEXMOSPHERE PANEL TRIGGERS =================
-  // One physical button runs the whole studio, so both recorders move together.
-  // `recorder.state` is the synchronous source of truth — React state lags a
-  // render behind, and a double press would otherwise stack two MediaRecorders
-  // and orphan the first one's chunks.
+  // One physical button runs the whole studio, so both cameras and the master
+  // audio move together. `recorder.state` is the synchronous source of truth —
+  // React state lags a render behind, and a double press would otherwise stack
+  // two MediaRecorders and orphan the first one's chunks.
   const startAllRecording = () => {
-    if (videoRecorderRef.current?.state !== "recording") {
-      handleStartVideoRecording();
+    if (!camera1.isRecorderRunning()) {
+      camera1.startRecording();
+    }
+    if (!camera2.isRecorderRunning()) {
+      camera2.startRecording();
     }
     if (audioRecorderRef.current?.state !== "recording") {
       startAudioRecording();
@@ -378,7 +281,8 @@ export default function HomePage() {
   };
 
   const endAllRecording = () => {
-    handleEndVideoRecording();
+    camera1.endRecording();
+    camera2.endRecording();
     handleEndAudioRecording();
   };
 
@@ -427,18 +331,6 @@ export default function HomePage() {
     return () => source.close();
   }, []);
 
-  // Utilities
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  };
-
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-    return (bytes / (1024 * 1024)).toFixed(2) + " MB";
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       {/* Studio Header */}
@@ -452,7 +344,7 @@ export default function HomePage() {
               Broadcast Studio Dashboard
             </h1>
             <p className="text-xs text-slate-400">
-              Video Capture (`/public/recordings/`) & Audio Capture (`/public/audio/`)
+              Dual Camera Capture & Audio Capture (MinIO + Postgres)
             </p>
           </div>
         </div>
@@ -483,154 +375,43 @@ export default function HomePage() {
             href="/screen1"
             className="text-xs px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold transition shadow-lg shadow-rose-950"
           >
-            Open Screen 01 (Looper) →
+            Screen 01 →
+          </a>
+          <a
+            href="/screen2"
+            className="text-xs px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition shadow-lg shadow-indigo-950"
+          >
+            Screen 02 →
           </a>
         </div>
       </header>
 
-      {/* Studio Grid: Left (Video) & Right (Audio) */}
+      {/* Studio Grid: Camera 01 | Camera 02, master audio underneath */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        
-        {/* ================= LEFT SIDE: VIDEO RECORDING ================= */}
-        <section className="space-y-6 bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <span>📹</span> Video Studio Capture
-              </h2>
-              <p className="text-xs text-slate-400">
-                Saves camera video to <code className="text-rose-300">/public/recordings/</code>
-              </p>
-            </div>
-            {isVideoRecording && (
-              <span className="px-3 py-1 rounded-full bg-rose-950 border border-rose-500/40 text-rose-300 text-xs font-mono font-bold animate-pulse">
-                REC {formatTime(videoRecordingTime)}
-              </span>
-            )}
-          </div>
 
-          {videoError && (
-            <div className="p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-xs">
-              {videoError}
-            </div>
-          )}
+        {/* ================= CAMERA 01 -> SCREEN 01 ================= */}
+        <CameraStudioCard
+          recorder={camera1}
+          devices={videoDevices}
+          onSelectDevice={handleSelectDevice(camera1)}
+        />
 
-          {/* Camera Canvas */}
-          <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950 aspect-video flex items-center justify-center">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`w-full h-full object-cover ${
-                isVideoCameraActive ? "opacity-100" : "opacity-0"
-              }`}
-            />
+        {/* ================= CAMERA 02 -> SCREEN 02 ================= */}
+        <CameraStudioCard
+          recorder={camera2}
+          devices={videoDevices}
+          onSelectDevice={handleSelectDevice(camera2)}
+        />
 
-            {!isVideoCameraActive && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-4 text-center">
-                <p className="text-sm font-medium text-slate-300 mb-2">
-                  Camera Feed Inactive
-                </p>
-                <button
-                  onClick={startCamera}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
-                >
-                  Enable Camera
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Video Controls */}
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={handleStartVideoRecording}
-              disabled={isVideoRecording || !isVideoCameraActive || isVideoSaving}
-              className={`flex-1 py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition ${
-                isVideoRecording || !isVideoCameraActive || isVideoSaving
-                  ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800"
-                  : "bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950"
-              }`}
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-white" />
-              Start Recording
-            </button>
-
-            <button
-              onClick={handleEndVideoRecording}
-              disabled={!isVideoRecording || isVideoSaving}
-              className={`flex-1 py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition ${
-                !isVideoRecording || isVideoSaving
-                  ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800"
-                  : "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700"
-              }`}
-            >
-              <span className="w-3 h-3 rounded-sm bg-rose-400" />
-              End Recording
-            </button>
-          </div>
-
-          {isVideoSaving && (
-            <p className="text-xs font-mono text-amber-400 animate-pulse text-center">
-              Saving video to /public/recordings...
-            </p>
-          )}
-
-          {/* Last Saved Video Info */}
-          {lastSavedVideo && (
-            <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20 text-xs space-y-2">
-              <div className="flex items-center justify-between text-emerald-400 font-semibold">
-                <span>✓ Video Saved to /public/recordings/</span>
-                <span>{formatSize(lastSavedVideo.size)}</span>
-              </div>
-              <p className="font-mono text-slate-300 truncate bg-slate-950 p-2 rounded">
-                {lastSavedVideo.filename}
-              </p>
-            </div>
-          )}
-
-          {/* Saved Videos List */}
-          <div className="space-y-3 pt-2">
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Recent Video Recordings ({savedVideos.length})
-            </h3>
-            {savedVideos.length === 0 ? (
-              <p className="text-xs text-slate-500 italic">No video files recorded yet.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {savedVideos.slice(0, 3).map((v) => (
-                  <div
-                    key={v.filename}
-                    className="p-2.5 rounded-lg border border-slate-800 bg-slate-950 flex items-center justify-between text-xs"
-                  >
-                    <span className="font-mono text-slate-300 truncate max-w-[200px]">
-                      {v.filename}
-                    </span>
-                    <a
-                      href={v.url}
-                      download={v.filename}
-                      className="text-rose-400 hover:underline font-mono"
-                    >
-                      Download MP4
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
-
-        {/* ================= RIGHT SIDE: AUDIO RECORDING ================= */}
-        <section className="space-y-6 bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl">
+        {/* ================= MASTER AUDIO RECORDING ================= */}
+        <section className="lg:col-span-2 space-y-6 bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl">
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div>
               <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                 <span>🎙️</span> Audio Studio Recorder
               </h2>
               <p className="text-xs text-slate-400">
-                Saves master audio to <code className="text-rose-300">/public/audio/</code>
+                Saves master audio to the <code className="text-rose-300">audio</code> bucket
               </p>
             </div>
             {isAudioRecording && (
@@ -679,7 +460,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* RIGHT SIDE AUDIO BUTTONS */}
+          {/* AUDIO BUTTONS */}
           <div className="flex items-center gap-3 pt-2">
             <button
               onClick={startAudioRecording}
@@ -710,7 +491,7 @@ export default function HomePage() {
 
           {isAudioSaving && (
             <p className="text-xs font-mono text-amber-400 animate-pulse text-center">
-              Saving audio to /public/audio...
+              Saving audio...
             </p>
           )}
 
@@ -718,7 +499,7 @@ export default function HomePage() {
           {lastSavedAudio && (
             <div className="p-4 rounded-xl border border-indigo-500/30 bg-indigo-950/20 text-xs space-y-2">
               <div className="flex items-center justify-between text-indigo-300 font-semibold">
-                <span>✓ Audio Saved to /public/audio/</span>
+                <span>✓ Audio Saved</span>
                 <span>{formatSize(lastSavedAudio.size)}</span>
               </div>
               <p className="font-mono text-slate-300 truncate bg-slate-950 p-2 rounded">
@@ -731,12 +512,12 @@ export default function HomePage() {
           {/* Saved Audio List */}
           <div className="space-y-3 pt-2">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Saved Audio Files in `/public/audio/` ({savedAudioFiles.length})
+              Saved Audio Files ({savedAudioFiles.length})
             </h3>
             {savedAudioFiles.length === 0 ? (
               <p className="text-xs text-slate-500 italic">No audio files recorded yet.</p>
             ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
                 {savedAudioFiles.slice(0, 4).map((a) => (
                   <div
                     key={a.filename}
