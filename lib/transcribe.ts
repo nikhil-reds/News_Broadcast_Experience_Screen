@@ -63,7 +63,7 @@ export async function runWhisper(
   for (const whisperUrl of whisperUrls) {
     try {
       const form = new FormData();
-      form.append("file", new Blob([audioBuffer], { type: "audio/wav" }), filename);
+      form.append("file", new Blob([new Uint8Array(audioBuffer)], { type: "audio/wav" }), filename);
       form.append("task", "transcribe");
 
       const controller = new AbortController();
