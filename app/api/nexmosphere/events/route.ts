@@ -1,5 +1,5 @@
-import type { NextRequest } from "next/server";
-import { getStatus, subscribe, type NexmosphereEvent } from "@/lib/nexmosphere";
+import { NextResponse, type NextRequest } from "next/server";
+import { emitFrame, getStatus, subscribe, type NexmosphereEvent } from "@/lib/nexmosphere";
 
 // Long-lived stream: must run on the Node runtime (native serial bindings) and
 // must never be cached or statically prerendered.
@@ -85,4 +85,42 @@ export async function GET(req: NextRequest) {
       "X-Accel-Buffering": "no",
     },
   });
+}
+
+/**
+ * POST /api/nexmosphere/events  { raw: "X002A[1]" }
+ *
+ * Push a frame to every connected screen as if the controller had sent it —
+ * for driving the rotary screens while the cable isn't plugged in:
+ *
+ *     curl -X POST localhost:3001/api/nexmosphere/events -d '{"raw":"X002A[1]"}'
+ *
+ * Development only: the studio installation must never take panel input from
+ * the network.
+ */
+export async function POST(req: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not available in production" }, { status: 404 });
+  }
+
+  let body: { raw?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (!body.raw) {
+    return NextResponse.json({ error: 'raw is required, e.g. "X002A[1]"' }, { status: 400 });
+  }
+
+  const event = emitFrame(body.raw);
+  if (!event) {
+    return NextResponse.json(
+      { error: `"${body.raw}" is not a valid X-talk frame` },
+      { status: 400 }
+    );
+  }
+
+  return NextResponse.json({ delivered: true, event, subscribers: getStatus().subscribers });
 }
