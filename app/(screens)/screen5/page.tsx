@@ -7,7 +7,7 @@ import { useNexmosphere } from "@/lib/use-nexmosphere";
  * Screen 05 — Audio Language Change.
  *
  * The Nexmosphere rotary knob walks the language ring; the screen swaps the
- * <audio> source to that language's CosyVoice 2 take (English plays the
+ * <audio> source to that language's Gemini TTS take (English plays the
  * original recording). Turning the knob only moves the highlight — the source
  * switch is committed once the knob settles, so spinning past three languages
  * reloads the player once rather than three times.
@@ -62,7 +62,7 @@ const FALLBACK_LANGUAGES: AudioLanguageEntry[] = [
 
 /** Knob settling time before the audio source is actually swapped. */
 const COMMIT_DELAY_MS = 400;
-/** How often to re-check whether a queued CosyVoice take has landed. */
+/** How often to re-check whether a queued Gemini TTS take has landed. */
 const POLL_MS = 3000;
 
 export default function Screen5Page() {
@@ -170,7 +170,7 @@ export default function Screen5Page() {
 
   // ---- Make the committed language playable ---------------------------------
   // English is the original file and always ready. Any other language needs its
-  // translation (Qwen) and its speech (CosyVoice 2); ask for both, then poll
+  // translation (Qwen) and its speech (Gemini TTS); ask for both, then poll
   // until the take shows up.
   useEffect(() => {
     if (!selectedUrl || !active || active.original) {
@@ -412,7 +412,7 @@ export default function Screen5Page() {
                 : isPreparing
                 ? "Synthesizing this language…"
                 : active?.ready
-                ? "CosyVoice 2 translated take"
+                ? "Gemini TTS translated take"
                 : "Not available yet"}
             </p>
           </div>
