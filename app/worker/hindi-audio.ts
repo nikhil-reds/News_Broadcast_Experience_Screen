@@ -1,9 +1,8 @@
 /**
  * Hindi Audio Worker
  * ------------------
- * Consumes the "hindi-audio" queue: synthesizes CosyVoice 2 speech (cloning
- * the original broadcast's voice) for the persisted Hindi translation and
- * saves it to MinIO as `<filename>.hi.wav`.
+ * Consumes the "hindi-audio" queue: synthesizes Gemini TTS speech for the
+ * persisted Hindi translation and saves it to MinIO as `<filename>.hi.wav`.
  *
  *     npm run worker:hindi-audio
  */
