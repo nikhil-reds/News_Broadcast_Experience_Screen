@@ -124,6 +124,67 @@ export async function extractNormalizedClip(opts: {
 }
 
 /**
+ * Chroma-key `input` (a green-screen take) onto `backgroundImage` and write
+ * the composited result to `output`. Used by the Screen 07 background picker.
+ *
+ * The key color was sampled from the studio take's actual green (~#46C832,
+ * not the pure #00FF00 the filter defaults assume). similarity/blend are
+ * intentionally tight (0.12/0.04) — at the first-pass values (0.18/0.08) the
+ * key range was wide enough to catch her light-grey shirt and skin tone too,
+ * making them ~40-65% transparent and letting the background ghost through
+ * (visible as background detail bleeding across her face/shoulders). Verified
+ * by inspecting the foreground layer's alpha channel directly: at 0.12/0.04
+ * face/shirt are fully opaque (alpha 255) and only ~0.4% of pixels fall in
+ * the partial-alpha band, which is just the antialiased cutout edge.
+ * `despill` pulls the residual green tint out of hair/skin along that edge
+ * afterward.
+ */
+export async function composeGreenScreenBackground(opts: {
+  input: string;
+  backgroundImage: string;
+  output: string;
+  width?: number;
+  height?: number;
+}): Promise<void> {
+  // 960x540 + ultrafast trims the render meaningfully versus 720p/veryfast
+  // (~30-40% faster in testing) at a quality cost that doesn't matter for a
+  // studio-monitor-sized card. Screen 07 also pre-warms every background in
+  // the background on load, so this preset is only ever felt on a cold start.
+  const { input, backgroundImage, output, width = 960, height = 540 } = opts;
+
+  const filter =
+    `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,` +
+    `crop=${width}:${height},setsar=1,format=yuv420p[bg];` +
+    `[1:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
+    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,` +
+    `chromakey=0x46C832:0.12:0.04,despill=type=green:mix=0.5:expand=0[fg];` +
+    `[bg][fg]overlay=shortest=1:format=auto[outv]`;
+
+  await run(FFMPEG_BIN, [
+    "-y",
+    // Screen 07 surfaces `failedReason` verbatim in its error banner, and on
+    // failure `run()` keeps only the tail of stderr — which the version +
+    // configure-flags banner is long enough to fill on its own, burying the one
+    // line that says what actually went wrong. Drop the banner and the
+    // per-frame progress chatter so what's left is the error itself.
+    "-hide_banner",
+    "-loglevel", "error",
+    "-loop", "1",
+    "-i", backgroundImage,
+    "-i", input,
+    "-filter_complex", filter,
+    "-map", "[outv]",
+    "-c:v", "libx264",
+    "-preset", "ultrafast",
+    "-crf", "23",
+    "-pix_fmt", "yuv420p",
+    "-shortest",
+    "-movflags", "+faststart",
+    output,
+  ]);
+}
+
+/**
  * Join the normalized clips. `clips` are filenames relative to `cwd` — keeping
  * them relative sidesteps quoting Windows paths inside the concat list file.
  */
