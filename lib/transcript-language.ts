@@ -88,7 +88,7 @@ export async function persistTranslation(params: {
   });
 
   // A translation just became available — hand it off to that language's
-  // dedicated CosyVoice 2 audio-conversion worker. Best-effort: a queue
+  // dedicated Gemini TTS audio-conversion worker. Best-effort: a queue
   // outage must not fail the translation itself. Fires regardless of whether
   // this was called by a background worker or the on-demand cache-fill path.
   if (flatText.trim()) {
