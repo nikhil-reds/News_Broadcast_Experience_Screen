@@ -10,7 +10,7 @@ import { getTranscriptForLanguage } from "@/lib/transcript-language";
  * screen is playing:
  *
  *   English  → the original recording itself
- *   others   → the CosyVoice 2 take produced from that language's translation
+ *   others   → the Gemini TTS take produced from that language's translation
  *              (lib/audio-conversion-worker.ts), if it has been synthesized yet
  *
  * GET  returns the catalogue with a `ready` flag per language.
