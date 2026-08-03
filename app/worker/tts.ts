@@ -1,7 +1,7 @@
 /**
  * Combined TTS (Audio Conversion) Workers Launcher
  * --------------------------------------------------
- * Starts all 4 per-language CosyVoice 2 audio-conversion workers
+ * Starts all 4 per-language Gemini TTS audio-conversion workers
  * (german-audio, hindi-audio, french-audio, spanish-audio) in a single
  * process, for convenient local development.
  *
