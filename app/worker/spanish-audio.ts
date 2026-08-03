@@ -1,9 +1,8 @@
 /**
  * Spanish Audio Worker
  * ---------------------
- * Consumes the "spanish-audio" queue: synthesizes CosyVoice 2 speech (cloning
- * the original broadcast's voice) for the persisted Spanish translation and
- * saves it to MinIO as `<filename>.es.wav`.
+ * Consumes the "spanish-audio" queue: synthesizes Gemini TTS speech for the
+ * persisted Spanish translation and saves it to MinIO as `<filename>.es.wav`.
  *
  *     npm run worker:spanish-audio
  */
