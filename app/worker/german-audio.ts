@@ -1,9 +1,8 @@
 /**
  * German Audio Worker
  * --------------------
- * Consumes the "german-audio" queue: synthesizes CosyVoice 2 speech (cloning
- * the original broadcast's voice) for the persisted German translation and
- * saves it to MinIO as `<filename>.de.wav`.
+ * Consumes the "german-audio" queue: synthesizes Gemini TTS speech for the
+ * persisted German translation and saves it to MinIO as `<filename>.de.wav`.
  *
  *     npm run worker:german-audio
  */
