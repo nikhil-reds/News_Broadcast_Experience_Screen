@@ -1,0 +1,32 @@
+[
+  {
+    "id": "newsroom-blue",
+    "label": "Newsroom Blue",
+    "image": "/backgrounds/newsroom-blue.jpg",
+    "thumb": "/backgrounds/thumbs/newsroom-blue.jpg"
+  },
+  {
+    "id": "city-skyline",
+    "label": "City Skyline",
+    "image": "/backgrounds/city-skyline.jpg",
+    "thumb": "/backgrounds/thumbs/city-skyline.jpg"
+  },
+  {
+    "id": "world-map",
+    "label": "World Map",
+    "image": "/backgrounds/world-map.jpg",
+    "thumb": "/backgrounds/thumbs/world-map.jpg"
+  },
+  {
+    "id": "sunrise-studio",
+    "label": "Sunrise Studio",
+    "image": "/backgrounds/sunrise-studio.jpg",
+    "thumb": "/backgrounds/thumbs/sunrise-studio.jpg"
+  },
+  {
+    "id": "corporate-grey",
+    "label": "Corporate Grey",
+    "image": "/backgrounds/corporate-grey.jpg",
+    "thumb": "/backgrounds/thumbs/corporate-grey.jpg"
+  }
+]
