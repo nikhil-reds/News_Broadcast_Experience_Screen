@@ -42,6 +42,9 @@ next-env.d.ts
 
 /app/generated/prisma
 
+# ffmpeg-composited output cached by the Screen 07 green-screen worker
+/public/generated/
+
 
 .claude
 .agents
