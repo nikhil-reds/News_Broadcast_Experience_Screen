@@ -19,7 +19,8 @@
     "worker:french-audio": "tsx app/worker/french-audio.ts",
     "worker:spanish-audio": "tsx app/worker/spanish-audio.ts",
     "worker:tts": "tsx app/worker/tts.ts",
-    "worker:green-screen": "tsx app/worker/green-screen-compose.ts"
+    "worker:green-screen": "tsx app/worker/green-screen-compose.ts",
+    "worker:all": "tsx app/worker/all.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
