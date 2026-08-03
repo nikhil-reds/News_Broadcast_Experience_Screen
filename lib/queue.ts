@@ -221,3 +221,71 @@ export async function enqueueAudioConversion(
     { jobId: `audio-${langCode}-${filename}` }
   );
 }
+
+// ---------------------------------------------------------------------------
+// Green-screen queue: Screen 07's live background swap. One job per
+// background id — the ffmpeg chromakey composite is cached on disk, so this
+// only ever fires once per background (see lib/green-screen.ts).
+// ---------------------------------------------------------------------------
+
+export const GREEN_SCREEN_QUEUE = "green-screen-compose";
+
+/** Job payload: which background image to composite the studio take onto. */
+export interface GreenScreenJob {
+  backgroundId: string;
+}
+
+const globalForGreenScreenQueue = globalThis as unknown as {
+  __greenScreenQueue?: Queue<GreenScreenJob>;
+};
+
+export const greenScreenQueue =
+  globalForGreenScreenQueue.__greenScreenQueue ??
+  new Queue<GreenScreenJob>(GREEN_SCREEN_QUEUE, {
+    connection: redisConnection,
+    defaultJobOptions: {
+      attempts: 2,
+      backoff: { type: "exponential", delay: 3000 },
+      removeOnComplete: 50,
+      removeOnFail: 50,
+    },
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForGreenScreenQueue.__greenScreenQueue = greenScreenQueue;
+}
+
+/**
+ * Enqueue (or reuse) the compose job for one background. The jobId is the
+ * background id itself, so clicking the same swatch twice while it's still
+ * rendering re-attaches to the same job instead of starting a second ffmpeg
+ * pass.
+ *
+ * A jobId is a *permanent* dedup key in BullMQ, though — not just a
+ * while-it-runs one. Once a job with this id lands in the completed (or
+ * failed) set, `add()` silently hands back that finished record and never runs
+ * anything, and `removeOnComplete: 50` keeps it around for a long time. The
+ * file it produced lives in gitignored `public/generated/` and can vanish
+ * independently of Redis, so that stale record used to make a missing
+ * composite permanently unrenderable: the poll route reported "completed",
+ * Screen 07 marked the swatch ready, the <video> 404'd to black, and its
+ * error-retry re-enqueued straight back into the same no-op.
+ *
+ * So: drop any *finished* record for this id before adding. Jobs still
+ * waiting/active are deliberately left alone — that's the dedup we do want.
+ */
+export async function enqueueGreenScreenCompose(backgroundId: string) {
+  const jobId = `greenscreen-${backgroundId}`;
+
+  const existing = await greenScreenQueue.getJob(jobId);
+  if (existing) {
+    const state = await existing.getState();
+    if (state === "completed" || state === "failed") {
+      // Can still lose a race with another request doing the same thing; the
+      // loser's remove() throwing is harmless, `add()` below dedups anyway.
+      await existing.remove().catch(() => {});
+    }
+  }
+
+  return greenScreenQueue.add("compose", { backgroundId }, { jobId });
+}
