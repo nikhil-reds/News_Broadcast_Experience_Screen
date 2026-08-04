@@ -171,6 +171,16 @@ const SCREENS: ScreenInfo[] = [
     icon: "📺",
     visualType: "landscape",
   },
+  {
+    id: "screenMain",
+    num: "13",
+    title: "main screen",
+    description: "Responsive preview across 12 device profiles.",
+    path: "/main",
+    category: "Preview",
+    icon: "📱",
+    visualType: "portrait",
+  },
 ];
 
 const CATEGORY_COLORS = {
@@ -322,12 +332,15 @@ export default function ScreenNavigationMatrix({
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {remainingScreens.map((screen) => {
           const isRecording = getRecordingState(screen.id);
+          const isMainScreen = screen.id === "screenMain";
 
           return (
             <a
               key={screen.id}
               href={screen.path}
-              className="group relative flex flex-col justify-between bg-slate-950 border border-slate-800/80 hover:border-indigo-500/50 rounded-xl p-4 transition-all duration-300 hover:shadow-lg hover:shadow-indigo-950/30 overflow-hidden"
+              className={`group relative flex flex-col justify-between bg-slate-950 border border-slate-800/80 hover:border-indigo-500/50 rounded-xl p-4 transition-all duration-300 hover:shadow-lg hover:shadow-indigo-950/30 overflow-hidden ${
+                isMainScreen ? "col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-4" : ""
+              }`}
             >
               <div className="absolute inset-0 bg-radial from-slate-950 via-slate-950 to-slate-900/50 opacity-50 z-0" />
 
@@ -351,75 +364,88 @@ export default function ScreenNavigationMatrix({
                   </div>
                 </div>
 
-                <div className="aspect-[16/10] w-full rounded-lg bg-slate-900/60 border border-slate-800/80 overflow-hidden flex flex-col items-center justify-center p-2 relative">
+                <div className={`w-full rounded-lg bg-slate-900/60 border border-slate-800/80 overflow-hidden flex flex-col items-center justify-center p-2 relative ${
+                  isMainScreen ? "aspect-[21/3]" : "aspect-[16/10]"
+                }`}>
                   <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0)_95%,rgba(0,0,0,0.3)_95%)] bg-[size:100%_4px] opacity-20 pointer-events-none" />
 
-                  {screen.visualType === "camera" && (
-                    <div className="flex flex-col items-center justify-center text-slate-500 gap-1.5">
-                      <span className="text-2xl">{screen.icon}</span>
-                      <span className="text-[10px] font-mono tracking-widest text-slate-400">
-                        {isRecording ? "FEED LIVE" : "CAM ON-AIR"}
+                  {isMainScreen ? (
+                    <div className="flex items-center gap-3 text-indigo-400">
+                      <span className="text-2xl animate-pulse">🖥️</span>
+                      <span className="text-[10px] font-mono tracking-widest text-indigo-300 uppercase font-bold">
+                        Enter Responsive Preview Studio (12 Devices)
                       </span>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      {screen.visualType === "camera" && (
+                        <div className="flex flex-col items-center justify-center text-slate-500 gap-1.5">
+                          <span className="text-2xl">{screen.icon}</span>
+                          <span className="text-[10px] font-mono tracking-widest text-slate-400">
+                            {isRecording ? "FEED LIVE" : "CAM ON-AIR"}
+                          </span>
+                        </div>
+                      )}
 
-                  {screen.visualType === "waveform" && (
-                    <div className="flex items-center gap-1 justify-center w-full px-4">
-                      <div className="w-1 bg-emerald-500 rounded-full animate-pulse h-6" />
-                      <div className="w-1 bg-emerald-400 rounded-full animate-pulse h-10 delay-75" />
-                      <div className="w-1 bg-emerald-500 rounded-full animate-pulse h-4 delay-150" />
-                      <div className="w-1 bg-emerald-600 rounded-full animate-pulse h-12 delay-100" />
-                      <div className="w-1 bg-emerald-400 rounded-full animate-pulse h-7 delay-200" />
-                    </div>
-                  )}
+                      {screen.visualType === "waveform" && (
+                        <div className="flex items-center gap-1 justify-center w-full px-4">
+                          <div className="w-1 bg-emerald-500 rounded-full animate-pulse h-6" />
+                          <div className="w-1 bg-emerald-400 rounded-full animate-pulse h-10 delay-75" />
+                          <div className="w-1 bg-emerald-500 rounded-full animate-pulse h-4 delay-150" />
+                          <div className="w-1 bg-emerald-600 rounded-full animate-pulse h-12 delay-100" />
+                          <div className="w-1 bg-emerald-400 rounded-full animate-pulse h-7 delay-200" />
+                        </div>
+                      )}
 
-                  {screen.visualType === "languages" && (
-                    <div className="flex gap-1 items-center justify-center">
-                      <span className="text-xs">🇬🇧</span>
-                      <span className="text-xs">🇩🇪</span>
-                      <span className="text-xs">🇮🇳</span>
-                      <span className="text-xs">🇫🇷</span>
-                      <span className="text-xs">🇪🇸</span>
-                    </div>
-                  )}
+                      {screen.visualType === "languages" && (
+                        <div className="flex gap-1 items-center justify-center">
+                          <span className="text-xs">🇬🇧</span>
+                          <span className="text-xs">🇩🇪</span>
+                          <span className="text-xs">🇮🇳</span>
+                          <span className="text-xs">🇫🇷</span>
+                          <span className="text-xs">🇪🇸</span>
+                        </div>
+                      )}
 
-                  {screen.visualType === "video" && (
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="text-2xl text-indigo-400">✦</span>
-                      <span className="text-[9px] font-mono text-indigo-300">GEMINI CUT</span>
-                    </div>
-                  )}
+                      {screen.visualType === "video" && (
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-2xl text-indigo-400">✦</span>
+                          <span className="text-[9px] font-mono text-indigo-300">GEMINI CUT</span>
+                        </div>
+                      )}
 
-                  {screen.visualType === "banner" && (
-                    <div className="w-full h-full flex flex-col justify-between p-1">
-                      <div className="w-full bg-indigo-500/10 border border-indigo-500/20 text-[8px] text-center text-indigo-300 py-0.5 rounded">
-                        PROMO SPONSOR
-                      </div>
-                      <div className="flex justify-center items-center flex-1">
-                        <span className="text-lg">📺</span>
-                      </div>
-                    </div>
-                  )}
+                      {screen.visualType === "banner" && (
+                        <div className="w-full h-full flex flex-col justify-between p-1">
+                          <div className="w-full bg-indigo-500/10 border border-indigo-500/20 text-[8px] text-center text-indigo-300 py-0.5 rounded">
+                            PROMO SPONSOR
+                          </div>
+                          <div className="flex justify-center items-center flex-1">
+                            <span className="text-lg">📺</span>
+                          </div>
+                        </div>
+                      )}
 
-                  {screen.visualType === "portrait" && (
-                    <div className="h-full aspect-[9/16] bg-slate-950 border border-slate-700/60 rounded flex items-center justify-center text-[10px] text-slate-500 font-mono">
-                      9:16
-                    </div>
-                  )}
+                      {screen.visualType === "portrait" && (
+                        <div className="h-full aspect-[9/16] bg-slate-950 border border-slate-700/60 rounded flex items-center justify-center text-[10px] text-slate-500 font-mono">
+                          9:16
+                        </div>
+                      )}
 
-                  {screen.visualType === "landscape" && (
-                    <div className="w-full aspect-[16/9] bg-slate-950 border border-slate-700/60 rounded flex items-center justify-center text-[10px] text-slate-500 font-mono">
-                      16:9
-                    </div>
-                  )}
+                      {screen.visualType === "landscape" && (
+                        <div className="w-full aspect-[16/9] bg-slate-950 border border-slate-700/60 rounded flex items-center justify-center text-[10px] text-slate-500 font-mono">
+                          16:9
+                        </div>
+                      )}
 
-                  {screen.visualType === "sensor" && (
-                    <div className="flex flex-col items-center justify-center text-cyan-400 gap-1.5">
-                      <span className="text-2xl animate-pulse">📡</span>
-                      <span className="text-[9px] font-mono tracking-widest text-cyan-300">
-                        ACTIVE · 100%
-                      </span>
-                    </div>
+                      {screen.visualType === "sensor" && (
+                        <div className="flex flex-col items-center justify-center text-cyan-400 gap-1.5">
+                          <span className="text-2xl animate-pulse">📡</span>
+                          <span className="text-[9px] font-mono tracking-widest text-cyan-300">
+                            ACTIVE · 100%
+                          </span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
