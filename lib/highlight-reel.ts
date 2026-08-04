@@ -195,6 +195,7 @@ export async function buildHighlightReel(
     const sources: Record<CameraId, string> = {
       1: join(workDir, `cam1-${cam1Filename}`),
       2: join(workDir, `cam2-${cam2Filename}`),
+      3: "",
     };
     await Promise.all([
       downloadObjectToFile(VIDEO_BUCKET, cam1Filename, sources[1]),
@@ -204,10 +205,12 @@ export async function buildHighlightReel(
     const durations: Record<CameraId, number> = {
       1: await probeDurationSeconds(sources[1]),
       2: await probeDurationSeconds(sources[2]),
+      3: 0,
     };
     const audio: Record<CameraId, boolean> = {
       1: await hasAudioStream(sources[1]),
       2: await hasAudioStream(sources[2]),
+      3: false,
     };
 
     // 2. Gemini picks the moments.
