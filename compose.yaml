@@ -12,35 +12,8 @@ services:
       - "8000:8000"
     volumes:
       - whisper-models:/root/.cache/huggingface
-    depends_on:
-      qwen-pull:
-        condition: service_completed_successfully
     restart: unless-stopped
 
-  qwen:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - qwen-models:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-    restart: unless-stopped
-
-  qwen-pull:
-    image: ollama/ollama:latest
-    environment:
-      OLLAMA_HOST: http://qwen:11434
-    command: ["pull", "qwen2.5:3b"]
-    depends_on:
-      qwen:
-        condition: service_healthy
-    volumes:
-      - qwen-models:/root/.ollama
-    restart: "no"
 
   web:
     build:

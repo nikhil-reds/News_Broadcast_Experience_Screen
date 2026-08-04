@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import CameraStudioCard from "@/components/camera-studio-card";
-import AudioStudioCard from "@/components/audio-studio-card";
 import ScreenNavigationMatrix from "@/components/screen-navigation-matrix";
 import { useCameraRecorder } from "@/lib/use-camera-recorder";
 
@@ -34,15 +32,8 @@ export default function HomePage() {
   // don't fight over the input device or double up the room sound.
   const camera1 = useCameraRecorder(1, { captureAudio: true });
   const camera2 = useCameraRecorder(2);
+  const camera3 = useCameraRecorder(3);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
-
-  // --- Audio States & Triggers ---
-  const [isAudioRecording, setIsAudioRecording] = useState<boolean>(false);
-  const audioTriggersRef = useRef<{
-    start: () => void;
-    end: () => void;
-    isRecording: () => boolean;
-  } | null>(null);
 
   // --- Nexmosphere Hardware Panel States ---
   const [nexStatus, setNexStatus] = useState<NexmosphereStatus | null>(null);
@@ -98,10 +89,20 @@ export default function HomePage() {
           "No second camera detected. Connect one, then pick it in the list below."
         );
       }
+
+      const tertiary = inputs.find((d) => d.deviceId !== primaryDeviceId && d.deviceId !== secondary?.deviceId);
+      if (tertiary) {
+        await camera3.startCamera(tertiary.deviceId);
+      } else {
+        camera3.setError(
+          "No third camera detected. Connect one, then pick it in the list below."
+        );
+      }
     })();
 
     camera1.fetchSaved();
     camera2.fetchSaved();
+    camera3.fetchSaved();
 
     return () => {
       cancelled = true;
@@ -117,17 +118,15 @@ export default function HomePage() {
     if (!camera2.isRecorderRunning()) {
       camera2.startRecording();
     }
-    if (audioTriggersRef.current && !audioTriggersRef.current.isRecording()) {
-      audioTriggersRef.current.start();
+    if (!camera3.isRecorderRunning()) {
+      camera3.startRecording();
     }
   };
 
   const endAllRecording = () => {
     camera1.endRecording();
     camera2.endRecording();
-    if (audioTriggersRef.current) {
-      audioTriggersRef.current.end();
-    }
+    camera3.endRecording();
   };
 
   // Keep the triggers pointing at the newest closures so the subscription below
@@ -222,34 +221,11 @@ export default function HomePage() {
         <ScreenNavigationMatrix
           camera1Recording={camera1.isRecording}
           camera2Recording={camera2.isRecording}
-          audioRecording={isAudioRecording}
+          camera3Recording={camera3.isRecording}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-          {/* ================= CAMERA 01 -> SCREEN 01 ================= */}
-          <CameraStudioCard
-            recorder={camera1}
-            devices={videoDevices}
-            onSelectDevice={handleSelectDevice(camera1)}
-          />
+        {/* Control Room Matrix only */}
 
-          {/* ================= CAMERA 02 -> SCREEN 02 ================= */}
-          <CameraStudioCard
-            recorder={camera2}
-            devices={videoDevices}
-            onSelectDevice={handleSelectDevice(camera2)}
-          />
-
-          {/* ================= MASTER AUDIO RECORDING ================= */}
-          <AudioStudioCard
-            onRegisterTriggers={(triggers) => {
-              audioTriggersRef.current = triggers;
-            }}
-            onRecordingChange={(recording) => {
-              setIsAudioRecording(recording);
-            }}
-          />
-        </div>
 
       </main>
     </div>
