@@ -16,6 +16,7 @@ interface ScreenInfo {
 interface ScreenNavigationMatrixProps {
   camera1Recording?: boolean;
   camera2Recording?: boolean;
+  camera3Recording?: boolean;
   audioRecording?: boolean;
 }
 
@@ -152,11 +153,13 @@ const CATEGORY_COLORS = {
 export default function ScreenNavigationMatrix({
   camera1Recording = false,
   camera2Recording = false,
+  camera3Recording = false,
   audioRecording = false,
 }: ScreenNavigationMatrixProps) {
   const getRecordingState = (screenNum: string) => {
     if (screenNum === "01") return camera1Recording;
     if (screenNum === "02") return camera2Recording;
+    if (screenNum === "03") return camera3Recording;
     if (screenNum === "04" || screenNum === "05") return audioRecording;
     return false;
   };

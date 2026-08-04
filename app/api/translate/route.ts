@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { QWEN_MODEL, translateBatch, translateOne } from "@/lib/qwen";
+import { TRANSLATION_MODEL, translateBatch, translateOne } from "@/lib/translation";
 
 interface Segment {
   id: number;
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       targetLanguage,
-      model: QWEN_MODEL,
+      model: TRANSLATION_MODEL,
       segments: translatedSegments,
       text: translatedSegments.map((s) => s.text).join(" "),
     });
