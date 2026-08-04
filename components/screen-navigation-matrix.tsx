@@ -53,7 +53,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen01",
-    num: "04",
+    num: "01",
     title: "Camera 01 Footage",
     description: "Primary camera feed looping capture.",
     path: "/screen1",
@@ -63,7 +63,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen02",
-    num: "05",
+    num: "02",
     title: "Camera 02 Feed",
     description: "Secondary camera feed looping capture.",
     path: "/screen2",
@@ -73,7 +73,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen03",
-    num: "06",
+    num: "03",
     title: "Camera 03 Feed",
     description: "Auxiliary camera feed loop.",
     path: "/screen3",
@@ -83,7 +83,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen04",
-    num: "07",
+    num: "04",
     title: "Audio in Text",
     description: "Whisper live speech-to-text transcript.",
     path: "/screen4",
@@ -93,7 +93,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen05",
-    num: "08",
+    num: "05",
     title: "Multi-Language",
     description: "CosyVoice 2 audio translation ring.",
     path: "/screen5",
@@ -103,7 +103,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen06",
-    num: "09",
+    num: "06",
     title: "Edited Video (1st)",
     description: "Gemini-cut initial highlight reel.",
     path: "/screen6",
@@ -113,7 +113,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen07",
-    num: "10",
+    num: "07",
     title: "Bg Changes Video",
     description: "Video feed with modified background layouts.",
     path: "/screen7",
@@ -123,7 +123,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen08",
-    num: "11",
+    num: "08",
     title: "Subtitle Lang Change",
     description: "Edited highlights with dynamic subtitle languages.",
     path: "/screen8",
@@ -133,7 +133,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen09",
-    num: "12",
+    num: "09",
     title: "Ads Banner Video",
     description: "Edited video with integrated advertisement banners.",
     path: "/screen9",
@@ -143,7 +143,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen10",
-    num: "13",
+    num: "10",
     title: "Ads Banner Mirror",
     description: "Alternate layout of ads-integrated video.",
     path: "/screen10",
@@ -153,7 +153,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen11",
-    num: "14",
+    num: "11",
     title: "Final Preview (Portrait)",
     description: "Mobile portrait output compilation feed.",
     path: "/screen11",
@@ -163,7 +163,7 @@ const SCREENS: ScreenInfo[] = [
   },
   {
     id: "screen12",
-    num: "15",
+    num: "12",
     title: "Final Preview (Landscape)",
     description: "Broadcast landscape output compilation feed.",
     path: "/screen12",
