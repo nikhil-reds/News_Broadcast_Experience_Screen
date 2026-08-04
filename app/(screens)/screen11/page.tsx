@@ -8,13 +8,27 @@ export default function Screen11Page() {
         <h1 className="text-3xl font-extrabold text-white text-center">Final Preview (Portrait)</h1>
         
         {/* Mock Portrait Screen Frame */}
-        <div className="w-[280px] h-[500px] border-4 border-slate-800 bg-slate-900 rounded-3xl overflow-hidden flex flex-col justify-between p-4 relative shadow-2xl">
-          <div className="w-16 h-4 bg-slate-800 rounded-full mx-auto" /> {/* Speaker/Camera notch */}
-          <div className="flex-1 flex items-center justify-center text-slate-500 font-mono text-xs text-center p-2">
-            Simulated Mobile 9:16 Portrait Broadcast View
+        <div className="w-[390px] h-[693px] border-8 border-slate-800 bg-slate-900 rounded-[36px] overflow-hidden relative shadow-2xl ring-1 ring-slate-700/50">
+          {/* Notch */}
+          <div className="absolute top-3 left-1/2 transform -translate-x-1/2 w-20 h-4 bg-slate-950 rounded-full z-20 flex items-center justify-center">
+            <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-indigo-900/30" />
           </div>
-          <div className="w-full h-8 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg flex items-center justify-center text-[10px] font-bold cursor-pointer">
-            LIVE MONITOR FEED
+          
+          <video
+            src="/vecteezy_young-businesswoman-thinking-while-working-on-the-computer_31759070.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover"
+          />
+
+          <div className="absolute bottom-6 left-4 right-4 bg-slate-950/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-3 flex items-center justify-between z-10 text-[10px] font-mono">
+            <span className="text-emerald-400 animate-pulse flex items-center gap-1.5 font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              LIVE FEED
+            </span>
+            <span className="text-slate-400 font-bold uppercase tracking-wide">9:16 Portrait</span>
           </div>
         </div>
       </div>
