@@ -1,13 +1,13 @@
 import { Worker, type Job } from "bullmq";
 import { redisConnection } from "@/lib/redis";
-import { translateSegmentTexts } from "@/lib/qwen";
+import { translateSegmentTexts } from "@/lib/translation";
 import { persistTranslation } from "@/lib/transcript-language";
 import type { TranslationJob } from "@/lib/queue";
 
 export interface TranslationWorkerOptions {
   /** Queue name, e.g. "german-transcript". */
   queue: string;
-  /** Human language name passed to Qwen, e.g. "German". */
+  /** Human language name passed to Gemini, e.g. "German". */
   language: string;
   /** Short suffix used in the saved MinIO object key, e.g. "de". */
   langCode: string;

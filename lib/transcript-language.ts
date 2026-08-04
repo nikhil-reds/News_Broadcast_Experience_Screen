@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { TRANSCRIPTS_BUCKET, uploadObject } from "@/lib/minio";
-import { QWEN_MODEL, translateSegmentTexts } from "@/lib/qwen";
+import { TRANSLATION_MODEL, translateSegmentTexts } from "@/lib/translation";
 import { generateSrt, type TranscriptSegment } from "@/lib/transcribe";
 import { enqueueAudioConversion } from "@/lib/queue";
 
@@ -66,9 +66,9 @@ export async function persistTranslation(params: {
         bucket: TRANSCRIPTS_BUCKET,
         objectKey,
         url,
-        model: QWEN_MODEL,
+        model: TRANSLATION_MODEL,
       },
-      update: { text: flatText, objectKey, url, model: QWEN_MODEL },
+      update: { text: flatText, objectKey, url, model: TRANSLATION_MODEL },
     });
 
     await tx.transcriptTranslationSegment.deleteMany({
@@ -110,7 +110,7 @@ export async function persistTranslation(params: {
  * - `opts === null` → English: returns the transcript's own segments.
  * - `opts` set → looks up an existing TranscriptTranslation (cache hit, e.g.
  *   already computed by the background worker). On a cache miss, translates
- *   the original segments via Qwen right now and persists the result so the
+ *   the original segments via Gemini right now and persists the result so the
  *   next request for this audio+language is instant.
  */
 export async function getTranscriptForLanguage(
