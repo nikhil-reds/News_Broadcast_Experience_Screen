@@ -1,16 +1,79 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
-const AD_CAMPAIGNS = [
+interface AdCampaign {
+  id?: string;
+  sponsor: string;
+  text: string;
+  code: string;
+}
+
+/**
+ * Screen 10 mirrors Screen 09's rotation exactly (same campaigns, same
+ * clock) so the two HDMI outputs never show conflicting sponsors — it just
+ * renders the vertical-banner layout instead of the bottom banner.
+ */
+const FALLBACK_CAMPAIGNS: AdCampaign[] = [
   { sponsor: "AMAGI CLOUDPORT", text: "Scale your broadcast channel playout and platform delivery dynamically in the cloud.", code: "AMAGI-PLAYOUT" },
   { sponsor: "AMAGI THUNDERSTORM", text: "Supercharge your CTV & FAST monetization with advanced Server-Side Ad Insertion (SSAI).", code: "AMAGI-DYNAMIC-ADS" },
   { sponsor: "AMAGI PLANNER", text: "Simplify scheduling, planning, and EPG management for broadcast and FAST networks.", code: "AMAGI-EPG-PLANNER" },
 ];
 
+const ROTATE_MS = 5000;
+const REFETCH_MS = 30000;
+const REEL_POLL_MS = 3000;
+const PLACEHOLDER_VIDEO = "/vecteezy_young-businesswoman-thinking-while-working-on-the-computer_31759070.mp4";
+
 export default function Screen10Page() {
+  const [campaigns, setCampaigns] = useState<AdCampaign[]>(FALLBACK_CAMPAIGNS);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [time, setTime] = useState("");
+  const [reelUrl, setReelUrl] = useState<string | null>(null);
+
+  // Screen 06's Gemini-cut highlight reel, banner-overlaid here for broadcast —
+  // same source as Screen 09, so both mirrors show the same footage.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLatestReel = async () => {
+      try {
+        const res = await fetch("/api/save-recording?kind=highlight");
+        if (!res.ok) return;
+        const data = await res.json();
+        const list: { url: string }[] = data.recordings || [];
+        if (list.length > 0 && !cancelled) setReelUrl(list[0].url);
+      } catch {
+        // Keep whatever reel is already on screen.
+      }
+    };
+    fetchLatestReel();
+    const interval = setInterval(fetchLatestReel, REEL_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const fetchCampaigns = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ad-campaigns");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.campaigns) && data.campaigns.length > 0) {
+        setCampaigns(data.campaigns);
+      } else {
+        setCampaigns(FALLBACK_CAMPAIGNS);
+      }
+    } catch {
+      // Keep whatever campaigns are already on screen.
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCampaigns();
+    const refetchTimer = setInterval(fetchCampaigns, REFETCH_MS);
+    return () => clearInterval(refetchTimer);
+  }, [fetchCampaigns]);
 
   useEffect(() => {
     // Clock
@@ -21,16 +84,21 @@ export default function Screen10Page() {
 
     // Rotate active ad
     const adTimer = setInterval(() => {
-      setCurrentAdIndex((prev) => (prev + 1) % AD_CAMPAIGNS.length);
-    }, 5000);
+      setCurrentAdIndex((prev) => (campaigns.length ? (prev + 1) % campaigns.length : 0));
+    }, ROTATE_MS);
 
     return () => {
       clearInterval(timer);
       clearInterval(adTimer);
     };
-  }, []);
+  }, [campaigns]);
 
-  const activeAd = AD_CAMPAIGNS[currentAdIndex];
+  useEffect(() => {
+    if (currentAdIndex >= campaigns.length) setCurrentAdIndex(0);
+  }, [campaigns, currentAdIndex]);
+
+  const activeAd = campaigns[currentAdIndex] ?? campaigns[0];
+  if (!activeAd) return null;
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-sans p-6 space-y-6">
@@ -70,9 +138,10 @@ export default function Screen10Page() {
             <div className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-slate-500/40 pointer-events-none z-10" />
             <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-slate-500/40 pointer-events-none z-10" />
 
-            {/* Video Feed */}
+            {/* Video Feed — Screen 06's highlight reel once one exists */}
             <video
-              src="/vecteezy_young-businesswoman-thinking-while-working-on-the-computer_31759070.mp4"
+              key={reelUrl || PLACEHOLDER_VIDEO}
+              src={reelUrl || PLACEHOLDER_VIDEO}
               autoPlay
               loop
               muted
@@ -104,8 +173,12 @@ export default function Screen10Page() {
             {/* Top Video Status Overlays */}
             <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-10">
               <div className="flex items-center gap-2 bg-slate-950/60 backdrop-blur-sm px-2.5 py-1 rounded-md border border-slate-800 text-[10px] font-mono text-slate-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
-                HDMI-OUT-10
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    reelUrl ? "bg-indigo-500 animate-ping" : "bg-slate-600"
+                  }`}
+                />
+                {reelUrl ? "HIGHLIGHT REEL" : "AWAITING REEL"}
               </div>
               <div className="flex items-center gap-2 bg-slate-950/60 backdrop-blur-sm px-2.5 py-1 rounded-md border border-slate-800 text-[10px] font-mono text-slate-300">
                 1080p @ 60FPS
@@ -115,7 +188,7 @@ export default function Screen10Page() {
 
           {/* Campaign Pool (Below Video - Horizontal Grid of all three) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto w-full">
-            {AD_CAMPAIGNS.map((camp, idx) => {
+            {campaigns.map((camp, idx) => {
               const isActive = idx === currentAdIndex;
               return (
                 <div 
