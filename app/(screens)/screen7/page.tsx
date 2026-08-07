@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
   GREEN_SCREEN_BACKGROUNDS,
-  GREEN_SCREEN_SOURCE_URL,
   composedOutputUrl,
 } from "@/lib/green-screen";
+import { recordingSourceQuery } from "@/lib/camera-recordings";
 
 type ComposeStatus = "waiting" | "active" | "delayed" | "paused" | "completed" | "failed";
 
@@ -17,41 +17,84 @@ interface ComposeResponse {
   error?: string;
 }
 
+interface RecordingItem {
+  filename: string;
+  url: string;
+}
+
 const POLL_INTERVAL_MS = 700;
 /** Give up (and say so) rather than polling a dead worker forever. */
 const COMPOSE_TIMEOUT_MS = 3 * 60 * 1000;
+/** How often to check camera 1 for a newer take. */
+const SOURCE_POLL_MS = 3000;
+
+const CAMERA_1_QUERY = recordingSourceQuery({ camera: 1 });
 
 /**
- * One render in progress. Held in a ref-map keyed by background id so a click
- * can *attach* to the pre-warm pass already rendering that background instead
- * of racing a second request against it.
+ * One render in progress, keyed by `${backgroundId}::${sourceFilename}` — a
+ * new camera-1 take is a different pair even for the same background, so it
+ * never collides with (or gets mistaken for) a render of the previous take.
  */
 interface InFlightCompose {
   /** Set on unmount / settle so a late fetch resolution can't touch state. */
   cancelled: boolean;
   timer?: ReturnType<typeof setTimeout>;
-  /** Flips to false the moment the operator starts waiting on this render. */
+  /** Suppresses the big blocking loader / error banner (pre-warm passes). */
   silent: boolean;
+  /** Swap this into the video the moment it finishes, even if silent. */
+  autoShow: boolean;
   startedAt: number;
 }
 
+const keyFor = (backgroundId: string, sourceFilename: string) => `${backgroundId}::${sourceFilename}`;
+
 export default function Screen7Page() {
-  const [selectedId, setSelectedId] = useState<string | null>(null); // null = original green screen
-  const [videoSrc, setVideoSrc] = useState<string>(GREEN_SCREEN_SOURCE_URL);
-  const [pendingId, setPendingId] = useState<string | null>(null); // background switch the user is waiting on
-  const [readyIds, setReadyIds] = useState<Set<string>>(new Set()); // already rendered, instant to switch to
-  const [warmingIds, setWarmingIds] = useState<Set<string>>(new Set()); // rendering quietly in the background
+  const [sourceFilename, setSourceFilename] = useState<string | null>(null);
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null); // background switch the operator is waiting on
+  const [readyIds, setReadyIds] = useState<Set<string>>(new Set()); // composite keys, already rendered this session
+  const [warmingIds, setWarmingIds] = useState<Set<string>>(new Set()); // composite keys, rendering quietly
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const inFlight = useRef<Map<string, InFlightCompose>>(new Map());
   const elapsedTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAt = useRef<number>(0);
-  // Caps handleVideoError's auto-retry per background so a persistently
-  // broken render (as opposed to the one-off mid-write race it's meant to
-  // recover from) fails loud instead of flickering forever.
+  const selectedIdRef = useRef<string | null>(null);
+  // Caps handleVideoError's auto-retry per (background, take) so a
+  // persistently broken render fails loud instead of flickering forever.
   const videoRetryCount = useRef<Map<string, number>>(new Map());
   const MAX_VIDEO_RETRIES = 2;
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  // Camera 1's latest take — the thing this whole screen composites against.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLatestSource = async () => {
+      try {
+        const res = await fetch(`/api/save-recording?${CAMERA_1_QUERY}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const list: RecordingItem[] = data.recordings || [];
+        if (list.length > 0 && !cancelled) {
+          setSourceFilename((prev) => (prev === list[0].filename ? prev : list[0].filename));
+        }
+      } catch {
+        /* keep whatever source is already tracked */
+      }
+    };
+    fetchLatestSource();
+    const interval = setInterval(fetchLatestSource, SOURCE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const pending = inFlight.current;
@@ -82,40 +125,40 @@ export default function Screen7Page() {
   };
 
   /**
-   * True while `entry` is still the record registered for this background.
+   * True while `entry` is still the record registered for this key.
    *
-   * Every async step re-checks this instead of just re-reading the map by id.
-   * The difference matters because the map gets cleared wholesale (unmount, and
-   * React's StrictMode double-invoked mount effect in dev): a stale continuation
-   * that only looked up by id would find the *replacement* entry, adopt it, and
-   * start a second poll loop against it — two loops writing one `timer` field,
-   * one of them orphaned, and whichever settled first cancelling a render that
-   * belonged to the other. That silently lost completions (a swatch that had
-   * really rendered never lit up).
+   * Every async step re-checks this instead of just re-reading the map by
+   * key. The difference matters because the map gets cleared wholesale
+   * (unmount, and React's StrictMode double-invoked mount effect in dev): a
+   * stale continuation that only looked up by key would find the
+   * *replacement* entry, adopt it, and start a second poll loop against it —
+   * two loops writing one `timer` field, one of them orphaned, and whichever
+   * settled first cancelling a render that belonged to the other. That
+   * silently lost completions (a swatch that had really rendered never lit
+   * up).
    */
-  const ownsCompose = (backgroundId: string, entry: InFlightCompose) =>
-    !entry.cancelled && inFlight.current.get(backgroundId) === entry;
+  const ownsCompose = (key: string, entry: InFlightCompose) =>
+    !entry.cancelled && inFlight.current.get(key) === entry;
 
   /**
-   * Finish one render: drop its in-flight record and release the loader if the
-   * operator was waiting on it. Reads `silent` off the record rather than a
-   * closure param, so a pre-warm that got promoted by a click settles as the
-   * visible render it became.
+   * Finish one render: drop its in-flight record and release the loader if
+   * the operator was waiting on it. Reads `silent` off the record rather
+   * than a closure param, so a pre-warm that got promoted by a click settles
+   * as the visible render it became.
    */
-  const settleCompose = (backgroundId: string, entry: InFlightCompose, url?: string) => {
+  const settleCompose = (key: string, entry: InFlightCompose, url?: string) => {
     if (entry.timer) clearTimeout(entry.timer);
-    // Only clear the slot if it's still ours — never evict a successor.
-    if (inFlight.current.get(backgroundId) === entry) {
-      inFlight.current.delete(backgroundId);
+    if (inFlight.current.get(key) === entry) {
+      inFlight.current.delete(key);
     }
 
     setWarmingIds((prev) => {
       const next = new Set(prev);
-      next.delete(backgroundId);
+      next.delete(key);
       return next;
     });
     if (url) {
-      setReadyIds((prev) => new Set(prev).add(backgroundId));
+      setReadyIds((prev) => new Set(prev).add(key));
     }
     if (!entry.silent) {
       stopElapsedClock();
@@ -124,20 +167,26 @@ export default function Screen7Page() {
   };
 
   const showComposed = (backgroundId: string, url: string) => {
-    // Cache-buster: the URL is stable per background but its bytes change when
-    // a background is re-rendered, and `key={videoSrc}` needs a distinct value
-    // to actually remount and refetch.
+    // Cache-buster: the URL is stable per (background, take) but this guards
+    // against `key={videoSrc}` not remounting if a caller ever reuses one.
     setVideoSrc(`${url}?t=${Date.now()}`);
     setSelectedId(backgroundId);
+    selectedIdRef.current = backgroundId;
     // A successful swap retires whatever went wrong before it — otherwise
     // handleVideoError's "re-rendering it now…" notice outlives the re-render
     // it was describing and sits there over a background that plays fine.
     setErrorMessage(null);
   };
 
-  const pollCompose = (backgroundId: string, jobId: string, entry: InFlightCompose) => {
+  const pollCompose = (
+    backgroundId: string,
+    sourceTake: string,
+    jobId: string,
+    entry: InFlightCompose
+  ) => {
+    const key = keyFor(backgroundId, sourceTake);
     const tick = async () => {
-      if (!ownsCompose(backgroundId, entry)) return;
+      if (!ownsCompose(key, entry)) return;
 
       if (Date.now() - entry.startedAt > COMPOSE_TIMEOUT_MS) {
         if (!entry.silent) {
@@ -145,19 +194,24 @@ export default function Screen7Page() {
             "Compositing timed out. Is the worker running? — npm run worker:green-screen"
           );
         }
-        settleCompose(backgroundId, entry, undefined);
+        settleCompose(key, entry, undefined);
         return;
       }
 
       try {
-        const res = await fetch(`/api/green-screen/compose/${encodeURIComponent(jobId)}`);
+        const res = await fetch(
+          `/api/green-screen/compose/${encodeURIComponent(jobId)}` +
+            `?backgroundId=${encodeURIComponent(backgroundId)}&sourceFilename=${encodeURIComponent(sourceTake)}`
+        );
         const data: ComposeResponse = await res.json().catch(() => ({}) as ComposeResponse);
 
-        if (!ownsCompose(backgroundId, entry)) return;
+        if (!ownsCompose(key, entry)) return;
 
         if (data.status === "completed" && data.url) {
-          if (!entry.silent) showComposed(backgroundId, data.url);
-          settleCompose(backgroundId, entry, data.url);
+          if (entry.autoShow && (selectedIdRef.current === null || selectedIdRef.current === backgroundId)) {
+            showComposed(backgroundId, data.url);
+          }
+          settleCompose(key, entry, data.url);
           return;
         }
 
@@ -171,151 +225,150 @@ export default function Screen7Page() {
           if (!entry.silent) {
             setErrorMessage(data.error || "Compositing this background failed.");
           }
-          settleCompose(backgroundId, entry, undefined);
+          settleCompose(key, entry, undefined);
           return;
         }
 
         entry.timer = setTimeout(tick, POLL_INTERVAL_MS);
       } catch {
-        if (!ownsCompose(backgroundId, entry)) return;
+        if (!ownsCompose(key, entry)) return;
         if (!entry.silent) setErrorMessage("Lost contact with the compose worker.");
-        settleCompose(backgroundId, entry, undefined);
+        settleCompose(key, entry, undefined);
       }
     };
     tick();
   };
 
   /**
-   * Renders (or reuses) one background. `silent` is used for the on-load
-   * pre-warm pass: it tracks progress in `warmingIds`/`readyIds` without
-   * touching the video card or the big loader, so warming up the other four
-   * swatches never interrupts whatever is currently on screen.
+   * Renders (or reuses) one (background, take) pair. `silent` suppresses the
+   * big loader/error banner (used for pre-warming); `autoShow` swaps the
+   * result into the video the moment it's ready even while silent — used
+   * both for the very first background to finish (nobody's picked one yet)
+   * and for a silent refresh of the *currently selected* background after a
+   * new camera-1 take lands, so the screen updates on its own.
    */
-  const ensureComposed = (backgroundId: string, opts: { silent: boolean }) => {
-    const existing = inFlight.current.get(backgroundId);
+  const ensureComposed = (
+    backgroundId: string,
+    sourceTake: string,
+    opts: { silent: boolean; autoShow: boolean }
+  ) => {
+    const key = keyFor(backgroundId, sourceTake);
+    const existing = inFlight.current.get(key);
     if (existing) {
-      // Already rendering — almost always the on-load pre-warm pass. Attach to
-      // it instead of firing a second request: the old code let two pollers for
-      // one background share a single timer slot, so cancelling reached only
-      // one of them and the orphan kept swapping the <video> src underneath the
-      // live one. Promoting the existing render is also just correct — there is
-      // exactly one ffmpeg pass per background either way.
+      // Already rendering — attach instead of firing a second request: there
+      // is exactly one ffmpeg pass per (background, take) pair either way.
       if (!opts.silent) existing.silent = false;
+      if (opts.autoShow) existing.autoShow = true;
       return;
     }
 
     const entry: InFlightCompose = {
       cancelled: false,
       silent: opts.silent,
+      autoShow: opts.autoShow,
       startedAt: Date.now(),
     };
-    inFlight.current.set(backgroundId, entry);
-    setWarmingIds((prev) => new Set(prev).add(backgroundId));
+    inFlight.current.set(key, entry);
+    setWarmingIds((prev) => new Set(prev).add(key));
 
     (async () => {
       try {
         const res = await fetch("/api/green-screen/compose", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ backgroundId }),
+          body: JSON.stringify({ backgroundId, sourceFilename: sourceTake }),
         });
         const data: ComposeResponse = await res.json().catch(() => ({}) as ComposeResponse);
 
-        if (!ownsCompose(backgroundId, entry)) return;
+        if (!ownsCompose(key, entry)) return;
 
         if (!res.ok) {
           if (!entry.silent) setErrorMessage(data.error || "Failed to start compositing.");
-          settleCompose(backgroundId, entry, undefined);
+          settleCompose(key, entry, undefined);
           return;
         }
 
         if (data.status === "completed" && data.url) {
-          if (!entry.silent) showComposed(backgroundId, data.url);
-          settleCompose(backgroundId, entry, data.url);
+          if (entry.autoShow && (selectedIdRef.current === null || selectedIdRef.current === backgroundId)) {
+            showComposed(backgroundId, data.url);
+          }
+          settleCompose(key, entry, data.url);
           return;
         }
 
         if (data.jobId) {
-          pollCompose(backgroundId, data.jobId, entry);
+          pollCompose(backgroundId, sourceTake, data.jobId, entry);
           return;
         }
 
         if (!entry.silent) setErrorMessage("The compose API returned no job to track.");
-        settleCompose(backgroundId, entry, undefined);
+        settleCompose(key, entry, undefined);
       } catch (err) {
-        if (!ownsCompose(backgroundId, entry)) return;
+        if (!ownsCompose(key, entry)) return;
         const reason = err instanceof Error ? err.message : "";
         if (!entry.silent) setErrorMessage(reason || "Failed to reach the compose API.");
-        settleCompose(backgroundId, entry, undefined);
+        settleCompose(key, entry, undefined);
       }
     })();
   };
 
-  // Pre-warm every background as soon as the screen loads: the ffmpeg render
-  // is the slow part, not the click, so pay that cost up front in the
-  // background instead of making the operator wait on whichever swatch they
-  // happen to pick first. Cached results (from a previous run of this screen)
-  // resolve instantly and skip straight to "ready".
+  // Whenever camera 1's take changes (including the first time it's known):
+  // pre-warm every background against it, and if one is already selected,
+  // auto-show it again the moment its refresh against the new take is ready
+  // — so the screen always keeps showing an edited feed, never a stale or
+  // blank one, without the operator re-clicking anything.
   useEffect(() => {
-    GREEN_SCREEN_BACKGROUNDS.forEach((bg) => ensureComposed(bg.id, { silent: true }));
+    if (!sourceFilename) return;
+    GREEN_SCREEN_BACKGROUNDS.forEach((bg) => {
+      const autoShow = selectedIdRef.current === null || selectedIdRef.current === bg.id;
+      ensureComposed(bg.id, sourceFilename, { silent: true, autoShow });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sourceFilename]);
 
   const chooseBackground = (backgroundId: string) => {
+    if (!sourceFilename) return;
     if (backgroundId === selectedId || backgroundId === pendingId) return;
     setErrorMessage(null);
 
-    if (readyIds.has(backgroundId)) {
-      // Already rendered (pre-warmed or picked before) — swap instantly.
-      setVideoSrc(`${composedOutputUrl(backgroundId)}?t=${Date.now()}`);
+    const key = keyFor(backgroundId, sourceFilename);
+    if (readyIds.has(key)) {
+      // Already rendered against the current take — swap instantly.
+      setVideoSrc(`${composedOutputUrl(backgroundId, sourceFilename)}?t=${Date.now()}`);
       setSelectedId(backgroundId);
+      selectedIdRef.current = backgroundId;
       return;
     }
 
     setPendingId(backgroundId);
     startElapsedClock();
-    ensureComposed(backgroundId, { silent: false });
-  };
-
-  const resetToOriginal = () => {
-    setErrorMessage(null);
-    setSelectedId(null);
-    setVideoSrc(GREEN_SCREEN_SOURCE_URL);
+    ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true });
   };
 
   /**
-   * The "ready" dot means the client saw this background render successfully
-   * at some point in this session — it does NOT mean the file is still on
-   * disk right now (e.g. the cache got cleared, or a worker crash left a
-   * short/corrupt file). A missing or unplayable src otherwise fails silently
-   * as a black rectangle with zero feedback, so: un-mark it as ready and
-   * kick off a fresh render instead of leaving the operator staring at black.
+   * The "ready" dot means the client saw this (background, take) render
+   * successfully at some point in this session — it does NOT mean the
+   * object is still in MinIO right now (e.g. it was cleared, or a worker
+   * crash left a short/corrupt file). A missing or unplayable src otherwise
+   * fails silently as a black rectangle with zero feedback, so: un-mark it
+   * as ready and kick off a fresh render instead of leaving the operator
+   * staring at black — never fall back to an uncomposited take, there isn't
+   * one to fall back to anymore.
    */
   const handleVideoError = () => {
-    if (!selectedId) {
-      // The original take itself won't play — nothing to re-render, but say so
-      // rather than leaving an unexplained black rectangle.
-      setErrorMessage(
-        `Could not play the studio take (${GREEN_SCREEN_SOURCE_URL}). Check that it exists under /public.`
-      );
-      return;
-    }
+    if (!selectedId || !sourceFilename) return;
     const backgroundId = selectedId;
-    // Look the label up by id — `activeLabel` is derived from `selectedId`,
-    // which this handler clears, so reading it here got the wrong name.
+    const key = keyFor(backgroundId, sourceFilename);
     const label =
       GREEN_SCREEN_BACKGROUNDS.find((b) => b.id === backgroundId)?.label ?? backgroundId;
-    const attempts = videoRetryCount.current.get(backgroundId) ?? 0;
+    const attempts = videoRetryCount.current.get(key) ?? 0;
 
     setReadyIds((prev) => {
       const next = new Set(prev);
-      next.delete(backgroundId);
+      next.delete(key);
       return next;
     });
-    setSelectedId(null);
-    // Fall back to the un-composited take so the card shows *something*
-    // playable while we re-render, instead of holding the dead src as black.
-    setVideoSrc(GREEN_SCREEN_SOURCE_URL);
+    setVideoSrc(null);
 
     if (attempts >= MAX_VIDEO_RETRIES) {
       setErrorMessage(
@@ -324,17 +377,19 @@ export default function Screen7Page() {
       return;
     }
 
-    videoRetryCount.current.set(backgroundId, attempts + 1);
+    videoRetryCount.current.set(key, attempts + 1);
     setErrorMessage(`"${label}" failed to load — re-rendering it now…`);
     setPendingId(backgroundId);
     startElapsedClock();
-    ensureComposed(backgroundId, { silent: false });
+    ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true });
   };
 
   const isProcessing = pendingId !== null;
   const activeLabel = selectedId
     ? GREEN_SCREEN_BACKGROUNDS.find((b) => b.id === selectedId)?.label
-    : "Original green screen";
+    : sourceFilename
+      ? "Compositing default background…"
+      : "Waiting for camera 1…";
   const stillWarmingCount = warmingIds.size;
 
   return (
@@ -357,36 +412,36 @@ export default function Screen7Page() {
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div>
               <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <span>🎬</span> Studio Take
+                <span>🎬</span> Camera 1 — Composited
               </h2>
               <p className="text-xs text-slate-400">
                 Chroma-keyed live against the background you pick below
               </p>
             </div>
-            {selectedId && (
-              <button
-                onClick={resetToOriginal}
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
-              >
-                ↺ Original
-              </button>
-            )}
           </div>
 
           <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-black aspect-video">
-            <video
-              key={videoSrc}
-              src={videoSrc}
-              autoPlay
-              loop
-              muted
-              playsInline
-              onError={handleVideoError}
-              onLoadedData={() => {
-                if (selectedId) videoRetryCount.current.delete(selectedId);
-              }}
-              className="w-full h-full object-cover"
-            />
+            {videoSrc ? (
+              <video
+                key={videoSrc}
+                src={videoSrc}
+                autoPlay
+                loop
+                muted
+                playsInline
+                onError={handleVideoError}
+                onLoadedData={() => {
+                  if (selectedId && sourceFilename) {
+                    videoRetryCount.current.delete(keyFor(selectedId, sourceFilename));
+                  }
+                }}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm font-mono">
+                {sourceFilename ? "Compositing first background…" : "Waiting for camera 1 to record a take…"}
+              </div>
+            )}
 
             {isProcessing && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-slate-950/80 backdrop-blur-sm">
@@ -423,20 +478,21 @@ export default function Screen7Page() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
             {GREEN_SCREEN_BACKGROUNDS.map((bg) => {
+              const key = sourceFilename ? keyFor(bg.id, sourceFilename) : null;
               const isActive = selectedId === bg.id;
               const isPending = pendingId === bg.id;
-              const isWarming = warmingIds.has(bg.id) && !isPending;
-              const isReady = readyIds.has(bg.id);
+              const isWarming = !!key && warmingIds.has(key) && !isPending;
+              const isReady = !!key && readyIds.has(key);
               return (
                 <button
                   key={bg.id}
                   onClick={() => chooseBackground(bg.id)}
-                  disabled={isProcessing}
+                  disabled={isProcessing || !sourceFilename}
                   className={`group relative rounded-xl overflow-hidden border-2 transition aspect-video ${
                     isActive
                       ? "border-emerald-400 shadow-lg shadow-emerald-950"
                       : "border-slate-800 hover:border-emerald-500/60"
-                  } ${isProcessing && !isPending ? "opacity-40 cursor-not-allowed" : ""}`}
+                  } ${(isProcessing && !isPending) || !sourceFilename ? "opacity-40 cursor-not-allowed" : ""}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={bg.thumb} alt={bg.label} className="w-full h-full object-cover" />
