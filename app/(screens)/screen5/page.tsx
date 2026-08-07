@@ -88,6 +88,7 @@ export default function Screen5Page() {
   // when the source was swapped and resume once the new take can play.
   const resumeRef = useRef<boolean>(false);
   const knobFlashRef = useRef<NodeJS.Timeout | null>(null);
+  const activeLineRef = useRef<HTMLParagraphElement | null>(null);
 
   const active = languages[committedIndex] ?? languages[0];
   const highlighted = languages[index] ?? languages[0];
@@ -298,9 +299,16 @@ export default function Screen5Page() {
   };
 
   const displaySegments = active ? segments[active.language] || [] : [];
-  const activeSegmentId = active?.original
-    ? displaySegments.find((s) => currentTime >= s.start && currentTime <= s.end)?.id ?? null
-    : null;
+  const activeSegmentId = displaySegments.find(
+    (s) => currentTime >= s.start && currentTime <= s.end
+  )?.id ?? null;
+
+  // ---- Auto-scroll the active line into view --------------------------------
+  useEffect(() => {
+    if (activeLineRef.current) {
+      activeLineRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [activeSegmentId]);
 
   // ---------------------------------------------------------------------------
   return (
@@ -386,54 +394,31 @@ export default function Screen5Page() {
       )}
 
       <main className="flex-1 overflow-y-auto px-6 py-12">
-        <div className="max-w-4xl mx-auto space-y-10">
-          {/* Selected language, shown large before and during playback. */}
-          <div
-            className={`rounded-3xl border px-8 py-10 text-center transition-colors ${
-              knobDirection
-                ? "border-amber-500/60 bg-amber-500/10"
-                : "border-slate-800 bg-slate-900/40"
-            }`}
-          >
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 font-mono">
-              Audio Language
-            </p>
-            <p className="mt-4 text-7xl">{FLAGS[highlighted?.language] || "🌐"}</p>
-            <p className="mt-3 text-5xl sm:text-6xl font-black text-white">
-              {highlighted?.language}
-            </p>
-            <p className="mt-4 text-sm font-mono text-slate-400">
-              {knobDirection
-                ? knobDirection === "cw"
-                  ? "↻ turning clockwise"
-                  : "↺ turning counter-clockwise"
-                : active?.original
-                ? "Original recording"
-                : isPreparing
-                ? "Synthesizing this language…"
-                : active?.ready
-                ? "Gemini TTS translated take"
-                : "Not available yet"}
-            </p>
-          </div>
-
-          {/* Transcript in the selected language. Only the original recording's
-              timings line up with playback, so highlighting is English-only. */}
-          {displaySegments.length > 0 && (
-            <div className="space-y-5">
-              {displaySegments.map((seg) => (
-                <p
-                  key={seg.id}
-                  className={`font-bold leading-tight transition-all duration-300 ${
-                    activeSegmentId === seg.id
-                      ? "text-white text-3xl sm:text-4xl"
-                      : "text-slate-600 text-xl sm:text-2xl"
-                  }`}
-                >
-                  {seg.text}
-                </p>
-              ))}
+        <div className="max-w-5xl mx-auto py-12">
+          {/* Transcript in the selected language. */}
+          {displaySegments.length > 0 ? (
+            <div className="space-y-8">
+              {displaySegments.map((seg) => {
+                const isActive = activeSegmentId === seg.id;
+                return (
+                  <p
+                    key={seg.id}
+                    ref={isActive ? activeLineRef : null}
+                    className={`font-extrabold leading-tight tracking-tight transition-all duration-300 ${
+                      isActive
+                        ? "text-white text-5xl sm:text-7xl md:text-8xl scale-[1.01]"
+                        : "text-slate-700 text-3xl sm:text-4xl hover:text-slate-500"
+                    }`}
+                  >
+                    {seg.text}
+                  </p>
+                );
+              })}
             </div>
+          ) : (
+            <p className="text-center text-2xl text-slate-600 animate-pulse font-medium py-24">
+              {isPreparing ? "Preparing translation..." : "No transcript segments available."}
+            </p>
           )}
         </div>
       </main>
