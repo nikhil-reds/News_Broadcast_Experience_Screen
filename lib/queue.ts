@@ -253,15 +253,18 @@ export async function enqueueAudioConversion(
 
 // ---------------------------------------------------------------------------
 // Green-screen queue: Screen 07's live background swap. One job per
-// background id — the ffmpeg chromakey composite is cached on disk, so this
-// only ever fires once per background (see lib/green-screen.ts).
+// (background id, source take) pair — the ffmpeg chromakey composite is
+// cached in MinIO per pair, so a given camera-1 take only ever pays for one
+// render per background (see lib/green-screen.ts).
 // ---------------------------------------------------------------------------
 
 export const GREEN_SCREEN_QUEUE = "green-screen-compose";
 
-/** Job payload: which background image to composite the studio take onto. */
+/** Job payload: which background to composite camera 1's latest take onto. */
 export interface GreenScreenJob {
   backgroundId: string;
+  /** Camera 1 recording filename (MinIO `videos` bucket) to chromakey. */
+  sourceFilename: string;
 }
 
 const globalForGreenScreenQueue = globalThis as unknown as {
@@ -285,17 +288,18 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 /**
- * Enqueue (or reuse) the compose job for one background. The jobId is the
- * background id itself, so clicking the same swatch twice while it's still
- * rendering re-attaches to the same job instead of starting a second ffmpeg
- * pass.
+ * Enqueue (or reuse) the compose job for one (background, source) pair. The
+ * jobId is derived from both, so clicking the same swatch twice against the
+ * same camera-1 take re-attaches to the same job instead of starting a second
+ * ffmpeg pass — and a *new* take (different sourceFilename) naturally gets
+ * its own jobId rather than colliding with the old one.
  *
  * A jobId is a *permanent* dedup key in BullMQ, though — not just a
  * while-it-runs one. Once a job with this id lands in the completed (or
  * failed) set, `add()` silently hands back that finished record and never runs
  * anything, and `removeOnComplete: 50` keeps it around for a long time. The
- * file it produced lives in gitignored `public/generated/` and can vanish
- * independently of Redis, so that stale record used to make a missing
+ * file it produced can still vanish from MinIO independently of Redis (bucket
+ * cleared, object deleted), so that stale record used to make a missing
  * composite permanently unrenderable: the poll route reported "completed",
  * Screen 07 marked the swatch ready, the <video> 404'd to black, and its
  * error-retry re-enqueued straight back into the same no-op.
@@ -303,8 +307,8 @@ if (process.env.NODE_ENV !== "production") {
  * So: drop any *finished* record for this id before adding. Jobs still
  * waiting/active are deliberately left alone — that's the dedup we do want.
  */
-export async function enqueueGreenScreenCompose(backgroundId: string) {
-  const jobId = `greenscreen-${backgroundId}`;
+export async function enqueueGreenScreenCompose(backgroundId: string, sourceFilename: string) {
+  const jobId = greenScreenJobId(backgroundId, sourceFilename);
 
   const existing = await greenScreenQueue.getJob(jobId);
   if (existing) {
@@ -316,5 +320,58 @@ export async function enqueueGreenScreenCompose(backgroundId: string) {
     }
   }
 
-  return greenScreenQueue.add("compose", { backgroundId }, { jobId });
+  return greenScreenQueue.add("compose", { backgroundId, sourceFilename }, { jobId });
+}
+
+/** Same derivation the poll route needs to reconstruct a jobId from its two parts. */
+export function greenScreenJobId(backgroundId: string, sourceFilename: string): string {
+  return `greenscreen-${backgroundId}-${sourceFilename}`;
+}
+
+// ---------------------------------------------------------------------------
+// Video-export queue: Screen 11/12's portrait/landscape final render. One
+// worker handles both aspects — the composition logic only differs in target
+// dimensions (lib/video-export.ts), so a second queue would just duplicate it.
+// ---------------------------------------------------------------------------
+
+export const VIDEO_EXPORT_QUEUE = "video-export";
+
+export interface VideoExportJob {
+  videoJobId: string;
+  reelFilename: string;
+  sourceAudio: string;
+  language: string;
+  aspect: "portrait" | "landscape";
+}
+
+const globalForVideoExportQueue = globalThis as unknown as {
+  __videoExportQueue?: Queue<VideoExportJob>;
+};
+
+export const videoExportQueue =
+  globalForVideoExportQueue.__videoExportQueue ??
+  new Queue<VideoExportJob>(VIDEO_EXPORT_QUEUE, {
+    connection: redisConnection,
+    defaultJobOptions: {
+      attempts: 2,
+      backoff: { type: "exponential", delay: 15000 },
+      removeOnComplete: 50,
+      removeOnFail: 100,
+    },
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForVideoExportQueue.__videoExportQueue = videoExportQueue;
+}
+
+export async function enqueueVideoExport(job: VideoExportJob) {
+  const jobId = `export-${job.aspect}-${job.language}-${job.reelFilename}`;
+  const existing = await videoExportQueue.getJob(jobId);
+  if (existing) {
+    const state = await existing.getState();
+    if (state === "completed" || state === "failed") {
+      await existing.remove().catch(() => {});
+    }
+  }
+  return videoExportQueue.add("compose", job, { jobId });
 }
