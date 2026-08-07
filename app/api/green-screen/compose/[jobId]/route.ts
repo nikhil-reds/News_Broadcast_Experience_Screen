@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { greenScreenQueue } from "@/lib/queue";
-import { composedOutputUrl } from "@/lib/green-screen";
-import { composedOutputExists } from "@/lib/green-screen-paths";
+import { composedFilename, composedOutputUrl } from "@/lib/green-screen";
+import { VIDEO_BUCKET, objectExists } from "@/lib/minio";
 
 /**
  * Polled by Screen 07 while a background composite is rendering.
+ * `?backgroundId=&sourceFilename=` (the same pair the POST was made with) are
+ * required — a jobId alone can't be split back into its two parts (both can
+ * contain hyphens), and the MinIO-existence fallback below needs both.
  *
  * Every response carries a `status` the client can act on — `completed`,
  * `failed`, or one of BullMQ's in-progress states. That matters: the client
@@ -12,29 +15,37 @@ import { composedOutputExists } from "@/lib/green-screen-paths";
  * with no `status` at all (this route used to send a bare `{ error }` on 404)
  * left it re-requesting every 700ms forever.
  *
- * A `completed` job is only reported as such when its output is actually still
- * on disk. `public/generated/` is gitignored scratch space and gets wiped,
- * while the job record survives under `removeOnComplete` — trusting the record
- * alone handed the page a URL that 404'd into a black <video>.
+ * A `completed` job is only reported as such when its output is actually
+ * still in MinIO. A completed job record can outlive the object it produced
+ * (bucket cleared, object removed) — trusting the record alone would hand
+ * the page a URL that 404's into a black <video>.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   const { jobId } = await params;
-  const backgroundIdFromJobId = jobId.replace(/^greenscreen-/, "");
+  const backgroundId = req.nextUrl.searchParams.get("backgroundId");
+  const sourceFilename = req.nextUrl.searchParams.get("sourceFilename");
+
+  if (!backgroundId || !sourceFilename) {
+    return NextResponse.json(
+      { status: "failed", error: "backgroundId and sourceFilename query params are required" },
+      { status: 400 }
+    );
+  }
+
+  const outputFilename = composedFilename(backgroundId, sourceFilename);
+  const outputUrl = composedOutputUrl(backgroundId, sourceFilename);
 
   try {
     const job = await greenScreenQueue.getJob(jobId);
 
     if (!job) {
       // BullMQ trims completed jobs after `removeOnComplete`; if the record is
-      // gone but the file is on disk, the job still finished successfully.
-      if (await composedOutputExists(backgroundIdFromJobId)) {
-        return NextResponse.json({
-          status: "completed",
-          url: composedOutputUrl(backgroundIdFromJobId),
-        });
+      // gone but the object is in MinIO, the job still finished successfully.
+      if (await objectExists(VIDEO_BUCKET, outputFilename)) {
+        return NextResponse.json({ status: "completed", url: outputUrl });
       }
       return NextResponse.json(
         { status: "failed", error: "That compose job is no longer being tracked." },
@@ -45,10 +56,9 @@ export async function GET(
     const state = await job.getState();
 
     if (state === "completed") {
-      const result = job.returnvalue as { backgroundId: string; url: string } | undefined;
-      const backgroundId = result?.backgroundId ?? backgroundIdFromJobId;
+      const result = job.returnvalue as { url?: string } | undefined;
 
-      if (!(await composedOutputExists(backgroundId))) {
+      if (!(await objectExists(VIDEO_BUCKET, outputFilename))) {
         return NextResponse.json({
           status: "failed",
           error:
@@ -57,10 +67,7 @@ export async function GET(
         });
       }
 
-      return NextResponse.json({
-        status: "completed",
-        url: result?.url ?? composedOutputUrl(backgroundId),
-      });
+      return NextResponse.json({ status: "completed", url: result?.url ?? outputUrl });
     }
 
     if (state === "failed") {
