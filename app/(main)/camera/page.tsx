@@ -106,29 +106,10 @@ export default function CameraPage() {
             </p>
           </div>
         </div>
-
-        <div className="flex items-center gap-3">
-          {isAnyRecording ? (
-            <button
-              onClick={endAllRecording}
-              className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-medium text-sm transition shadow-lg shadow-rose-950 flex items-center gap-2"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-              Stop Recording All
-            </button>
-          ) : (
-            <button
-              onClick={startAllRecording}
-              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition shadow-lg shadow-indigo-950"
-            >
-              Record All Cameras
-            </button>
-          )}
-        </div>
       </header>
 
       {/* Cameras Grid */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8 flex flex-col justify-between">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* ================= CAMERA 01 ================= */}
           <CameraStudioCard
@@ -150,6 +131,27 @@ export default function CameraPage() {
             devices={videoDevices}
             onSelectDevice={handleSelectDevice(camera3)}
           />
+        </div>
+
+        {/* Global Recording Controls */}
+        <div className="flex justify-center pt-8">
+          {isAnyRecording ? (
+            <button
+              onClick={endAllRecording}
+              className="px-8 py-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-lg transition shadow-xl shadow-rose-950/50 flex items-center gap-3 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <span className="w-3.5 h-3.5 rounded-full bg-white animate-pulse" />
+              End Recording
+            </button>
+          ) : (
+            <button
+              onClick={startAllRecording}
+              className="px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-lg transition shadow-xl shadow-indigo-950/50 flex items-center gap-3 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <span className="w-3.5 h-3.5 rounded-full bg-indigo-300 animate-pulse" />
+              Start Recording
+            </button>
+          )}
         </div>
       </main>
     </div>
