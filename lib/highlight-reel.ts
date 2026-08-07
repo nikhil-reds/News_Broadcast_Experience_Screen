@@ -120,7 +120,8 @@ export function sanitizeSegments(
   const ordered = [...raw].sort((a, b) => a.start - b.start);
 
   for (const segment of ordered) {
-    const camera: CameraId = segment.camera === 2 ? 2 : 1;
+    const camera: CameraId =
+      segment.camera === 2 ? 2 : segment.camera === 3 ? 3 : 1;
     const limit = durations[camera];
 
     const start = Math.max(0, Math.min(Number(segment.start), limit));
