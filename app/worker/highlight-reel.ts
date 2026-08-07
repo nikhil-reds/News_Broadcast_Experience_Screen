@@ -27,12 +27,12 @@ const WORKER_NAME = "highlight-reel-worker";
 const worker = new Worker<HighlightReelJob>(
   HIGHLIGHT_QUEUE,
   async (job: Job<HighlightReelJob>) => {
-    const { cam1Filename, cam2Filename } = job.data;
+    const { cam1Filename, cam2Filename, cam3Filename } = job.data;
     console.log(
-      `[${WORKER_NAME}] job ${job.id} → cutting "${cam1Filename}" + "${cam2Filename}"`
+      `[${WORKER_NAME}] job ${job.id} → cutting "${cam1Filename}" + "${cam2Filename}" + "${cam3Filename}"`
     );
 
-    const result = await buildHighlightReel(cam1Filename, cam2Filename);
+    const result = await buildHighlightReel(cam1Filename, cam2Filename, cam3Filename);
 
     console.log(
       `[${WORKER_NAME}] job ${job.id} done: "${result.title}" — ` +
