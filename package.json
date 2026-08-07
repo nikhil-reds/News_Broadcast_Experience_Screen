@@ -20,6 +20,7 @@
     "worker:spanish-audio": "tsx app/worker/spanish-audio.ts",
     "worker:tts": "tsx app/worker/tts.ts",
     "worker:green-screen": "tsx app/worker/green-screen-compose.ts",
+    "worker:video-export": "tsx app/worker/video-export.ts",
     "worker:all": "tsx app/worker/all.ts"
   },
   "dependencies": {
@@ -31,7 +32,8 @@
     "pg": "^8.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "serialport": "^13.0.0"
+    "serialport": "^13.0.0",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
