@@ -11,6 +11,7 @@ const GEMINI_API_BASE = (
 ).replace(/\/$/, "");
 
 export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+console.log(`[GEMINI_MODEL CONFIG] Active model: ${GEMINI_MODEL}`);
 
 /** Video reasoning on a multi-minute take is slow; give it room. */
 const GENERATE_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS || 900_000);

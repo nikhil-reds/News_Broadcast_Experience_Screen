@@ -67,7 +67,7 @@ const RESPONSE_SCHEMA = {
       items: {
         type: "OBJECT",
         properties: {
-          camera: { type: "INTEGER", description: "1 for CAMERA 01, 2 for CAMERA 02" },
+          camera: { type: "INTEGER", description: "1 for CAMERA 01, 2 for CAMERA 02, 3 for CAMERA 03" },
           start: { type: "NUMBER", description: "Start time in seconds" },
           end: { type: "NUMBER", description: "End time in seconds" },
           reason: { type: "STRING", description: "Why this moment is engaging" },
@@ -83,13 +83,14 @@ function buildPrompt(durations: Record<CameraId, number>): string {
   return [
     "You are a broadcast editor cutting a highlight reel for a news studio.",
     "",
-    "You are given the SAME recording session from two angles, filmed simultaneously:",
+    "You are given the SAME recording session from three angles, filmed simultaneously:",
     `- VIDEO A = CAMERA 01 (${durations[1].toFixed(1)}s, carries the studio audio)`,
     `- VIDEO B = CAMERA 02 (${durations[2].toFixed(1)}s, second angle, no audio)`,
+    `- VIDEO C = CAMERA 03 (${durations[3].toFixed(1)}s, third angle, no audio)`,
     "",
     "Pick the most engaging seconds of the session: the strongest delivery, the",
     "clearest statements, visible reactions and gestures, and moments where the",
-    "second angle is more interesting than the first. Skip dead air, fumbles,",
+    "second or third angle is more interesting than the first. Skip dead air, fumbles,",
     "long pauses, and anything before the presenter settles.",
     "",
     "Rules:",
@@ -97,7 +98,7 @@ function buildPrompt(durations: Record<CameraId, number>): string {
     `- Each segment must be between ${MIN_SEGMENT_SECONDS} and ${MAX_SEGMENT_SECONDS} seconds long.`,
     `- The segments must total no more than ${MAX_REEL_SECONDS} seconds.`,
     "- Order the segments chronologically and do not overlap them in time.",
-    "- Cut between the two cameras where it makes the reel more watchable.",
+    "- Cut between the three cameras where it makes the reel more watchable.",
     '- "start" and "end" are seconds from the beginning of the file for the camera',
     "  named in that segment, as numbers (e.g. 12.5), never as MM:SS text.",
     "- Every timestamp must be inside that camera's duration listed above.",
@@ -161,7 +162,10 @@ async function selectSegments(
 
     const parts: GeminiPart[] = [];
     for (const { cameraId, handle } of uploaded) {
-      parts.push({ text: cameraId === 1 ? "VIDEO A — CAMERA 01:" : "VIDEO B — CAMERA 02:" });
+      let label = "VIDEO A — CAMERA 01:";
+      if (cameraId === 2) label = "VIDEO B — CAMERA 02:";
+      if (cameraId === 3) label = "VIDEO C — CAMERA 03:";
+      parts.push({ text: label });
       parts.push(filePart(handle));
     }
     parts.push({ text: buildPrompt(durations) });
@@ -186,31 +190,33 @@ async function selectSegments(
  */
 export async function buildHighlightReel(
   cam1Filename: string,
-  cam2Filename: string
+  cam2Filename: string,
+  cam3Filename: string
 ): Promise<HighlightReelResult> {
   const workDir = await mkdtemp(join(tmpdir(), "highlight-reel-"));
 
   try {
-    // 1. Pull both takes down next to each other.
+    // 1. Pull all three takes down next to each other.
     const sources: Record<CameraId, string> = {
       1: join(workDir, `cam1-${cam1Filename}`),
       2: join(workDir, `cam2-${cam2Filename}`),
-      3: "",
+      3: join(workDir, `cam3-${cam3Filename}`),
     };
     await Promise.all([
       downloadObjectToFile(VIDEO_BUCKET, cam1Filename, sources[1]),
       downloadObjectToFile(VIDEO_BUCKET, cam2Filename, sources[2]),
+      downloadObjectToFile(VIDEO_BUCKET, cam3Filename, sources[3]),
     ]);
 
     const durations: Record<CameraId, number> = {
       1: await probeDurationSeconds(sources[1]),
       2: await probeDurationSeconds(sources[2]),
-      3: 0,
+      3: await probeDurationSeconds(sources[3]),
     };
     const audio: Record<CameraId, boolean> = {
       1: await hasAudioStream(sources[1]),
       2: await hasAudioStream(sources[2]),
-      3: false,
+      3: await hasAudioStream(sources[3]),
     };
 
     // 2. Gemini picks the moments.
@@ -218,6 +224,7 @@ export async function buildHighlightReel(
       [
         { cameraId: 1, path: sources[1], filename: cam1Filename },
         { cameraId: 2, path: sources[2], filename: cam2Filename },
+        { cameraId: 3, path: sources[3], filename: cam3Filename },
       ],
       durations
     );
@@ -225,7 +232,7 @@ export async function buildHighlightReel(
     const segments = sanitizeSegments(proposed, durations);
     if (segments.length === 0) {
       throw new Error(
-        `Gemini returned no usable segments for "${cam1Filename}" / "${cam2Filename}" ` +
+        `Gemini returned no usable segments for "${cam1Filename}" / "${cam2Filename}" / "${cam3Filename}" ` +
           `(${proposed.length} proposed, all outside the clip bounds or too short)`
       );
     }
@@ -275,7 +282,7 @@ export async function buildHighlightReel(
       sidecarKey,
       Buffer.from(
         JSON.stringify(
-          { title, model: GEMINI_MODEL, sources: [cam1Filename, cam2Filename], segments },
+          { title, model: GEMINI_MODEL, sources: [cam1Filename, cam2Filename, cam3Filename], segments },
           null,
           2
         ),
