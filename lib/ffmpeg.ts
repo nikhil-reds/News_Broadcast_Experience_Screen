@@ -184,6 +184,91 @@ export async function composeGreenScreenBackground(opts: {
   ]);
 }
 
+export interface SubtitleOverlay {
+  /** PNG path, relative to `cwd` — same rationale as `concatClips`'s `clips`. */
+  pngPath: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Scale/crop the highlight reel to `width`x`height`, burn each subtitle PNG in
+ * over its time window, and optionally stamp a logo in the corner for the
+ * whole duration. Used by the Screen 11/12 portrait/landscape export pipeline.
+ *
+ * Subtitles are pre-rendered PNGs (see lib/subtitle-image.ts) rather than the
+ * `subtitles`/`drawtext` filters — this ffmpeg build has no libass/freetype.
+ */
+export async function composeFinalExport(opts: {
+  input: string;
+  output: string;
+  width: number;
+  height: number;
+  /** true: scale to fill then center-crop (portrait from a 16:9 source). false: exact scale (landscape). */
+  crop: boolean;
+  subtitles: SubtitleOverlay[];
+  logoPath?: string;
+  cwd: string;
+}): Promise<void> {
+  const { input, output, width, height, crop, subtitles, logoPath, cwd } = opts;
+
+  const scaleFilter = crop
+    ? `scale=-2:${height},crop=${width}:${height}:(iw-${width})/2:0`
+    : `scale=${width}:${height}`;
+
+  const args = ["-y", "-hide_banner", "-loglevel", "error", "-i", input];
+
+  for (const sub of subtitles) {
+    const duration = Math.max(0.1, sub.end - sub.start);
+    args.push("-loop", "1", "-t", duration.toFixed(3), "-i", sub.pngPath);
+  }
+  if (logoPath) args.push("-i", logoPath);
+
+  const filterParts: string[] = [`[0:v]${scaleFilter},format=yuv420p[base]`];
+  let lastLabel = "base";
+
+  subtitles.forEach((sub, i) => {
+    const inputIndex = i + 1; // 0 is the main video
+    const outLabel = `sub${i}`;
+    filterParts.push(
+      `[${lastLabel}][${inputIndex}:v]overlay=0:main_h-overlay_h:enable='between(t,${sub.start.toFixed(
+        3
+      )},${sub.end.toFixed(3)})'[${outLabel}]`
+    );
+    lastLabel = outLabel;
+  });
+
+  if (logoPath) {
+    const logoInputIndex = subtitles.length + 1;
+    filterParts.push(`[${lastLabel}][${logoInputIndex}:v]overlay=24:24[withlogo]`);
+    lastLabel = "withlogo";
+  }
+
+  args.push(
+    "-filter_complex",
+    filterParts.join(";"),
+    "-map",
+    `[${lastLabel}]`,
+    "-map",
+    "0:a?",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "medium",
+    "-crf",
+    "20",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "192k",
+    "-movflags",
+    "+faststart",
+    output
+  );
+
+  await run(FFMPEG_BIN, args, cwd);
+}
+
 /**
  * Join the normalized clips. `clips` are filenames relative to `cwd` — keeping
  * them relative sidesteps quoting Windows paths inside the concat list file.
