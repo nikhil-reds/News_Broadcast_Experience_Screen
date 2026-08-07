@@ -5,80 +5,76 @@
  *
  *     npm run worker:green-screen    # tsx app/worker/green-screen-compose.ts
  *
- * Flow: Screen 07 shows the studio's green-screen take plus a grid of
+ * Flow: Screen 07 polls camera 1 for its latest take and shows a grid of
  * background swatches. Clicking one hits POST /api/green-screen/compose,
- * which enqueues a job here (or returns the cached result if this background
- * was already rendered once). This worker chromakeys the take onto the
- * chosen background with ffmpeg and writes the result to
- * public/generated/green-screen/<backgroundId>.mp4, which the page polls for
- * via GET /api/green-screen/compose/[jobId] and then swaps into the <video>.
+ * which enqueues a job here (or returns the cached result if this exact
+ * (background, take) pair was already rendered). This worker downloads that
+ * camera-1 take from the MinIO `videos` bucket, chromakeys it onto the chosen
+ * background with ffmpeg, and uploads the result back to `videos` under a
+ * `greenscreen-<backgroundId>-<take>.mp4` key — which the page polls for via
+ * GET /api/green-screen/compose/[jobId] and then swaps into the <video>. A
+ * new recording gets its own cache key, so nothing here goes stale silently.
  *
  * Requires ffmpeg on PATH (or FFMPEG_PATH pointing at it — see .env).
  */
 import "dotenv/config";
-import { mkdir, rename, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Worker, type Job } from "bullmq";
 import { redisConnection } from "@/lib/redis";
 import { GREEN_SCREEN_QUEUE, type GreenScreenJob } from "@/lib/queue";
 import { composeGreenScreenBackground } from "@/lib/ffmpeg";
-import { composedOutputUrl, findBackground } from "@/lib/green-screen";
-import {
-  backgroundImagePath,
-  composedOutputDir,
-  composedOutputPath,
-  sourceVideoPath,
-} from "@/lib/green-screen-paths";
+import { VIDEO_BUCKET, downloadObjectToFile, uploadObject } from "@/lib/minio";
+import { composedFilename, composedOutputUrl, findBackground } from "@/lib/green-screen";
+import { backgroundImagePath } from "@/lib/green-screen-paths";
 
 const WORKER_NAME = "green-screen-compose-worker";
 
 const worker = new Worker<GreenScreenJob>(
   GREEN_SCREEN_QUEUE,
   async (job: Job<GreenScreenJob>) => {
-    const { backgroundId } = job.data;
+    const { backgroundId, sourceFilename } = job.data;
 
     const background = findBackground(backgroundId);
     if (!background) {
       throw new Error(`Unknown background id "${backgroundId}"`);
     }
 
-    console.log(`[${WORKER_NAME}] job ${job.id} → compositing onto "${backgroundId}"`);
+    console.log(
+      `[${WORKER_NAME}] job ${job.id} → compositing "${sourceFilename}" onto "${backgroundId}"`
+    );
 
-    await mkdir(composedOutputDir(), { recursive: true });
-
-    const output = composedOutputPath(backgroundId);
-    // ffmpeg (with -y) creates/truncates its output file the instant it
-    // starts, not when it finishes — so writing straight to `output` leaves
-    // a half-encoded file sitting at the exact path the API's cache check
-    // looks for. A request landing mid-render would see "exists" and get
-    // handed a broken video. Render to a scratch path instead and rename
-    // into place atomically only once ffmpeg has actually finished, so
-    // `output` never exists in a partial state. Keeps the .mp4 extension —
-    // ffmpeg picks its container/muxer from the output filename, so a
-    // scratch name without it (e.g. "<output>.part") fails to even start.
-    const scratch = output.replace(/\.mp4$/, `.${job.id}.part.mp4`);
+    const workDir = await mkdtemp(join(tmpdir(), "green-screen-"));
     try {
+      const sourcePath = join(workDir, "source.mp4");
+      await downloadObjectToFile(VIDEO_BUCKET, sourceFilename, sourcePath);
+
+      const outputPath = join(workDir, "output.mp4");
       await composeGreenScreenBackground({
-        input: sourceVideoPath(),
+        input: sourcePath,
         backgroundImage: backgroundImagePath(backgroundId),
-        output: scratch,
+        output: outputPath,
       });
-      await rename(scratch, output);
-    } catch (err) {
-      await rm(scratch, { force: true });
-      throw err;
+
+      const outputFilename = composedFilename(backgroundId, sourceFilename);
+      const bytes = await readFile(outputPath);
+      await uploadObject(VIDEO_BUCKET, outputFilename, bytes, "video/mp4");
+
+      const url = composedOutputUrl(backgroundId, sourceFilename);
+      console.log(`[${WORKER_NAME}] job ${job.id} done → ${url}`);
+
+      return { backgroundId, sourceFilename, url };
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
     }
-
-    const url = composedOutputUrl(backgroundId);
-    console.log(`[${WORKER_NAME}] job ${job.id} done → ${url}`);
-
-    return { backgroundId, url };
   },
   {
     name: WORKER_NAME,
     connection: redisConnection,
     // One ffmpeg pass at a time keeps this predictable on the studio machine;
-    // results are cached per background anyway, so this only runs at all the
-    // first time a given swatch is clicked.
+    // results are cached per (background, take) anyway, so this only runs at
+    // all the first time a given swatch is clicked against a given take.
     concurrency: 1,
     lockDuration: 5 * 60 * 1000,
   }
