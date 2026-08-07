@@ -1,15 +1,19 @@
 /**
- * Screen 07 — live green-screen background swap.
+ * Screen 07 — live green-screen background swap, composited against camera
+ * 1's latest take (not a fixed stock clip — a new recording invalidates the
+ * cache for every background, see `composedFilename`).
  *
- * Client-safe: the list of selectable backgrounds and the URL convention for
- * composited output. No node:* imports here on purpose — this module is
- * imported directly by the Screen 07 client component. Filesystem path
- * helpers (server/worker only) live in lib/green-screen-paths.ts.
+ * Client-safe: the list of selectable backgrounds and the URL/filename
+ * convention for composited output. No node:* imports here on purpose — this
+ * module is imported directly by the Screen 07 client component, and must not
+ * pull in the `minio` package (server-only). Filesystem path helpers for the
+ * static background images (server/worker only) live in
+ * lib/green-screen-paths.ts.
  *
- * Output is cached per background id (`public/generated/green-screen/<id>.mp4`)
- * since the source footage never changes — the first click for a given
- * background pays for the ffmpeg pass, every click after that (including a
- * second visit) is served instantly from disk.
+ * Output is cached per (background id, source filename) in the MinIO
+ * `videos` bucket — the same source recording composited against the same
+ * background always resolves instantly from that cache; a *new* camera 1
+ * take gets its own key and pays for one fresh ffmpeg pass per background.
  */
 
 export interface GreenScreenBackground {
@@ -61,13 +65,18 @@ export function findBackground(id: string): GreenScreenBackground | undefined {
   return GREEN_SCREEN_BACKGROUNDS.find((b) => b.id === id);
 }
 
-/** The one green-screen take Screen 07 composites against. */
-export const GREEN_SCREEN_SOURCE_VIDEO =
-  "vecteezy_young-businesswoman-thinking-while-working-on-the-computer_31759070.mp4";
+/**
+ * MinIO object key (and BullMQ job id, and Redis dedup key) for one
+ * (background, source take) combination. Stripping the extension off
+ * `sourceFilename` keeps this readable in worker logs; it doesn't need to be
+ * reversible since callers always have both parts already.
+ */
+export function composedFilename(backgroundId: string, sourceFilename: string): string {
+  const stamp = sourceFilename.replace(/\.[^.]+$/, "");
+  return `greenscreen-${backgroundId}-${stamp}.mp4`;
+}
 
-/** Public URL of the original, uncomposited green-screen take. */
-export const GREEN_SCREEN_SOURCE_URL = `/${GREEN_SCREEN_SOURCE_VIDEO}`;
-
-export function composedOutputUrl(backgroundId: string): string {
-  return `/generated/green-screen/${backgroundId}.mp4`;
+/** Public URL for one composited (background, source take) combination. */
+export function composedOutputUrl(backgroundId: string, sourceFilename: string): string {
+  return `/api/asset/videos/${encodeURIComponent(composedFilename(backgroundId, sourceFilename))}`;
 }
