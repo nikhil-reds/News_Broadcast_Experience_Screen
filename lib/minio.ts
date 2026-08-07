@@ -76,6 +76,21 @@ export async function downloadObjectToFile(
   await pipeline(stream, createWriteStream(destPath));
 }
 
+/**
+ * True when this object exists AND is non-empty. The size check matters
+ * separately — a killed ffmpeg upload can leave a 0-byte object that a plain
+ * existence check reports as a cache hit, which the browser then refuses to
+ * play (black <video> + an onError with no explanation).
+ */
+export async function objectExists(bucket: string, key: string): Promise<boolean> {
+  try {
+    const stat = await minioClient.statObject(bucket, key);
+    return stat.size > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Read an object fully into a Buffer. */
 export async function getObjectBuffer(bucket: string, key: string): Promise<Buffer> {
   const stream = await minioClient.getObject(bucket, key);
