@@ -31,6 +31,8 @@ export default function AudioStudioCard({
   const [lastSavedAudio, setLastSavedAudio] = useState<SavedAudio | null>(null);
   const [savedAudioFiles, setSavedAudioFiles] = useState<SavedAudio[]>([]);
   const [audioLevel, setAudioLevel] = useState<number>(0);
+  const [waveformValues, setWaveformValues] = useState<number[]>(new Array(25).fill(8));
+  const [isMicActive, setIsMicActive] = useState<boolean>(false);
 
   const audioStreamRef = useRef<MediaStream | null>(null);
   const audioRecorderRef = useRef<MediaRecorder | null>(null);
@@ -63,6 +65,8 @@ export default function AudioStudioCard({
       audioStreamRef.current = null;
     }
     setAudioLevel(0);
+    setWaveformValues(new Array(25).fill(8));
+    setIsMicActive(false);
   };
 
   const saveAudioToServer = async (blob: Blob) => {
@@ -99,13 +103,12 @@ export default function AudioStudioCard({
   };
 
   // ================= AUDIO CAPTURE LOGIC =================
-  const startAudioRecording = async () => {
+  const enableMicrophone = async () => {
     setAudioError(null);
-    setAudioRecordingTime(0);
-    audioChunksRef.current = [];
-    setLastSavedAudio(null);
-
     try {
+      if (audioStreamRef.current) {
+        return audioStreamRef.current;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
 
@@ -120,6 +123,19 @@ export default function AudioStudioCard({
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       const updateVolume = () => {
         analyser.getByteFrequencyData(dataArray);
+
+        // Build symmetric waveform values
+        const half = 12;
+        const values: number[] = new Array(25).fill(8);
+        for (let i = 0; i <= half; i++) {
+          const raw = dataArray[i] || 0;
+          // Scale value to max 70px height
+          const val = Math.max(8, Math.round((raw / 255) * 70));
+          values[half + i] = val;
+          values[half - i] = val;
+        }
+        setWaveformValues(values);
+
         let sum = 0;
         for (let i = 0; i < dataArray.length; i++) {
           sum += dataArray[i];
@@ -129,6 +145,28 @@ export default function AudioStudioCard({
         animFrameRef.current = requestAnimationFrame(updateVolume);
       };
       updateVolume();
+      setIsMicActive(true);
+      return stream;
+    } catch (err: any) {
+      console.error("Microphone activation error:", err);
+      setAudioError("Microphone access failed: " + err.message);
+      setIsMicActive(false);
+      return null;
+    }
+  };
+
+  const startAudioRecording = async () => {
+    setAudioError(null);
+    setAudioRecordingTime(0);
+    audioChunksRef.current = [];
+    setLastSavedAudio(null);
+
+    try {
+      let stream = audioStreamRef.current;
+      if (!stream) {
+        stream = await enableMicrophone();
+      }
+      if (!stream) return;
 
       // Audio Recorder
       let options: MediaRecorderOptions = {};
@@ -161,7 +199,7 @@ export default function AudioStudioCard({
       }, 1000);
     } catch (err: any) {
       console.error("Audio recording error:", err);
-      setAudioError("Microphone access failed: " + err.message);
+      setAudioError("Audio recording failed: " + err.message);
     }
   };
 
@@ -171,7 +209,6 @@ export default function AudioStudioCard({
       setIsAudioRecording(false);
 
       if (audioTimerRef.current) clearInterval(audioTimerRef.current);
-      stopAudioRecordingStream();
     }
   };
 
@@ -229,36 +266,48 @@ export default function AudioStudioCard({
       )}
 
       {/* Audio Waveform / Volume Meter Display */}
-      <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950 p-6 flex flex-col items-center justify-center gap-4 min-h-[200px]">
-        <div className="w-16 h-16 rounded-full bg-indigo-950/80 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shadow-lg">
-          <svg
-            className={`w-8 h-8 ${isAudioRecording ? "animate-bounce" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-              d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-            />
-          </svg>
-        </div>
+      <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950 p-6 flex flex-col items-center justify-center gap-6 min-h-[220px]">
+        {isMicActive ? (
+          <>
+            {/* Wave UI Visualizer */}
+            <div className="flex items-center justify-center gap-1.5 h-20 w-full select-none">
+              {waveformValues.map((height, idx) => (
+                <div
+                  key={idx}
+                  className="w-2 rounded-full bg-indigo-400 transition-all duration-75"
+                  style={{
+                    height: `${height}px`,
+                    boxShadow: isAudioRecording ? "0 0 12px rgba(129, 140, 248, 0.4)" : "none",
+                  }}
+                />
+              ))}
+            </div>
 
-        {/* Audio Volume Bar */}
-        <div className="w-full max-w-xs space-y-1.5">
-          <div className="flex justify-between text-[11px] font-mono text-slate-400">
-            <span>Microphone Level</span>
-            <span>{audioLevel}%</span>
+            {/* Audio Volume Bar */}
+            <div className="w-full max-w-xs space-y-1.5">
+              <div className="flex justify-between text-[11px] font-mono text-slate-400">
+                <span>Microphone Level</span>
+                <span>{audioLevel}%</span>
+              </div>
+              <div className="h-3 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-rose-500 transition-all duration-75"
+                  style={{ width: `${audioLevel}%` }}
+                />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-4 text-center">
+            <p className="text-sm font-medium text-slate-300 mb-3">Microphone Feed Inactive</p>
+            <button
+              onClick={enableMicrophone}
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-950/50 hover:scale-[1.02] active:scale-[0.98] transition"
+            >
+              Enable Microphone
+            </button>
           </div>
-          <div className="h-3 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-            <div
-              className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-rose-500 transition-all duration-75"
-              style={{ width: `${audioLevel}%` }}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
       {/* AUDIO BUTTONS */}
