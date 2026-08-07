@@ -17,11 +17,13 @@ interface AudioStudioCardProps {
     isRecording: () => boolean;
   }) => void;
   onRecordingChange?: (recording: boolean) => void;
+  showButtons?: boolean;
 }
 
 export default function AudioStudioCard({
   onRegisterTriggers,
   onRecordingChange,
+  showButtons = true,
 }: AudioStudioCardProps) {
   // --- Audio States ---
   const [isAudioRecording, setIsAudioRecording] = useState<boolean>(false);
@@ -311,33 +313,35 @@ export default function AudioStudioCard({
       </div>
 
       {/* AUDIO BUTTONS */}
-      <div className="flex items-center gap-3 pt-2">
-        <button
-          onClick={startAudioRecording}
-          disabled={isAudioRecording || isAudioSaving}
-          className={`flex-1 py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition ${
-            isAudioRecording || isAudioSaving
-              ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800"
-              : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950"
-          }`}
-        >
-          <span className="w-2.5 h-2.5 rounded-full bg-white" />
-          Start Recording
-        </button>
+      {showButtons && (
+        <div className="flex items-center gap-3 pt-2">
+          <button
+            onClick={startAudioRecording}
+            disabled={isAudioRecording || isAudioSaving}
+            className={`flex-1 py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition ${
+              isAudioRecording || isAudioSaving
+                ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800"
+                : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950"
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-white" />
+            Start Recording
+          </button>
 
-        <button
-          onClick={handleEndAudioRecording}
-          disabled={!isAudioRecording || isAudioSaving}
-          className={`flex-1 py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition ${
-            !isAudioRecording || isAudioSaving
-              ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800"
-              : "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700"
-          }`}
-        >
-          <span className="w-3 h-3 rounded-sm bg-indigo-400" />
-          End Recording
-        </button>
-      </div>
+          <button
+            onClick={handleEndAudioRecording}
+            disabled={!isAudioRecording || isAudioSaving}
+            className={`flex-1 py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition ${
+              !isAudioRecording || isAudioSaving
+                ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800"
+                : "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700"
+            }`}
+          >
+            <span className="w-3 h-3 rounded-sm bg-indigo-400" />
+            End Recording
+          </button>
+        </div>
+      )}
 
       {isAudioSaving && (
         <p className="text-xs font-mono text-amber-400 animate-pulse text-center">
