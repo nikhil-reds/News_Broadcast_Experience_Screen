@@ -31,16 +31,7 @@ const SCREENS: ScreenInfo[] = [
     icon: "📹",
     visualType: "video",
   },
-  {
-    id: "screen14",
-    num: "02",
-    title: "Audio Stream",
-    description: "Live audio broadcast feed monitor.",
-    path: "/audio",
-    category: "Screen Control Room Multi-View",
-    icon: "🔊",
-    visualType: "waveform",
-  },
+
   {
     id: "screen15",
     num: "03",
@@ -216,7 +207,7 @@ export default function ScreenNavigationMatrix({
             <span>🖥️</span> Screen Control Room Multi-View
           </h2>
           <p className="text-xs text-slate-400">
-            Monitor and redirect live output feeds across all 15 broadcast screens
+            Monitor and redirect live output feeds across all 14 broadcast screens
           </p>
         </div>
         <div className="flex gap-2 text-[10px] font-mono flex-wrap justify-end">
@@ -235,8 +226,8 @@ export default function ScreenNavigationMatrix({
         </div>
       </div>
 
-      {/* Top 3 Screens (Wider Rectangles, no "Screen XX" tag) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Top Screens (Wider Rectangles, no "Screen XX" tag) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {topScreens.map((screen) => {
           const isRecording = getRecordingState(screen.id);
 

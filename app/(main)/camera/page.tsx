@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import CameraStudioCard from "@/components/camera-studio-card";
+import AudioStudioCard from "@/components/audio-studio-card";
 import { useCameraRecorder } from "@/lib/use-camera-recorder";
 
 export default function CameraPage() {
@@ -10,6 +11,14 @@ export default function CameraPage() {
   const camera2 = useCameraRecorder(2);
   const camera3 = useCameraRecorder(3);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+
+  // --- Audio States ---
+  const [isAudioRecording, setIsAudioRecording] = useState<boolean>(false);
+  const audioTriggersRef = useRef<{
+    start: () => void;
+    end: () => void;
+    isRecording: () => boolean;
+  } | null>(null);
 
   const refreshVideoDevices = useCallback(async () => {
     try {
@@ -79,15 +88,21 @@ export default function CameraPage() {
     if (!camera1.isRecorderRunning()) camera1.startRecording();
     if (!camera2.isRecorderRunning()) camera2.startRecording();
     if (!camera3.isRecorderRunning()) camera3.startRecording();
+    if (audioTriggersRef.current && !audioTriggersRef.current.isRecording()) {
+      audioTriggersRef.current.start();
+    }
   };
 
   const endAllRecording = () => {
     camera1.endRecording();
     camera2.endRecording();
     camera3.endRecording();
+    if (audioTriggersRef.current && audioTriggersRef.current.isRecording()) {
+      audioTriggersRef.current.end();
+    }
   };
 
-  const isAnyRecording = camera1.isRecording || camera2.isRecording || camera3.isRecording;
+  const isAnyRecording = camera1.isRecording || camera2.isRecording || camera3.isRecording || isAudioRecording;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -99,18 +114,18 @@ export default function CameraPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-              Multi-Camera Studio Control
+              Multi-Camera & Audio Studio Control
             </h1>
             <p className="text-xs text-slate-400">
-              Manage and record live feeds for Camera 01, Camera 02, and Camera 03
+              Manage and record live feeds for Camera 01, Camera 02, Camera 03, and Master Audio
             </p>
           </div>
         </div>
       </header>
 
-      {/* Cameras Grid */}
+      {/* Cameras & Audio Grid */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8 flex flex-col justify-between">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
           {/* ================= CAMERA 01 ================= */}
           <CameraStudioCard
             recorder={camera1}
@@ -131,6 +146,19 @@ export default function CameraPage() {
             devices={videoDevices}
             onSelectDevice={handleSelectDevice(camera3)}
           />
+
+          {/* ================= AUDIO STUDIO CARD ================= */}
+          <div className="w-full">
+            <AudioStudioCard
+              showButtons={false}
+              onRegisterTriggers={(triggers) => {
+                audioTriggersRef.current = triggers;
+              }}
+              onRecordingChange={(recording) => {
+                setIsAudioRecording(recording);
+              }}
+            />
+          </div>
         </div>
 
         {/* Global Recording Controls */}
