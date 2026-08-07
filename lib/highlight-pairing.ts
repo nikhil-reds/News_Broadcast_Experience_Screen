@@ -35,31 +35,41 @@ export async function enqueueHighlightIfPairComplete(filename: string): Promise<
   const stampedAt = parseRecordingTimestamp(filename);
   if (stampedAt === null) return { queued: false, reason: "no timestamp in filename" };
 
-  const counterpartId = otherCameraId(cameraId);
-  const candidates = await prisma.videoRecording.findMany({
-    where: { filename: { startsWith: CAMERA_FILENAME_PREFIX[counterpartId] } },
-    orderBy: { createdAt: "desc" },
-    take: PAIR_LOOKBACK,
-  });
+  // For a 3-camera system, the others are:
+  const otherIds = ([1, 2, 3] as const).filter((id) => id !== cameraId);
+  const matchedFilenames: Record<number, string> = { [cameraId]: filename };
 
-  let counterpart: string | null = null;
-  let bestDelta = PAIR_WINDOW_MS;
-  for (const row of candidates) {
-    const otherStamp = parseRecordingTimestamp(row.filename);
-    if (otherStamp === null) continue;
-    const delta = Math.abs(otherStamp - stampedAt);
-    if (delta <= bestDelta) {
-      bestDelta = delta;
-      counterpart = row.filename;
+  for (const otherId of otherIds) {
+    const candidates = await prisma.videoRecording.findMany({
+      where: { filename: { startsWith: CAMERA_FILENAME_PREFIX[otherId] } },
+      orderBy: { createdAt: "desc" },
+      take: PAIR_LOOKBACK,
+    });
+
+    let bestMatch: string | null = null;
+    let bestDelta = PAIR_WINDOW_MS;
+    for (const row of candidates) {
+      const otherStamp = parseRecordingTimestamp(row.filename);
+      if (otherStamp === null) continue;
+      const delta = Math.abs(otherStamp - stampedAt);
+      if (delta <= bestDelta) {
+        bestDelta = delta;
+        bestMatch = row.filename;
+      }
     }
+
+    if (!bestMatch) {
+      return {
+        queued: false,
+        reason: `missing camera ${otherId} take within 2 minutes`,
+      };
+    }
+    matchedFilenames[otherId] = bestMatch;
   }
 
-  if (!counterpart) {
-    return { queued: false, reason: `no camera ${counterpartId} take within 2 minutes` };
-  }
-
-  const cam1Filename = cameraId === 1 ? filename : counterpart;
-  const cam2Filename = cameraId === 2 ? filename : counterpart;
+  const cam1Filename = matchedFilenames[1];
+  const cam2Filename = matchedFilenames[2];
+  const cam3Filename = matchedFilenames[3];
 
   // The reel name is derived from the camera-1 take, so an existing row means
   // this session has already been cut.
@@ -68,9 +78,9 @@ export async function enqueueHighlightIfPairComplete(filename: string): Promise<
     select: { filename: true },
   });
   if (existing) {
-    return { queued: false, pairedWith: counterpart, reason: "reel already built" };
+    return { queued: false, reason: "reel already built" };
   }
 
-  await enqueueHighlightReel(cam1Filename, cam2Filename);
-  return { queued: true, pairedWith: counterpart };
+  await enqueueHighlightReel(cam1Filename, cam2Filename, cam3Filename);
+  return { queued: true };
 }

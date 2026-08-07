@@ -41,10 +41,11 @@ export async function enqueueTranscription(filename: string) {
 
 export const HIGHLIGHT_QUEUE = "highlight-reel";
 
-/** Job payload: the two camera takes (in the MinIO `videos` bucket) to cut. */
+/** Job payload: the three camera takes (in the MinIO `videos` bucket) to cut. */
 export interface HighlightReelJob {
   cam1Filename: string;
   cam2Filename: string;
+  cam3Filename: string;
 }
 
 const globalForHighlightQueue = globalThis as unknown as {
@@ -70,14 +71,26 @@ if (process.env.NODE_ENV !== "production") {
 
 /**
  * Enqueue the reel for one session. The jobId is derived from the camera-1
- * take, so whichever upload lands second can enqueue without racing the other
+ * take, so whichever upload lands last can enqueue without racing the others
  * into a duplicate job.
  */
-export async function enqueueHighlightReel(cam1Filename: string, cam2Filename: string) {
+export async function enqueueHighlightReel(
+  cam1Filename: string,
+  cam2Filename: string,
+  cam3Filename: string
+) {
+  const jobId = `highlight-${cam1Filename}`;
+  const existing = await highlightQueue.getJob(jobId);
+  if (existing) {
+    const state = await existing.getState();
+    if (state === "completed" || state === "failed") {
+      await existing.remove().catch(() => {});
+    }
+  }
   return highlightQueue.add(
     "build-reel",
-    { cam1Filename, cam2Filename },
-    { jobId: `highlight-${cam1Filename}` }
+    { cam1Filename, cam2Filename, cam3Filename },
+    { jobId }
   );
 }
 
@@ -144,12 +157,20 @@ export async function enqueueTranslations(
   transcriptId: string
 ) {
   return Promise.all(
-    TRANSLATION_LANGUAGES.map(({ queue, langCode }) => {
+    TRANSLATION_LANGUAGES.map(async ({ queue, langCode }) => {
       const q = translationQueues.get(queue)!;
+      const jobId = `translate-${langCode}-${filename}`;
+      const existing = await q.getJob(jobId);
+      if (existing) {
+        const state = await existing.getState();
+        if (state === "completed" || state === "failed") {
+          await existing.remove().catch(() => {});
+        }
+      }
       return q.add(
         "translate",
         { filename, segments, transcriptId },
-        { jobId: `translate-${langCode}-${filename}` }
+        { jobId }
       );
     })
   );
@@ -215,10 +236,18 @@ export async function enqueueAudioConversion(
   const entry = AUDIO_LANGUAGES.find((l) => l.langCode === langCode);
   if (!entry) throw new Error(`No audio-conversion queue for langCode "${langCode}"`);
   const q = audioConversionQueues.get(entry.queue)!;
+  const jobId = `audio-${langCode}-${filename}`;
+  const existing = await q.getJob(jobId);
+  if (existing) {
+    const state = await existing.getState();
+    if (state === "completed" || state === "failed") {
+      await existing.remove().catch(() => {});
+    }
+  }
   return q.add(
     "synthesize",
     { translationId, filename, langCode, text },
-    { jobId: `audio-${langCode}-${filename}` }
+    { jobId }
   );
 }
 
