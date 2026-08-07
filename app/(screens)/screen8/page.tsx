@@ -2,20 +2,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
-interface TranscriptSegment {
-  id: number;
+interface TimedCue {
   start: number;
   end: number;
   text: string;
-}
-
-interface TranscriptData {
-  text: string;
-  language: string;
-  duration: number;
-  segments: TranscriptSegment[];
-  createdAt: string;
-  sourceAudio: string;
 }
 
 interface AudioFileItem {
@@ -23,6 +13,11 @@ interface AudioFileItem {
   url: string;
   size: number;
   createdAt: string;
+}
+
+interface RecordingItem {
+  filename: string;
+  url: string;
 }
 
 const LANGUAGES = [
@@ -33,31 +28,32 @@ const LANGUAGES = [
   { label: "Spanish", flag: "🇪🇸" },
 ];
 
-export default function Screen5Page() {
+const REEL_POLL_MS = 5000;
+
+export default function Screen8Page() {
   const [audioFiles, setAudioFiles] = useState<AudioFileItem[]>([]);
   const [selectedUrl, setSelectedUrl] = useState<string>("");
-  const [transcript, setTranscript] = useState<TranscriptData | null>(null);
-
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [currentTime, setCurrentTime] = useState<number>(0);
-  const [duration, setDuration] = useState<number>(0);
-  const [activeSegmentId, setActiveSegmentId] = useState<number | null>(null);
+  const [hasTranscript, setHasTranscript] = useState<boolean>(false);
 
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
   const [status, setStatus] = useState<string>("");
 
-  // Translation state
-  const [language, setLanguage] = useState<string>("English");
-  const [translations, setTranslations] = useState<Record<string, TranscriptSegment[]>>({});
-  const [translatingLang, setTranslatingLang] = useState<string | null>(null);
+  const [reelUrl, setReelUrl] = useState<string | null>(null);
+  const [reelFilename, setReelFilename] = useState<string | null>(null);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [language, setLanguage] = useState<string>("English");
+  const [cues, setCues] = useState<TimedCue[]>([]);
+  const [isLoadingCues, setIsLoadingCues] = useState<boolean>(false);
+  const [cuesError, setCuesError] = useState<string | null>(null);
+
+  const [videoTime, setVideoTime] = useState<number>(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const activeLineRef = useRef<HTMLParagraphElement | null>(null);
   const attemptedRef = useRef<Set<string>>(new Set());
 
   const filenameFromUrl = (url: string) => url.split("/").pop() || "";
 
-  // ---- Data loading ---------------------------------------------------------
+  // ---- Data loading: audio files ---------------------------------------------
   const fetchAudioFiles = useCallback(async () => {
     try {
       const res = await fetch("/api/save-audio");
@@ -73,28 +69,30 @@ export default function Screen5Page() {
     }
   }, []);
 
-  const fetchTranscript = useCallback(async (sourceAudio: string) => {
-    if (!sourceAudio) return null;
-    try {
-      const res = await fetch(`/api/transcript/english?sourceAudio=${encodeURIComponent(sourceAudio)}`);
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (data.exists && data.transcript) {
-        setTranscript(data.transcript);
-        return data.transcript as TranscriptData;
+  // ---- Data loading: latest highlight reel (same source as Screens 06/09-12) -
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLatestReel = async () => {
+      try {
+        const res = await fetch("/api/save-recording?kind=highlight");
+        if (!res.ok) return;
+        const data = await res.json();
+        const list: RecordingItem[] = data.recordings || [];
+        if (list.length > 0 && !cancelled) {
+          setReelUrl(list[0].url);
+          setReelFilename(list[0].filename);
+        }
+      } catch {
+        /* keep whatever reel is already on screen */
       }
-    } catch {
-      /* ignore */
-    }
-    return null;
+    };
+    fetchLatestReel();
+    const interval = setInterval(fetchLatestReel, REEL_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
-
-  // Reset translations whenever the underlying transcript changes.
-  const applyTranscript = (t: TranscriptData) => {
-    setTranscript(t);
-    setTranslations({});
-    setLanguage("English");
-  };
 
   // ---- Transcription via Docker Whisper ------------------------------------
   const runTranscription = useCallback(async (url: string) => {
@@ -110,16 +108,27 @@ export default function Screen5Page() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        applyTranscript(data.transcript);
         const words = (data.transcript?.text || "").trim();
+        setHasTranscript(!!words);
         setStatus(words ? `Live transcript ready · ${data.sttEngine}` : "No speech detected in this audio.");
       } else {
         setStatus(`Error: ${data.error || "transcription failed"}`);
       }
-    } catch (err: any) {
-      setStatus(`Error: ${err.message}`);
+    } catch (err: unknown) {
+      setStatus(`Error: ${err instanceof Error ? err.message : "transcription failed"}`);
     } finally {
       setIsTranscribing(false);
+    }
+  }, []);
+
+  const checkTranscriptExists = useCallback(async (url: string) => {
+    try {
+      const res = await fetch(`/api/transcript/english?sourceAudio=${encodeURIComponent(url)}`);
+      if (!res.ok) return false;
+      const data = await res.json();
+      return !!(data.exists && data.transcript?.segments?.length > 0);
+    } catch {
+      return false;
     }
   }, []);
 
@@ -131,10 +140,9 @@ export default function Screen5Page() {
       const newest = files[0].url;
       setSelectedUrl(newest);
       attemptedRef.current.add(newest);
-      // Reuse the cached transcript only if it already exists for this exact audio.
-      const existing = await fetchTranscript(newest);
-      const cachedMatches = existing && existing.sourceAudio === newest && existing.segments?.length > 0;
-      if (!cachedMatches) runTranscription(newest);
+      const exists = await checkTranscriptExists(newest);
+      setHasTranscript(exists);
+      if (!exists) runTranscription(newest);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -142,129 +150,81 @@ export default function Screen5Page() {
   // ---- When the user switches audio, transcribe if needed -------------------
   useEffect(() => {
     if (!selectedUrl) return;
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setActiveSegmentId(null);
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-    const matches = transcript && transcript.sourceAudio === selectedUrl;
-    if (!matches && !attemptedRef.current.has(selectedUrl)) {
-      attemptedRef.current.add(selectedUrl);
-      runTranscription(selectedUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedUrl]);
-
-  // ---- Translation via the per-language transcript APIs ---------------------
-  // Each maps this exact audio (sourceAudio) to its own cached-or-computed
-  // translation — see app/api/transcript/<language>/route.ts.
-  const selectLanguage = async (lang: string) => {
-    setLanguage(lang);
-    if (lang === "English") return;
-    if (translations[lang]) return; // already fetched for this audio
-    if (!selectedUrl) return;
-
-    setTranslatingLang(lang);
-    setStatus(`Fetching ${lang} transcript for this audio…`);
-    try {
-      const res = await fetch(
-        `/api/transcript/${lang.toLowerCase()}?sourceAudio=${encodeURIComponent(selectedUrl)}`
-      );
-      const data = await res.json();
-      if (res.ok && data.exists && data.transcript?.segments) {
-        setTranslations((prev) => ({ ...prev, [lang]: data.transcript.segments }));
-        setStatus(`Showing ${lang} translation for this audio`);
-      } else {
-        setStatus(`Translation error: ${data.error || "no transcript for this audio yet"}`);
-        setLanguage("English");
+    setCues([]);
+    setVideoTime(0);
+    (async () => {
+      const exists = await checkTranscriptExists(selectedUrl);
+      setHasTranscript(exists);
+      if (!exists && !attemptedRef.current.has(selectedUrl)) {
+        attemptedRef.current.add(selectedUrl);
+        await runTranscription(selectedUrl);
       }
-    } catch (err: any) {
-      setStatus(`Translation error: ${err.message}`);
-      setLanguage("English");
-    } finally {
-      setTranslatingLang(null);
-    }
-  };
+    })();
+  }, [selectedUrl, checkTranscriptExists, runTranscription]);
 
-  const originalSegments = transcript?.segments || [];
-  const displaySegments =
-    language === "English" ? originalSegments : translations[language] || originalSegments;
-
-  // ---- Sync active segment with playback (timings are language-agnostic) ----
+  // ---- Subtitle cues: that language's transcript re-timed onto the reel's --
+  // own cut timeline (see lib/video-export.ts) — fetched whenever the audio,
+  // reel, or language selection is ready.
   useEffect(() => {
-    if (!displaySegments.length) return;
-    const seg = displaySegments.find((s) => currentTime >= s.start && currentTime <= s.end);
-    const id = seg ? seg.id : null;
-    if (id !== activeSegmentId) setActiveSegmentId(id);
-  }, [currentTime, displaySegments, activeSegmentId]);
+    if (!selectedUrl || !reelFilename || !hasTranscript) return;
+    let cancelled = false;
+    (async () => {
+      setIsLoadingCues(true);
+      setCuesError(null);
+      try {
+        const res = await fetch(
+          `/api/subtitle-cues?reelFilename=${encodeURIComponent(reelFilename)}` +
+            `&sourceAudio=${encodeURIComponent(selectedUrl)}&language=${encodeURIComponent(language)}`
+        );
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok && Array.isArray(data.cues)) {
+          setCues(data.cues);
+        } else {
+          setCues([]);
+          setCuesError(data.error || "Failed to load subtitle cues");
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setCues([]);
+          setCuesError(err instanceof Error ? err.message : "Failed to load subtitle cues");
+        }
+      } finally {
+        if (!cancelled) setIsLoadingCues(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUrl, reelFilename, hasTranscript, language]);
 
-  // ---- Auto-scroll the active line into view --------------------------------
+  const activeCue = cues.find((c) => videoTime >= c.start && videoTime <= c.end) ?? null;
+
+  // ---- Auto-scroll the active reference line into view -----------------------
   useEffect(() => {
     if (activeLineRef.current) {
-      activeLineRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      activeLineRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
-  }, [activeSegmentId]);
+  }, [activeCue]);
 
-  // Keep the React duration state in sync, accepting only finite values.
-  const syncDuration = () => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (isFinite(el.duration) && el.duration > 0) {
-      setDuration(el.duration);
-    } else if (el.duration === Infinity) {
-      const onSeeked = () => {
-        el.removeEventListener("seeked", onSeeked);
-        if (isFinite(el.duration) && el.duration > 0) setDuration(el.duration);
-        el.currentTime = 0;
-      };
-      el.addEventListener("seeked", onSeeked);
-      try {
-        el.currentTime = 1e7;
-      } catch {
-        el.removeEventListener("seeked", onSeeked);
-      }
-    }
-  };
-
-  // ---- Controls -------------------------------------------------------------
-  const togglePlay = () => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (isPlaying) el.pause();
-    else el.play().catch(() => {});
-  };
-
-  const seekToSegment = (start: number) => {
-    const el = audioRef.current;
+  const seekTo = (start: number) => {
+    const el = videoRef.current;
     if (!el) return;
     el.currentTime = start;
-    setCurrentTime(start);
     el.play().catch(() => {});
   };
 
-  const formatTime = (secs: number) => {
-    if (!isFinite(secs)) secs = 0;
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  };
+  const isTranslating = isLoadingCues && language !== "English";
 
-  const hasText = originalSegments.some((s) => s.text.trim().length > 0);
-  const isForSelected = transcript?.sourceAudio === selectedUrl;
-  const isTranslating = translatingLang !== null;
-
-  // ---------------------------------------------------------------------------
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       {/* Minimal top bar: source + whisper action */}
       <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-800/80">
         <div className="flex items-center gap-2">
           <span className="px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-400 font-mono text-[10px] uppercase font-bold border border-indigo-500/30">
-            Screen 05
+            Screen 08
           </span>
-          <span className="text-sm text-slate-400">Live Whisper + Qwen Translation</span>
+          <span className="text-sm text-slate-400">Highlight Reel + Subtitle Preview</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -299,130 +259,102 @@ export default function Screen5Page() {
       <div className="flex flex-wrap items-center justify-center gap-2 px-6 py-4 border-b border-slate-900">
         {LANGUAGES.map((l) => {
           const active = language === l.label;
-          const loading = translatingLang === l.label;
+          const loading = isTranslating && active;
           return (
             <button
               key={l.label}
-              onClick={() => selectLanguage(l.label)}
-              disabled={isTranslating && !loading}
+              onClick={() => setLanguage(l.label)}
+              disabled={isLoadingCues && !active}
               className={`text-sm px-4 py-2 rounded-full font-bold border transition flex items-center gap-2 ${
                 active
                   ? "bg-indigo-600 text-white border-indigo-400 shadow-lg shadow-indigo-950"
                   : "bg-slate-900 text-slate-300 border-slate-700 hover:border-indigo-500 hover:text-white"
-              } ${isTranslating && !loading ? "opacity-40 cursor-not-allowed" : ""}`}
+              } ${isLoadingCues && !active ? "opacity-40 cursor-not-allowed" : ""}`}
             >
               <span>{l.flag}</span>
               {l.label}
-              {loading && (
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-              )}
+              {loading && <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />}
             </button>
           );
         })}
       </div>
 
       {/* Status line */}
-      {status && (
+      {(status || cuesError) && (
         <div className="px-6 py-2 text-center text-xs font-mono text-slate-400 border-b border-slate-900">
-          {(isTranscribing || isTranslating) && (
+          {(isTranscribing || isLoadingCues) && (
             <span className="inline-block w-2 h-2 mr-2 rounded-full bg-amber-400 animate-ping align-middle" />
           )}
-          {status}
+          {cuesError ? `Subtitle error: ${cuesError}` : status}
         </div>
       )}
 
-      {/* Big transcript text */}
-      <main className="flex-1 overflow-y-auto px-6 py-12">
-        <div className="max-w-5xl mx-auto space-y-8">
-          {isTranscribing ? (
-            <p className="text-center text-2xl text-slate-500 animate-pulse py-24">
-              Listening to the audio…
+      {/* Highlight reel with subtitle overlay */}
+      <main className="flex-1 flex flex-col items-center gap-6 px-6 py-8 overflow-y-auto">
+        <div className="relative w-full max-w-4xl aspect-video rounded-2xl bg-black border border-slate-800/80 overflow-hidden shadow-2xl">
+          {reelUrl ? (
+            <video
+              key={reelUrl}
+              ref={videoRef}
+              src={reelUrl}
+              autoPlay
+              loop
+              controls
+              playsInline
+              onTimeUpdate={() => videoRef.current && setVideoTime(videoRef.current.currentTime)}
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm font-mono">
+              No highlight reel yet — record all 3 cameras to generate one.
+            </div>
+          )}
+
+          {/* Subtitle band, burned-in style but live CSS overlay */}
+          {activeCue && (
+            <div className="absolute bottom-16 left-4 right-4 flex justify-center pointer-events-none">
+              <p className="max-w-[90%] text-center text-white font-extrabold text-xl sm:text-2xl leading-snug px-4 py-2 rounded-lg bg-black/70 [text-shadow:0_2px_4px_rgba(0,0,0,0.8)]">
+                {activeCue.text}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Reference list of every cue, in reel order — click to seek */}
+        <div className="w-full max-w-4xl space-y-2">
+          {isLoadingCues ? (
+            <p className="text-center text-sm text-slate-500 animate-pulse py-6">
+              {language === "English" ? "Loading subtitles…" : `Translating to ${language}…`}
             </p>
-          ) : hasText && isForSelected ? (
-            displaySegments.map((seg) => {
-              const isActive = activeSegmentId === seg.id;
+          ) : cues.length > 0 ? (
+            cues.map((cue, i) => {
+              const isActive = activeCue === cue;
               return (
                 <p
-                  key={seg.id}
+                  key={i}
                   ref={isActive ? activeLineRef : null}
-                  onClick={() => seekToSegment(seg.start)}
-                  className={`cursor-pointer font-bold leading-tight transition-all duration-300 ${
+                  onClick={() => seekTo(cue.start)}
+                  className={`cursor-pointer text-sm rounded-lg px-3 py-2 transition ${
                     isActive
-                      ? "text-white text-4xl sm:text-6xl scale-[1.01]"
-                      : "text-slate-600 hover:text-slate-400 text-2xl sm:text-4xl"
+                      ? "bg-indigo-600/20 border border-indigo-500/40 text-white font-bold"
+                      : "text-slate-500 hover:text-slate-300 hover:bg-slate-900"
                   }`}
                 >
-                  {seg.text}
+                  {cue.text}
                 </p>
               );
             })
           ) : (
-            <p className="text-center text-xl text-slate-500 py-24">
-              {selectedUrl
-                ? 'No transcript yet — press "Transcribe" to run Docker Whisper.'
-                : "Record or add an audio file to begin."}
+            <p className="text-center text-sm text-slate-600 py-6">
+              {!reelFilename
+                ? "Waiting on a highlight reel."
+                : !hasTranscript
+                  ? 'No transcript yet — press "Transcribe" above.'
+                  : "No subtitle cues overlap this reel's cut."}
             </p>
           )}
         </div>
       </main>
-
-      {/* Play / pause bar */}
-      <footer className="border-t border-slate-800/80 bg-slate-900/60 backdrop-blur-md px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center gap-4">
-          <button
-            onClick={togglePlay}
-            disabled={!selectedUrl}
-            className={`w-16 h-16 shrink-0 rounded-full flex items-center justify-center text-2xl transition shadow-lg ${
-              selectedUrl
-                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950"
-                : "bg-slate-800 text-slate-600 cursor-not-allowed"
-            }`}
-            aria-label={isPlaying ? "Pause" : "Play"}
-          >
-            {isPlaying ? "⏸" : "▶"}
-          </button>
-
-          <div className="flex-1 space-y-1">
-            <input
-              type="range"
-              min={0}
-              max={duration || 100}
-              step={0.01}
-              value={currentTime}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                setCurrentTime(v);
-                if (audioRef.current) audioRef.current.currentTime = v;
-              }}
-              className="w-full accent-emerald-500 h-2 rounded-lg cursor-pointer appearance-none"
-              style={{
-                background: `linear-gradient(to right, #10b981 ${
-                  duration ? (currentTime / duration) * 100 : 0
-                }%, #1e293b ${duration ? (currentTime / duration) * 100 : 0}%)`,
-              }}
-            />
-            <div className="flex justify-between text-xs font-mono text-slate-400">
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
-            </div>
-          </div>
-        </div>
-
-        <audio
-          ref={audioRef}
-          src={selectedUrl || undefined}
-          onTimeUpdate={() => audioRef.current && setCurrentTime(audioRef.current.currentTime)}
-          onLoadedMetadata={() => syncDuration()}
-          onDurationChange={() => syncDuration()}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          onEnded={() => {
-            setIsPlaying(false);
-            const d = audioRef.current?.duration;
-            if (d && isFinite(d)) setCurrentTime(d);
-          }}
-        />
-      </footer>
     </div>
   );
 }
