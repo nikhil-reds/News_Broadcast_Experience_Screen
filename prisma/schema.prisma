@@ -156,3 +156,39 @@ model CameraFeed {
 
   @@map("camera_feeds")
 }
+
+/// Tracks one Screen 11/12 export render (reel + language + aspect -> final video)
+model VideoJob {
+  id            String   @id @default(uuid())
+  reelFilename  String
+  sourceAudio   String
+  language      String
+  aspect        String   // "portrait" | "landscape"
+  status        String   @default("queued") // "queued" | "processing" | "completed" | "failed"
+  outputFilename String?
+  outputUrl     String?
+  size          Int?
+  errorMessage  String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([reelFilename, language, aspect])
+  @@map("video_jobs")
+}
+
+/// Sponsored ad campaigns rotated into the Screen 09/10 banner overlays
+model AdCampaign {
+  id          String   @id @default(uuid())
+  sponsor     String
+  text        String
+  code        String   @unique
+  startTime   DateTime @default(now())
+  endTime     DateTime
+  priority    Int      @default(5)
+  isActive    Boolean  @default(true)
+  impressions Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("ad_campaigns")
+}
