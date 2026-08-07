@@ -25,9 +25,16 @@ export const ALLOWED_BUCKETS = new Set([AUDIO_BUCKET, VIDEO_BUCKET, TRANSCRIPTS_
 
 /** Create the bucket if it does not exist yet. */
 export async function ensureBucket(bucket: string): Promise<void> {
-  const exists = await minioClient.bucketExists(bucket).catch(() => false);
-  if (!exists) {
-    await minioClient.makeBucket(bucket);
+  try {
+    const exists = await minioClient.bucketExists(bucket);
+    if (!exists) {
+      await minioClient.makeBucket(bucket);
+    }
+  } catch (err: any) {
+    if (err.code === "BucketAlreadyOwnedByYou" || err.code === "BucketAlreadyExists") {
+      return;
+    }
+    throw err;
   }
 }
 
