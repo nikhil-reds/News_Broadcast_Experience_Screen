@@ -10,12 +10,14 @@ interface CameraStudioCardProps {
   /** Every video input on the machine, so an operator can re-point a card. */
   devices: MediaDeviceInfo[];
   onSelectDevice: (deviceId: string) => void;
+  showRecordingControls?: boolean;
 }
 
 export default function CameraStudioCard({
   recorder,
   devices,
   onSelectDevice,
+  showRecordingControls = false,
 }: CameraStudioCardProps) {
   const {
     cameraId,
@@ -110,33 +112,35 @@ export default function CameraStudioCard({
       </div>
 
       {/* Video Controls */}
-      <div className="flex items-center gap-3 pt-2">
-        <button
-          onClick={recorder.startRecording}
-          disabled={isRecording || !isCameraActive || isSaving}
-          className={`flex-1 py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition ${
-            isRecording || !isCameraActive || isSaving
-              ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800"
-              : "bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950"
-          }`}
-        >
-          <span className="w-2.5 h-2.5 rounded-full bg-white" />
-          Start Recording
-        </button>
+      {showRecordingControls && (
+        <div className="flex items-center gap-3 pt-2">
+          <button
+            onClick={recorder.startRecording}
+            disabled={isRecording || !isCameraActive || isSaving}
+            className={`flex-1 py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition ${
+              isRecording || !isCameraActive || isSaving
+                ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800"
+                : "bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950"
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-white" />
+            Start Recording
+          </button>
 
-        <button
-          onClick={recorder.endRecording}
-          disabled={!isRecording || isSaving}
-          className={`flex-1 py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition ${
-            !isRecording || isSaving
-              ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800"
-              : "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700"
-          }`}
-        >
-          <span className="w-3 h-3 rounded-sm bg-rose-400" />
-          End Recording
-        </button>
-      </div>
+          <button
+            onClick={recorder.endRecording}
+            disabled={!isRecording || isSaving}
+            className={`flex-1 py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition ${
+              !isRecording || isSaving
+                ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-800"
+                : "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700"
+            }`}
+          >
+            <span className="w-3 h-3 rounded-sm bg-rose-400" />
+            End Recording
+          </button>
+        </div>
+      )}
 
       {isSaving && (
         <p className="text-xs font-mono text-amber-400 animate-pulse text-center">
