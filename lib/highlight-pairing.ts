@@ -1,75 +1,49 @@
 import { prisma } from "@/lib/prisma";
-import { enqueueHighlightReel } from "@/lib/queue";
-import {
-  CAMERA_FILENAME_PREFIX,
-  cameraIdFromFilename,
-  highlightFilenameFor,
-  otherCameraId,
-  parseRecordingTimestamp,
-} from "@/lib/camera-recordings";
-
-/**
- * How far apart the two takes of one session may be stamped. Both cameras are
- * stopped by the same Nexmosphere press and named from the same clock, so they
- * land within seconds; two minutes is slack, not a real window.
- */
-const PAIR_WINDOW_MS = 120_000;
-
-/** How many recent takes of the other camera to consider when pairing. */
-const PAIR_LOOKBACK = 20;
+import { enqueueHighlightAnalysis } from "@/lib/queue";
+import { cameraIdFromFilename, highlightFilenameFor, type CameraId } from "@/lib/camera-recordings";
 
 export interface PairResult {
   queued: boolean;
-  pairedWith?: string;
   reason?: string;
 }
 
 /**
- * Called after a camera take is stored. The reel needs both angles, so the
- * first upload of a session finds nothing and the second one enqueues the job.
+ * Called after a camera take is stored. All 3 camera uploads for one take now
+ * carry the same sessionId (set once when the operator presses "Start
+ * Recording" — see app/(main)/camera/page.tsx), so completeness is a direct
+ * count instead of the old approach of guessing which takes belong together
+ * from filename timestamps within a 2-minute window. That heuristic could
+ * silently miss the reel entirely if an upload lagged past the window; this
+ * can't, since it's keyed by an explicit id shared at recording time.
+ *
+ * Recordings uploaded before this session concept existed (no sessionId) are
+ * not paired here — nothing enqueues for them, same as if this function were
+ * never called at all.
  */
-export async function enqueueHighlightIfPairComplete(filename: string): Promise<PairResult> {
-  const cameraId = cameraIdFromFilename(filename);
-  if (!cameraId) return { queued: false, reason: "not a camera take" };
-
-  const stampedAt = parseRecordingTimestamp(filename);
-  if (stampedAt === null) return { queued: false, reason: "no timestamp in filename" };
-
-  // For a 3-camera system, the others are:
-  const otherIds = ([1, 2, 3] as const).filter((id) => id !== cameraId);
-  const matchedFilenames: Record<number, string> = { [cameraId]: filename };
-
-  for (const otherId of otherIds) {
-    const candidates = await prisma.videoRecording.findMany({
-      where: { filename: { startsWith: CAMERA_FILENAME_PREFIX[otherId] } },
-      orderBy: { createdAt: "desc" },
-      take: PAIR_LOOKBACK,
-    });
-
-    let bestMatch: string | null = null;
-    let bestDelta = PAIR_WINDOW_MS;
-    for (const row of candidates) {
-      const otherStamp = parseRecordingTimestamp(row.filename);
-      if (otherStamp === null) continue;
-      const delta = Math.abs(otherStamp - stampedAt);
-      if (delta <= bestDelta) {
-        bestDelta = delta;
-        bestMatch = row.filename;
-      }
-    }
-
-    if (!bestMatch) {
-      return {
-        queued: false,
-        reason: `missing camera ${otherId} take within 2 minutes`,
-      };
-    }
-    matchedFilenames[otherId] = bestMatch;
+export async function enqueueHighlightIfSessionComplete(sessionId: string | null): Promise<PairResult> {
+  if (!sessionId) {
+    return { queued: false, reason: "upload has no sessionId (pre-session recording)" };
   }
 
-  const cam1Filename = matchedFilenames[1];
-  const cam2Filename = matchedFilenames[2];
-  const cam3Filename = matchedFilenames[3];
+  const rows = await prisma.videoRecording.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const byCamera: Partial<Record<CameraId, string>> = {};
+  for (const row of rows) {
+    const camId = cameraIdFromFilename(row.filename);
+    if (camId) byCamera[camId] = row.filename;
+  }
+
+  const missing = ([1, 2, 3] as const).filter((id) => !byCamera[id]);
+  if (missing.length > 0) {
+    return { queued: false, reason: `waiting on camera ${missing.join(", ")} for session ${sessionId}` };
+  }
+
+  const cam1Filename = byCamera[1]!;
+  const cam2Filename = byCamera[2]!;
+  const cam3Filename = byCamera[3]!;
 
   // The reel name is derived from the camera-1 take, so an existing row means
   // this session has already been cut.
@@ -81,6 +55,9 @@ export async function enqueueHighlightIfPairComplete(filename: string): Promise<
     return { queued: false, reason: "reel already built" };
   }
 
-  await enqueueHighlightReel(cam1Filename, cam2Filename, cam3Filename);
+  // Kicks off stage 1 (Gemini analysis) only — stage 2 (the ffmpeg render) is
+  // chained from within app/worker/highlight-analysis.ts once Gemini's picks
+  // are known, since its queue payload requires those segments.
+  await enqueueHighlightAnalysis(cam1Filename, cam2Filename, cam3Filename);
   return { queued: true };
 }
