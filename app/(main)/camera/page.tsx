@@ -18,7 +18,12 @@ export default function CameraPage() {
     start: () => void;
     end: () => void;
     isRecording: () => boolean;
+    setSessionId: (sessionId: string | null) => void;
   } | null>(null);
+
+  // --- Session (ties the 3 camera takes + 1 audio take of one recording
+  // together, replacing the old filename-timestamp-proximity guess) ---
+  const sessionIdRef = useRef<string | null>(null);
 
   const refreshVideoDevices = useCallback(async () => {
     try {
@@ -84,7 +89,25 @@ export default function CameraPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const startAllRecording = () => {
+  const startAllRecording = async () => {
+    // One session id for this take, shared by all 3 cameras + audio so the
+    // backend can tell when all 4 uploads for THIS take have landed instead
+    // of guessing from filename timestamps.
+    let sessionId: string | null = null;
+    try {
+      const res = await fetch("/api/sessions", { method: "POST" });
+      const data = await res.json();
+      sessionId = data.session?.id ?? null;
+    } catch (err) {
+      console.error("Failed to create broadcast session:", err);
+    }
+    sessionIdRef.current = sessionId;
+
+    camera1.setSessionId(sessionId);
+    camera2.setSessionId(sessionId);
+    camera3.setSessionId(sessionId);
+    audioTriggersRef.current?.setSessionId(sessionId);
+
     if (!camera1.isRecorderRunning()) camera1.startRecording();
     if (!camera2.isRecorderRunning()) camera2.startRecording();
     if (!camera3.isRecorderRunning()) camera3.startRecording();
@@ -99,6 +122,15 @@ export default function CameraPage() {
     camera3.endRecording();
     if (audioTriggersRef.current && audioTriggersRef.current.isRecording()) {
       audioTriggersRef.current.end();
+    }
+
+    const sessionId = sessionIdRef.current;
+    if (sessionId) {
+      fetch(`/api/sessions/${sessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "processing", endedAt: new Date().toISOString() }),
+      }).catch((err) => console.error("Failed to mark session as processing:", err));
     }
   };
 
