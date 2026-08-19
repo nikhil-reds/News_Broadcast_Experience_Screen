@@ -40,10 +40,37 @@ export default function RecordingLooper({
 
     const fetchLatestRecording = async () => {
       try {
-        const res = await fetch(`/api/save-recording?${query}`);
+        // Scope to the current BroadcastSession so this screen shows footage
+        // from the same take Screens 4/5 are showing a transcript for,
+        // instead of each screen independently taking "whatever's newest"
+        // and risking a mismatch if a new take started recording in between.
+        // Falls back to unscoped (old behavior) if there's no session yet —
+        // e.g. recordings uploaded before this concept existed.
+        let sessionId: string | null = null;
+        try {
+          const sessionRes = await fetch("/api/sessions/current");
+          if (sessionRes.ok) {
+            const sessionData = await sessionRes.json();
+            sessionId = sessionData.session?.id ?? null;
+          }
+        } catch {
+          /* fall through to unscoped lookup */
+        }
+
+        const params = sessionId ? `${query}&sessionId=${sessionId}` : query;
+        const res = await fetch(`/api/save-recording?${params}`);
         if (res.ok) {
           const data = await res.json();
-          const list: RecordingItem[] = data.recordings || [];
+          let list: RecordingItem[] = data.recordings || [];
+          // A brand-new session has no recordings yet (still uploading) —
+          // fall back to the unscoped newest take rather than showing blank.
+          if (list.length === 0 && sessionId) {
+            const fallbackRes = await fetch(`/api/save-recording?${query}`);
+            if (fallbackRes.ok) {
+              const fallbackData = await fallbackRes.json();
+              list = fallbackData.recordings || [];
+            }
+          }
           if (list.length > 0 && !cancelled) {
             setVideoUrl(list[0].url);
           }
