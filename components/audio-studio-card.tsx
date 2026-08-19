@@ -15,6 +15,7 @@ interface AudioStudioCardProps {
     start: () => void;
     end: () => void;
     isRecording: () => boolean;
+    setSessionId: (sessionId: string | null) => void;
   }) => void;
   onRecordingChange?: (recording: boolean) => void;
   showButtons?: boolean;
@@ -42,6 +43,9 @@ export default function AudioStudioCard({
   const audioTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  // Ref (not state) so recorder.onstop's saveAudioToServer always reads the
+  // sessionId current at record time, matching lib/use-camera-recorder.ts.
+  const sessionIdRef = useRef<string | null>(null);
 
   // Fetch Audio Files
   const fetchSavedAudioFiles = async () => {
@@ -79,6 +83,9 @@ export default function AudioStudioCard({
       const formData = new FormData();
       formData.append("audio", blob, filename);
       formData.append("filename", filename);
+      if (sessionIdRef.current) {
+        formData.append("sessionId", sessionIdRef.current);
+      }
 
       const res = await fetch("/api/save-audio", {
         method: "POST",
@@ -233,6 +240,9 @@ export default function AudioStudioCard({
         start: startAudioRecording,
         end: handleEndAudioRecording,
         isRecording: () => audioRecorderRef.current?.state === "recording",
+        setSessionId: (sessionId) => {
+          sessionIdRef.current = sessionId;
+        },
       });
     }
   }, [onRegisterTriggers]);
