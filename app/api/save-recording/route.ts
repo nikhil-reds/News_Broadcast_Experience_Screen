@@ -4,9 +4,11 @@ import { VIDEO_BUCKET, uploadObject } from "@/lib/minio";
 import {
   CAMERA_FILENAME_PREFIX,
   HIGHLIGHT_FILENAME_PREFIX,
+  cameraIdFromFilename,
   parseCameraId,
 } from "@/lib/camera-recordings";
-import { enqueueHighlightIfPairComplete } from "@/lib/highlight-pairing";
+import { enqueueHighlightIfSessionComplete } from "@/lib/highlight-pairing";
+import { enqueueAllBackgroundsForSource } from "@/lib/queue";
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +24,7 @@ export async function POST(req: NextRequest) {
     const customFilename = formData.get("filename") as string | null;
     const filename = customFilename || `camera-recording-${timestamp}.mp4`;
     const contentType = file.type || (filename.endsWith(".webm") ? "video/webm" : "video/mp4");
+    const sessionId = (formData.get("sessionId") as string | null) || null;
 
     // Store in the MinIO `videos` bucket
     await uploadObject(VIDEO_BUCKET, filename, buffer, contentType);
@@ -38,6 +41,7 @@ export async function POST(req: NextRequest) {
         objectKey: filename,
         contentType,
         size: buffer.length,
+        sessionId,
       },
       update: {
         url,
@@ -45,21 +49,34 @@ export async function POST(req: NextRequest) {
         objectKey: filename,
         contentType,
         size: buffer.length,
+        sessionId,
       },
     });
 
-    // Both angles of a session are needed before the reel can be cut, so this
-    // only enqueues once the counterpart take is already stored. Best-effort:
-    // a Redis/worker outage must not fail the upload.
+    // All 3 camera takes are needed before the reel can be cut, so this only
+    // enqueues once the last of the three (for this sessionId) lands.
+    // Best-effort: a Redis/worker outage must not fail the upload.
     let highlightQueued = false;
     try {
-      const pair = await enqueueHighlightIfPairComplete(filename);
+      const pair = await enqueueHighlightIfSessionComplete(sessionId);
       highlightQueued = pair.queued;
       if (!pair.queued) {
         console.log(`No highlight job for "${filename}": ${pair.reason}`);
       }
     } catch (queueErr: any) {
       console.error("Failed to enqueue highlight-reel job:", queueErr.message);
+    }
+
+    // Screen 07 composites its 5 backgrounds against camera 1's own take (not
+    // the reel — see components CAMERA_1_QUERY in that screen), so this is
+    // the moment to pre-warm them: right when that take actually exists, not
+    // after the (much later, much less frequent) video-export step. All 5
+    // render in the background while the operator reviews footage on Screens
+    // 01-06, so by the time they reach Screen 07 the swap is usually instant.
+    if (cameraIdFromFilename(filename) === 1) {
+      enqueueAllBackgroundsForSource(filename).catch((err) => {
+        console.error(`Failed to pre-warm backgrounds for "${filename}":`, err.message);
+      });
     }
 
     return NextResponse.json({
@@ -94,9 +111,17 @@ export async function GET(req: NextRequest) {
       : cameraId
         ? CAMERA_FILENAME_PREFIX[cameraId]
         : null;
+    // Optional: scope to one recording session (see BroadcastSession). Left
+    // out for recordings uploaded before sessions existed, or when the caller
+    // doesn't know the session yet — falls back to "newest matching row"
+    // exactly like before.
+    const sessionId = req.nextUrl.searchParams.get("sessionId");
 
     const rows = await prisma.videoRecording.findMany({
-      where: prefix ? { filename: { startsWith: prefix } } : undefined,
+      where: {
+        ...(prefix ? { filename: { startsWith: prefix } } : {}),
+        ...(sessionId ? { sessionId } : {}),
+      },
       orderBy: { createdAt: "desc" },
     });
 
