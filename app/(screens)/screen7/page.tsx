@@ -6,6 +6,7 @@ import {
   composedOutputUrl,
 } from "@/lib/green-screen";
 import { recordingSourceQuery } from "@/lib/camera-recordings";
+import { fetchCurrentSession, patchSession } from "@/lib/current-session";
 
 type ComposeStatus = "waiting" | "active" | "delayed" | "paused" | "completed" | "failed";
 
@@ -58,6 +59,11 @@ export default function Screen7Page() {
   const [warmingIds, setWarmingIds] = useState<Set<string>>(new Set()); // composite keys, rendering quietly
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  // Composited backgrounds now carry real audio (see composeGreenScreenBackground
+  // in lib/ffmpeg.ts) — unmuted autoplay can be silently blocked by the browser
+  // without a prior user gesture, same pattern as components/recording-looper.tsx.
+  const [soundBlocked, setSoundBlocked] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const inFlight = useRef<Map<string, InFlightCompose>>(new Map());
   const elapsedTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -67,6 +73,20 @@ export default function Screen7Page() {
   // persistently broken render fails loud instead of flickering forever.
   const videoRetryCount = useRef<Map<string, number>>(new Map());
   const MAX_VIDEO_RETRIES = 2;
+
+  // The current BroadcastSession, so Screens 11/12's export knows which
+  // background the operator picked here (see lib/current-session.ts).
+  const sessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    fetchCurrentSession().then((session) => {
+      sessionIdRef.current = session?.id ?? null;
+    });
+  }, []);
+  const persistBackgroundSelection = (backgroundId: string) => {
+    if (sessionIdRef.current) {
+      patchSession(sessionIdRef.current, { selectedBackgroundId: backgroundId });
+    }
+  };
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
@@ -172,6 +192,7 @@ export default function Screen7Page() {
     setVideoSrc(`${url}?t=${Date.now()}`);
     setSelectedId(backgroundId);
     selectedIdRef.current = backgroundId;
+    persistBackgroundSelection(backgroundId);
     // A successful swap retires whatever went wrong before it — otherwise
     // handleVideoError's "re-rendering it now…" notice outlives the re-render
     // it was describing and sits there over a background that plays fine.
@@ -337,6 +358,7 @@ export default function Screen7Page() {
       setVideoSrc(`${composedOutputUrl(backgroundId, sourceFilename)}?t=${Date.now()}`);
       setSelectedId(backgroundId);
       selectedIdRef.current = backgroundId;
+      persistBackgroundSelection(backgroundId);
       return;
     }
 
@@ -420,26 +442,45 @@ export default function Screen7Page() {
             </div>
           </div>
 
-          <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-black aspect-video">
+          <div
+            className="relative rounded-xl overflow-hidden border border-slate-800 bg-black aspect-video"
+            onClick={() => {
+              if (!soundBlocked) return;
+              videoRef.current
+                ?.play()
+                .then(() => setSoundBlocked(false))
+                .catch(() => {});
+            }}
+          >
             {videoSrc ? (
               <video
                 key={videoSrc}
+                ref={videoRef}
                 src={videoSrc}
                 autoPlay
                 loop
-                muted
                 playsInline
                 onError={handleVideoError}
                 onLoadedData={() => {
                   if (selectedId && sourceFilename) {
                     videoRetryCount.current.delete(keyFor(selectedId, sourceFilename));
                   }
+                  videoRef.current
+                    ?.play()
+                    .then(() => setSoundBlocked(false))
+                    .catch(() => setSoundBlocked(true));
                 }}
                 className="w-full h-full object-cover"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm font-mono">
                 {sourceFilename ? "Compositing first background…" : "Waiting for camera 1 to record a take…"}
+              </div>
+            )}
+
+            {soundBlocked && (
+              <div className="absolute bottom-4 right-4 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs font-mono text-slate-200">
+                🔇 Click to enable sound
               </div>
             )}
 

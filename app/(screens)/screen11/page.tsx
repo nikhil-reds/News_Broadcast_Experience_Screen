@@ -1,10 +1,11 @@
-import RecordingLooper from "@/components/recording-looper";
+import FinalExportPlayer from "@/components/final-export-player";
 
 /**
- * Mobile-sized (390x844, standard phone portrait) loop of the newest
- * Gemini-cut highlight reel, centered on the page — a device preview, not a
- * full-screen kiosk display like Screens 01-03/06/12. No controls, no text.
+ * Final preview — portrait: the actual composite export (background swap +
+ * burned-in subtitles + audio + ad banner overlay), not just the raw
+ * highlight reel. Mobile-sized (390x844) device preview, centered on the
+ * page — Screen 12 is the same export in landscape, full-bleed.
  */
 export default function Screen11Page() {
-  return <RecordingLooper source={{ highlight: true }} frame={{ width: 390, height: 844 }} />;
+  return <FinalExportPlayer aspect="portrait" frame={{ width: 390, height: 844 }} adPosition="bottom" />;
 }
