@@ -72,10 +72,12 @@ const worker = new Worker<GreenScreenJob>(
   {
     name: WORKER_NAME,
     connection: redisConnection,
-    // One ffmpeg pass at a time keeps this predictable on the studio machine;
-    // results are cached per (background, take) anyway, so this only runs at
-    // all the first time a given swatch is clicked against a given take.
-    concurrency: 1,
+    // Matches BG_QUEUE_CONCURRENCY (lib/queue.ts) so all 5 backgrounds for a
+    // session actually render at once — with this at 1, the queue-level
+    // concurrency setting had no effect and backgrounds still rendered one
+    // at a time. Results are cached per (background, take) anyway, so a
+    // given (background, take) pair only ever pays for one ffmpeg pass.
+    concurrency: parseInt(process.env.BG_QUEUE_CONCURRENCY || "5", 10),
     lockDuration: 5 * 60 * 1000,
   }
 );

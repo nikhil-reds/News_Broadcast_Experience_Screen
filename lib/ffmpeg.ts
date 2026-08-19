@@ -174,10 +174,19 @@ export async function composeGreenScreenBackground(opts: {
     "-i", input,
     "-filter_complex", filter,
     "-map", "[outv]",
+    // `input` (camera 1's take) usually carries real audio — captureAudio is
+    // on for camera 1 (see lib/use-camera-recorder.ts) — but the `?` keeps
+    // this from failing on an older/video-only take that predates that, or
+    // one where mic capture fell back to video-only. Previously no audio
+    // stream was mapped at all, so every composited background came out
+    // silent regardless of what the source had.
+    "-map", "1:a?",
     "-c:v", "libx264",
     "-preset", "ultrafast",
     "-crf", "23",
     "-pix_fmt", "yuv420p",
+    "-c:a", "aac",
+    "-b:a", "192k",
     "-shortest",
     "-movflags", "+faststart",
     output,
@@ -192,9 +201,18 @@ export interface SubtitleOverlay {
 }
 
 /**
- * Scale/crop the highlight reel to `width`x`height`, burn each subtitle PNG in
- * over its time window, and optionally stamp a logo in the corner for the
- * whole duration. Used by the Screen 11/12 portrait/landscape export pipeline.
+ * Scale/crop the highlight reel to `width`x`height` — or, if `backgroundImage`
+ * is given, chromakey the reel onto that background at `width`x`height`
+ * directly instead of a plain scale/crop (same chromakey/despill recipe as
+ * composeGreenScreenBackground above, just targeting the export's own
+ * dimensions rather than Screen 07's fixed 960x540 preview size) — then burn
+ * each subtitle PNG in over its time window, and optionally stamp a logo in
+ * the corner for the whole duration. Used by the Screen 11/12 portrait/
+ * landscape export pipeline.
+ *
+ * The ad banner (Screens 9/10/11/12) is deliberately NOT composited here —
+ * it stays an HTML/CSS overlay on top of the exported <video>, same as
+ * Screens 9/10 already do, rather than a permanent pixel burn-in.
  *
  * Subtitles are pre-rendered PNGs (see lib/subtitle-image.ts) rather than the
  * `subtitles`/`drawtext` filters — this ffmpeg build has no libass/freetype.
@@ -208,15 +226,26 @@ export async function composeFinalExport(opts: {
   crop: boolean;
   subtitles: SubtitleOverlay[];
   logoPath?: string;
+  /** Chromakey the reel onto this background image instead of a plain scale/crop. */
+  backgroundImage?: string;
   cwd: string;
 }): Promise<void> {
-  const { input, output, width, height, crop, subtitles, logoPath, cwd } = opts;
+  const { input, output, width, height, crop, subtitles, logoPath, backgroundImage, cwd } = opts;
 
   const scaleFilter = crop
     ? `scale=-2:${height},crop=${width}:${height}:(iw-${width})/2:0`
     : `scale=${width}:${height}`;
 
-  const args = ["-y", "-hide_banner", "-loglevel", "error", "-i", input];
+  const args = ["-y", "-hide_banner", "-loglevel", "error"];
+  if (backgroundImage) {
+    args.push("-loop", "1", "-i", backgroundImage);
+  }
+  args.push("-i", input);
+
+  // Input index of the main reel video/audio — shifts by one when a
+  // background image occupies index 0.
+  const mainIndex = backgroundImage ? 1 : 0;
+  const subtitleStartIndex = mainIndex + 1;
 
   for (const sub of subtitles) {
     const duration = Math.max(0.1, sub.end - sub.start);
@@ -224,11 +253,28 @@ export async function composeFinalExport(opts: {
   }
   if (logoPath) args.push("-i", logoPath);
 
-  const filterParts: string[] = [`[0:v]${scaleFilter},format=yuv420p[base]`];
-  let lastLabel = "base";
+  const filterParts: string[] = [];
+  let lastLabel: string;
+
+  if (backgroundImage) {
+    filterParts.push(
+      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,` +
+        `crop=${width}:${height},setsar=1,format=yuv420p[bg]`
+    );
+    filterParts.push(
+      `[${mainIndex}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
+        `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,` +
+        `chromakey=0x46C832:0.12:0.04,despill=type=green:mix=0.5:expand=0[fg]`
+    );
+    filterParts.push(`[bg][fg]overlay=shortest=1:format=auto[base]`);
+    lastLabel = "base";
+  } else {
+    filterParts.push(`[${mainIndex}:v]${scaleFilter},format=yuv420p[base]`);
+    lastLabel = "base";
+  }
 
   subtitles.forEach((sub, i) => {
-    const inputIndex = i + 1; // 0 is the main video
+    const inputIndex = subtitleStartIndex + i;
     const outLabel = `sub${i}`;
     filterParts.push(
       `[${lastLabel}][${inputIndex}:v]overlay=0:main_h-overlay_h:enable='between(t,${sub.start.toFixed(
@@ -239,7 +285,7 @@ export async function composeFinalExport(opts: {
   });
 
   if (logoPath) {
-    const logoInputIndex = subtitles.length + 1;
+    const logoInputIndex = subtitleStartIndex + subtitles.length;
     filterParts.push(`[${lastLabel}][${logoInputIndex}:v]overlay=24:24[withlogo]`);
     lastLabel = "withlogo";
   }
@@ -250,7 +296,7 @@ export async function composeFinalExport(opts: {
     "-map",
     `[${lastLabel}]`,
     "-map",
-    "0:a?",
+    `${mainIndex}:a?`,
     "-c:v",
     "libx264",
     "-preset",
