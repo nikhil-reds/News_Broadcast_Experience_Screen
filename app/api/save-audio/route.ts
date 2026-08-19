@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
     const customFilename = formData.get("filename") as string | null;
     const filename = customFilename || `master-audio-${timestamp}.wav`;
     const contentType = file.type || "audio/wav";
+    const sessionId = (formData.get("sessionId") as string | null) || null;
 
     // Store in the MinIO `audio` bucket
     await uploadObject(AUDIO_BUCKET, filename, buffer, contentType);
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
         objectKey: filename,
         contentType,
         size: buffer.length,
+        sessionId,
       },
       update: {
         url,
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
         objectKey: filename,
         contentType,
         size: buffer.length,
+        sessionId,
       },
     });
 
@@ -72,9 +75,14 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Optional: scope to one recording session (see save-recording's GET for
+    // why this stays optional/backwards-compatible).
+    const sessionId = req.nextUrl.searchParams.get("sessionId");
+
     const rows = await prisma.audioFile.findMany({
+      where: sessionId ? { sessionId } : undefined,
       orderBy: { createdAt: "desc" },
     });
 
