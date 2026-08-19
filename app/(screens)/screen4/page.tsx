@@ -80,12 +80,36 @@ export default function Screen4Page() {
   // ---- Data loading ---------------------------------------------------------
   const fetchAudioFiles = useCallback(async () => {
     try {
-      const res = await fetch("/api/save-audio");
+      // Scope to the current BroadcastSession so this screen's audio matches
+      // what Screens 1-3/6 are showing footage for. Falls back to unscoped
+      // (old behavior) if there's no session yet.
+      let sessionId: string | null = null;
+      try {
+        const sessionRes = await fetch("/api/sessions/current");
+        if (sessionRes.ok) {
+          sessionId = (await sessionRes.json()).session?.id ?? null;
+        }
+      } catch {
+        /* fall through to unscoped lookup */
+      }
+
+      const query = sessionId ? `?sessionId=${sessionId}` : "";
+      const res = await fetch(`/api/save-audio${query}`);
       if (!res.ok) return [] as AudioFileItem[];
       const data = await res.json();
-      const files: AudioFileItem[] = (data.audioFiles || []).filter(
+      let files: AudioFileItem[] = (data.audioFiles || []).filter(
         (a: AudioFileItem) => a.filename !== "master-audio-16k.wav"
       );
+      // Brand-new session with no audio uploaded yet — fall back to unscoped.
+      if (files.length === 0 && sessionId) {
+        const fallbackRes = await fetch("/api/save-audio");
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          files = (fallbackData.audioFiles || []).filter(
+            (a: AudioFileItem) => a.filename !== "master-audio-16k.wav"
+          );
+        }
+      }
       setAudioFiles(files);
       return files;
     } catch {
@@ -93,9 +117,13 @@ export default function Screen4Page() {
     }
   }, []);
 
-  const fetchTranscript = useCallback(async () => {
+  // Takes the exact audio URL Screen 4 just selected — previously this called
+  // `/api/transcript` with no filter at all, which returned whatever
+  // transcript row was globally newest rather than the one matching the audio
+  // this screen was about to play.
+  const fetchTranscript = useCallback(async (sourceAudio: string) => {
     try {
-      const res = await fetch("/api/transcript");
+      const res = await fetch(`/api/transcript?sourceAudio=${encodeURIComponent(sourceAudio)}`);
       if (!res.ok) return null;
       const data = await res.json();
       if (data.exists && data.transcript) {
@@ -141,11 +169,11 @@ export default function Screen4Page() {
   useEffect(() => {
     (async () => {
       const files = await fetchAudioFiles(); // newest first
-      const existing = await fetchTranscript();
       if (files.length === 0) return;
       const newest = files[0].url;
       setSelectedUrl(newest);
       attemptedRef.current.add(newest);
+      const existing = await fetchTranscript(newest);
       const cachedMatches = existing && existing.sourceAudio === newest && existing.segments?.length > 0;
       if (!cachedMatches) runTranscription(newest);
     })();

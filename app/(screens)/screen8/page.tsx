@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { fetchCurrentSession, patchSession } from "@/lib/current-session";
 
 interface TimedCue {
   start: number;
@@ -197,6 +198,20 @@ export default function Screen8Page() {
       cancelled = true;
     };
   }, [selectedUrl, reelFilename, hasTranscript, language]);
+
+  // Persist the operator's subtitle-language pick onto the current session so
+  // Screens 11/12's export burns in the same language chosen here.
+  const sessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    fetchCurrentSession().then((session) => {
+      sessionIdRef.current = session?.id ?? null;
+    });
+  }, []);
+  useEffect(() => {
+    if (sessionIdRef.current) {
+      patchSession(sessionIdRef.current, { selectedSubtitleLanguage: language });
+    }
+  }, [language]);
 
   const activeCue = cues.find((c) => videoTime >= c.start && videoTime <= c.end) ?? null;
 
