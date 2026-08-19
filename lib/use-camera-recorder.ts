@@ -29,6 +29,8 @@ export interface CameraRecorder {
   endRecording: () => void;
   fetchSaved: () => Promise<void>;
   isRecorderRunning: () => boolean;
+  /** Tags every upload from this point on with a BroadcastSession id. */
+  setSessionId: (sessionId: string | null) => void;
 }
 
 /**
@@ -54,6 +56,13 @@ export function useCameraRecorder(
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // A ref (not state) so recorder.onstop's saveToServer always reads whatever
+  // sessionId was current when the take actually finished, regardless of
+  // which render created that closure.
+  const sessionIdRef = useRef<string | null>(null);
+  const setSessionId = useCallback((sessionId: string | null) => {
+    sessionIdRef.current = sessionId;
+  }, []);
 
   const fetchSaved = useCallback(async () => {
     try {
@@ -79,6 +88,9 @@ export function useCameraRecorder(
         // The route names the file itself unless this field is present, and the
         // filename prefix is what sends the take to the right screen.
         formData.append("filename", filename);
+        if (sessionIdRef.current) {
+          formData.append("sessionId", sessionIdRef.current);
+        }
 
         const res = await fetch("/api/save-recording", {
           method: "POST",
@@ -272,5 +284,6 @@ export function useCameraRecorder(
     endRecording,
     fetchSaved,
     isRecorderRunning,
+    setSessionId,
   };
 }

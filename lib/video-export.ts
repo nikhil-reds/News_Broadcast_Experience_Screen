@@ -28,6 +28,11 @@ import { composeFinalExport } from "@/lib/ffmpeg";
 import { renderSubtitlePng } from "@/lib/subtitle-image";
 import { getTranscriptForLanguage } from "@/lib/transcript-language";
 import { HIGHLIGHT_FILENAME_PREFIX } from "@/lib/camera-recordings";
+import { findBackground } from "@/lib/green-screen";
+import { backgroundImagePath } from "@/lib/green-screen-paths";
+
+/** Sentinel meaning "no background swap" — see VideoJob.backgroundId in schema.prisma. */
+export const NO_BACKGROUND = "none";
 
 export type ExportAspect = "portrait" | "landscape";
 
@@ -75,7 +80,7 @@ export async function getHighlightReelSidecar(reelFilename: string): Promise<Ree
 /**
  * Re-times cues from the source (master-audio) timeline onto the reel's own
  * timeline. `reelSegments` must be in the same order the reel concatenated
- * them in (the sidecar's `segments` already are — see buildHighlightReel).
+ * them in (the sidecar's `segments` already are — see lib/highlight-analysis.ts).
  * A cue spanning a cut boundary is split into the piece(s) that survived it.
  */
 export function remapCuesToReel(
@@ -103,9 +108,15 @@ export function remapCuesToReel(
   return out;
 }
 
-function exportFilename(reelFilename: string, aspect: ExportAspect, langCode: string): string {
+function exportFilename(
+  reelFilename: string,
+  aspect: ExportAspect,
+  langCode: string,
+  backgroundId: string
+): string {
   const stamp = reelFilename.replace(HIGHLIGHT_FILENAME_PREFIX, "").replace(/\.[^.]+$/, "");
-  return `${aspect}-${langCode}-${stamp}.mp4`;
+  const bgSuffix = backgroundId === NO_BACKGROUND ? "" : `-${backgroundId}`;
+  return `${aspect}-${langCode}${bgSuffix}-${stamp}.mp4`;
 }
 
 const LANGUAGE_CODES: Record<string, string> = {
@@ -168,10 +179,13 @@ export async function composeExportVideo(params: {
   sourceAudio: string;
   language: string;
   aspect: ExportAspect;
+  /** One of lib/green-screen.ts's GREEN_SCREEN_BACKGROUNDS ids, or NO_BACKGROUND. */
+  backgroundId?: string;
 }): Promise<ComposeExportResult> {
-  const { reelFilename, sourceAudio, language, aspect } = params;
+  const { reelFilename, sourceAudio, language, aspect, backgroundId = NO_BACKGROUND } = params;
   const langCode = LANGUAGE_CODES[language] || "en";
   const dims = DIMENSIONS[aspect];
+  const background = backgroundId === NO_BACKGROUND ? undefined : findBackground(backgroundId);
 
   const workDir = await mkdtemp(join(tmpdir(), "video-export-"));
 
@@ -195,7 +209,7 @@ export async function composeExportVideo(params: {
       })
     );
 
-    const outFilename = exportFilename(reelFilename, aspect, langCode);
+    const outFilename = exportFilename(reelFilename, aspect, langCode, backgroundId);
     const outPath = join(workDir, "export.mp4");
 
     await composeFinalExport({
@@ -205,6 +219,7 @@ export async function composeExportVideo(params: {
       height: dims.height,
       crop: dims.crop,
       subtitles,
+      backgroundImage: background ? backgroundImagePath(background.id) : undefined,
       cwd: workDir,
     });
 
