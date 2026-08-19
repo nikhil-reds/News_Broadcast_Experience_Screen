@@ -66,14 +66,23 @@ export function findBackground(id: string): GreenScreenBackground | undefined {
 }
 
 /**
- * MinIO object key (and BullMQ job id, and Redis dedup key) for one
- * (background, source take) combination. Stripping the extension off
- * `sourceFilename` keeps this readable in worker logs; it doesn't need to be
- * reversible since callers always have both parts already.
+ * MinIO object key (and, via a matching prefix, the BullMQ job id / Redis
+ * dedup key — see greenScreenJobId in lib/queue.ts) for one (background,
+ * source take) combination. Stripping the extension off `sourceFilename`
+ * keeps this readable in worker logs; it doesn't need to be reversible since
+ * callers always have both parts already.
+ *
+ * The "v2" bump is deliberate: composeGreenScreenBackground (lib/ffmpeg.ts)
+ * used to map no audio stream at all, so every composite made under the old
+ * `greenscreen-` key is silent. Changing the key here means those stale,
+ * audio-less renders are simply never looked up again — new requests get a
+ * fresh key that's never been rendered, so there's no risk of a Redis job
+ * marked "completed" under the old scheme pointing at a filename this scheme
+ * never produced.
  */
 export function composedFilename(backgroundId: string, sourceFilename: string): string {
   const stamp = sourceFilename.replace(/\.[^.]+$/, "");
-  return `greenscreen-${backgroundId}-${stamp}.mp4`;
+  return `greenscreen-v2-${backgroundId}-${stamp}.mp4`;
 }
 
 /** Public URL for one composited (background, source take) combination. */
