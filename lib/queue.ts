@@ -36,30 +36,95 @@ export async function enqueueTranscription(filename: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Highlight-reel queue: one job per completed two-camera session.
+// Highlight-reel pipeline: two chained queues, one per session.
+//
+// Stage 1 (highlight-analysis): Gemini picks the moments — lib/highlight-
+// analysis.ts, app/worker/highlight-analysis.ts.
+// Stage 2 (highlight-reel): ffmpeg cuts/concats those moments — lib/
+// highlight-reel.ts, app/worker/highlight-reel.ts.
+//
+// These used to be one job that did both; split so a Gemini timeout and an
+// ffmpeg failure are distinguishable/retryable independently instead of both
+// just being "the highlight-reel job failed."
 // ---------------------------------------------------------------------------
 
-export const HIGHLIGHT_QUEUE = "highlight-reel";
+export const HIGHLIGHT_ANALYSIS_QUEUE = "highlight-analysis";
 
-/** Job payload: the three camera takes (in the MinIO `videos` bucket) to cut. */
-export interface HighlightReelJob {
+/** Job payload: the three camera takes (in the MinIO `videos` bucket) to analyze/cut. */
+export interface HighlightPairJob {
   cam1Filename: string;
   cam2Filename: string;
   cam3Filename: string;
 }
 
+const globalForHighlightAnalysisQueue = globalThis as unknown as {
+  __highlightAnalysisQueue?: Queue<HighlightPairJob>;
+};
+
+export const highlightAnalysisQueue =
+  globalForHighlightAnalysisQueue.__highlightAnalysisQueue ??
+  new Queue<HighlightPairJob>(HIGHLIGHT_ANALYSIS_QUEUE, {
+    connection: redisConnection,
+    defaultJobOptions: {
+      // Gemini calls are expensive; one retry rather than the usual three.
+      attempts: 2,
+      backoff: { type: "exponential", delay: 15000 },
+      removeOnComplete: 50,
+      removeOnFail: 100,
+    },
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForHighlightAnalysisQueue.__highlightAnalysisQueue = highlightAnalysisQueue;
+}
+
+/**
+ * Enqueue stage 1 (Gemini analysis) for one session. The jobId is derived
+ * from the camera-1 take, so whichever of the 3 camera uploads lands last
+ * (see lib/highlight-pairing.ts) can enqueue without racing the others into a
+ * duplicate job.
+ */
+export async function enqueueHighlightAnalysis(
+  cam1Filename: string,
+  cam2Filename: string,
+  cam3Filename: string
+) {
+  const jobId = `highlight-analysis-${cam1Filename}`;
+  const existing = await highlightAnalysisQueue.getJob(jobId);
+  if (existing) {
+    const state = await existing.getState();
+    if (state === "completed" || state === "failed") {
+      await existing.remove().catch(() => {});
+    }
+  }
+  return highlightAnalysisQueue.add(
+    "analyze",
+    { cam1Filename, cam2Filename, cam3Filename },
+    { jobId }
+  );
+}
+
+export const HIGHLIGHT_QUEUE = "highlight-reel";
+
+/** Job payload: stage 2 renders exactly the segments stage 1 already decided on. */
+export interface HighlightRenderJob extends HighlightPairJob {
+  title: string;
+  segments: { camera: 1 | 2 | 3; start: number; end: number; reason: string }[];
+  audio: Record<number, boolean>;
+}
+
 const globalForHighlightQueue = globalThis as unknown as {
-  __highlightQueue?: Queue<HighlightReelJob>;
+  __highlightQueue?: Queue<HighlightRenderJob>;
 };
 
 export const highlightQueue =
   globalForHighlightQueue.__highlightQueue ??
-  new Queue<HighlightReelJob>(HIGHLIGHT_QUEUE, {
+  new Queue<HighlightRenderJob>(HIGHLIGHT_QUEUE, {
     connection: redisConnection,
     defaultJobOptions: {
-      // Gemini + ffmpeg is expensive; one retry rather than the usual three.
-      attempts: 2,
-      backoff: { type: "exponential", delay: 15000 },
+      // Pure ffmpeg at this point (no Gemini call), so a couple retries are cheap.
+      attempts: 3,
+      backoff: { type: "exponential", delay: 10000 },
       removeOnComplete: 50,
       removeOnFail: 100,
     },
@@ -70,14 +135,16 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 /**
- * Enqueue the reel for one session. The jobId is derived from the camera-1
- * take, so whichever upload lands last can enqueue without racing the others
- * into a duplicate job.
+ * Enqueue stage 2 (ffmpeg render) once stage 1 has decided the segments.
+ * Called by app/worker/highlight-analysis.ts on its own completion, not by
+ * lib/highlight-pairing.ts directly — the render queue's payload requires
+ * segments that don't exist until stage 1 has run.
  */
 export async function enqueueHighlightReel(
   cam1Filename: string,
   cam2Filename: string,
-  cam3Filename: string
+  cam3Filename: string,
+  analysis: { title: string; segments: HighlightRenderJob["segments"]; audio: Record<number, boolean> }
 ) {
   const jobId = `highlight-${cam1Filename}`;
   const existing = await highlightQueue.getJob(jobId);
@@ -89,7 +156,7 @@ export async function enqueueHighlightReel(
   }
   return highlightQueue.add(
     "build-reel",
-    { cam1Filename, cam2Filename, cam3Filename },
+    { cam1Filename, cam2Filename, cam3Filename, ...analysis },
     { jobId }
   );
 }
@@ -283,6 +350,14 @@ export const greenScreenQueue =
     },
   });
 
+// Allow up to 5 parallel background renders (one per background option).
+// Increase if adding more background choices. This caps how many the WORKER
+// runs concurrently across all its BullMQ groups; the worker itself is
+// started with concurrency: 1 (see app/worker/green-screen-compose.ts) — bump
+// that too if raising this.
+const BG_QUEUE_CONCURRENCY = parseInt(process.env.BG_QUEUE_CONCURRENCY || "5", 10);
+greenScreenQueue.setGlobalConcurrency(BG_QUEUE_CONCURRENCY).catch(() => {});
+
 if (process.env.NODE_ENV !== "production") {
   globalForGreenScreenQueue.__greenScreenQueue = greenScreenQueue;
 }
@@ -323,9 +398,41 @@ export async function enqueueGreenScreenCompose(backgroundId: string, sourceFile
   return greenScreenQueue.add("compose", { backgroundId, sourceFilename }, { jobId });
 }
 
-/** Same derivation the poll route needs to reconstruct a jobId from its two parts. */
+/**
+ * Same derivation the poll route needs to reconstruct a jobId from its two
+ * parts. Kept in lockstep with composedFilename's "v2" prefix bump (see that
+ * function's comment in lib/green-screen.ts) — a mismatch here would let an
+ * old, already-"completed" v1 jobId short-circuit a v2 request and hand back
+ * a filename that was never actually rendered under this scheme.
+ */
 export function greenScreenJobId(backgroundId: string, sourceFilename: string): string {
-  return `greenscreen-${backgroundId}-${sourceFilename}`;
+  return `greenscreen-v2-${backgroundId}-${sourceFilename}`;
+}
+
+/**
+ * Enqueue background composition jobs for all available backgrounds.
+ * Triggered automatically after video export completes.
+ * All 5 backgrounds are queued in parallel so they render concurrently,
+ * eliminating latency when the user clicks on a background swatch.
+ */
+export async function enqueueAllBackgroundsForSource(sourceFilename: string) {
+  const { GREEN_SCREEN_BACKGROUNDS } = await import("@/lib/green-screen");
+
+  const jobs = await Promise.all(
+    GREEN_SCREEN_BACKGROUNDS.map((bg) =>
+      enqueueGreenScreenCompose(bg.id, sourceFilename).catch((err) => {
+        console.error(`[background-queue] Failed to enqueue ${bg.id}: ${err.message}`);
+        return null;
+      })
+    )
+  );
+
+  const successful = jobs.filter((j) => j !== null);
+  console.log(
+    `[background-queue] Enqueued ${successful.length}/${GREEN_SCREEN_BACKGROUNDS.length} background composition jobs for "${sourceFilename}"`
+  );
+
+  return successful;
 }
 
 // ---------------------------------------------------------------------------
@@ -342,6 +449,8 @@ export interface VideoExportJob {
   sourceAudio: string;
   language: string;
   aspect: "portrait" | "landscape";
+  /** A lib/green-screen.ts background id, or "none" (see NO_BACKGROUND in lib/video-export.ts). */
+  backgroundId: string;
 }
 
 const globalForVideoExportQueue = globalThis as unknown as {
@@ -365,7 +474,7 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export async function enqueueVideoExport(job: VideoExportJob) {
-  const jobId = `export-${job.aspect}-${job.language}-${job.reelFilename}`;
+  const jobId = `export-${job.aspect}-${job.language}-${job.backgroundId}-${job.reelFilename}`;
   const existing = await videoExportQueue.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
