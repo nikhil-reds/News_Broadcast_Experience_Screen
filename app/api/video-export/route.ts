@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enqueueVideoExport } from "@/lib/queue";
+import { NO_BACKGROUND } from "@/lib/video-export";
 
 /**
  * POST /api/video-export — Screen 11/12's "Generate" action.
@@ -11,7 +12,7 @@ import { enqueueVideoExport } from "@/lib/queue";
  */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-  const { reelFilename, sourceAudio, language, aspect } = body || {};
+  const { reelFilename, sourceAudio, language, aspect, backgroundId = NO_BACKGROUND } = body || {};
 
   if (!reelFilename || !sourceAudio || !language || !aspect) {
     return NextResponse.json(
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
   }
 
   const existing = await prisma.videoJob.findUnique({
-    where: { reelFilename_language_aspect: { reelFilename, language, aspect } },
+    where: { reelFilename_language_aspect_backgroundId: { reelFilename, language, aspect, backgroundId } },
   });
 
   if (existing && (existing.status === "completed" || existing.status === "processing" || existing.status === "queued")) {
@@ -32,13 +33,13 @@ export async function POST(req: NextRequest) {
   }
 
   const videoJob = await prisma.videoJob.upsert({
-    where: { reelFilename_language_aspect: { reelFilename, language, aspect } },
-    create: { reelFilename, sourceAudio, language, aspect, status: "queued" },
+    where: { reelFilename_language_aspect_backgroundId: { reelFilename, language, aspect, backgroundId } },
+    create: { reelFilename, sourceAudio, language, aspect, backgroundId, status: "queued" },
     update: { sourceAudio, status: "queued", errorMessage: null },
   });
 
   try {
-    await enqueueVideoExport({ videoJobId: videoJob.id, reelFilename, sourceAudio, language, aspect });
+    await enqueueVideoExport({ videoJobId: videoJob.id, reelFilename, sourceAudio, language, aspect, backgroundId });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to enqueue export job";
     await prisma.videoJob.update({ where: { id: videoJob.id }, data: { status: "failed", errorMessage: message } });
