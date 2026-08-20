@@ -1,5 +1,6 @@
 import { Queue } from "bullmq";
 import { redisConnection } from "@/lib/redis";
+import { upsertTaskPending } from "@/lib/generation";
 
 /** Queue name shared by the producer (API) and the worker. */
 export const TRANSCRIPTION_QUEUE = "audio-transcription";
@@ -7,6 +8,8 @@ export const TRANSCRIPTION_QUEUE = "audio-transcription";
 /** Job payload: which audio object (in the MinIO `audio` bucket) to transcribe. */
 export interface TranscriptionJob {
   filename: string;
+  /** The recording cycle (BroadcastSession id) this audio belongs to, if any. */
+  generationId?: string | null;
 }
 
 // Cached on globalThis so Next dev hot-reload doesn't open duplicate queues.
@@ -31,8 +34,10 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 /** Enqueue a transcription job for an uploaded audio file. */
-export async function enqueueTranscription(filename: string) {
-  return transcriptionQueue.add("transcribe", { filename }, { jobId: `transcribe-${filename}` });
+export async function enqueueTranscription(filename: string, generationId?: string | null) {
+  const jobId = `transcribe-${filename}`;
+  await upsertTaskPending(generationId, "transcription", jobId, { filename, generationId });
+  return transcriptionQueue.add("transcribe", { filename, generationId }, { jobId });
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +60,7 @@ export interface HighlightPairJob {
   cam1Filename: string;
   cam2Filename: string;
   cam3Filename: string;
+  generationId?: string | null;
 }
 
 const globalForHighlightAnalysisQueue = globalThis as unknown as {
@@ -66,8 +72,9 @@ export const highlightAnalysisQueue =
   new Queue<HighlightPairJob>(HIGHLIGHT_ANALYSIS_QUEUE, {
     connection: redisConnection,
     defaultJobOptions: {
-      // Gemini calls are expensive; one retry rather than the usual three.
-      attempts: 2,
+      // Gemini calls are expensive but a failed job must never permanently
+      // block a generation without at least the standard 3 attempts.
+      attempts: 3,
       backoff: { type: "exponential", delay: 15000 },
       removeOnComplete: 50,
       removeOnFail: 100,
@@ -87,7 +94,8 @@ if (process.env.NODE_ENV !== "production") {
 export async function enqueueHighlightAnalysis(
   cam1Filename: string,
   cam2Filename: string,
-  cam3Filename: string
+  cam3Filename: string,
+  generationId?: string | null
 ) {
   const jobId = `highlight-analysis-${cam1Filename}`;
   const existing = await highlightAnalysisQueue.getJob(jobId);
@@ -97,9 +105,15 @@ export async function enqueueHighlightAnalysis(
       await existing.remove().catch(() => {});
     }
   }
+  await upsertTaskPending(generationId, "highlight-analysis", jobId, {
+    cam1Filename,
+    cam2Filename,
+    cam3Filename,
+    generationId,
+  });
   return highlightAnalysisQueue.add(
     "analyze",
-    { cam1Filename, cam2Filename, cam3Filename },
+    { cam1Filename, cam2Filename, cam3Filename, generationId },
     { jobId }
   );
 }
@@ -144,7 +158,8 @@ export async function enqueueHighlightReel(
   cam1Filename: string,
   cam2Filename: string,
   cam3Filename: string,
-  analysis: { title: string; segments: HighlightRenderJob["segments"]; audio: Record<number, boolean> }
+  analysis: { title: string; segments: HighlightRenderJob["segments"]; audio: Record<number, boolean> },
+  generationId?: string | null
 ) {
   const jobId = `highlight-${cam1Filename}`;
   const existing = await highlightQueue.getJob(jobId);
@@ -154,9 +169,16 @@ export async function enqueueHighlightReel(
       await existing.remove().catch(() => {});
     }
   }
+  await upsertTaskPending(generationId, "highlight-reel", jobId, {
+    cam1Filename,
+    cam2Filename,
+    cam3Filename,
+    ...analysis,
+    generationId,
+  });
   return highlightQueue.add(
     "build-reel",
-    { cam1Filename, cam2Filename, cam3Filename, ...analysis },
+    { cam1Filename, cam2Filename, cam3Filename, ...analysis, generationId },
     { jobId }
   );
 }
@@ -178,6 +200,7 @@ export interface TranslationJob {
   filename: string;
   transcriptId: string;
   segments: TranslationJobSegment[];
+  generationId?: string | null;
 }
 
 export const TRANSLATION_LANGUAGES = [
@@ -221,7 +244,8 @@ if (process.env.NODE_ENV !== "production") {
 export async function enqueueTranslations(
   filename: string,
   segments: TranslationJobSegment[],
-  transcriptId: string
+  transcriptId: string,
+  generationId?: string | null
 ) {
   return Promise.all(
     TRANSLATION_LANGUAGES.map(async ({ queue, langCode }) => {
@@ -234,9 +258,15 @@ export async function enqueueTranslations(
           await existing.remove().catch(() => {});
         }
       }
+      await upsertTaskPending(generationId, `translation-${langCode}`, jobId, {
+        filename,
+        segments,
+        transcriptId,
+        generationId,
+      });
       return q.add(
         "translate",
-        { filename, segments, transcriptId },
+        { filename, segments, transcriptId, generationId },
         { jobId }
       );
     })
@@ -254,6 +284,7 @@ export interface AudioConversionJob {
   filename: string;
   langCode: string;
   text: string;
+  generationId?: string | null;
 }
 
 export const AUDIO_LANGUAGES = [
@@ -298,7 +329,8 @@ export async function enqueueAudioConversion(
   langCode: string,
   translationId: string,
   filename: string,
-  text: string
+  text: string,
+  generationId?: string | null
 ) {
   const entry = AUDIO_LANGUAGES.find((l) => l.langCode === langCode);
   if (!entry) throw new Error(`No audio-conversion queue for langCode "${langCode}"`);
@@ -311,9 +343,16 @@ export async function enqueueAudioConversion(
       await existing.remove().catch(() => {});
     }
   }
+  await upsertTaskPending(generationId, `tts-${langCode}`, jobId, {
+    langCode,
+    translationId,
+    filename,
+    text,
+    generationId,
+  });
   return q.add(
     "synthesize",
-    { translationId, filename, langCode, text },
+    { translationId, filename, langCode, text, generationId },
     { jobId }
   );
 }
@@ -332,6 +371,7 @@ export interface GreenScreenJob {
   backgroundId: string;
   /** Camera 1 recording filename (MinIO `videos` bucket) to chromakey. */
   sourceFilename: string;
+  generationId?: string | null;
 }
 
 const globalForGreenScreenQueue = globalThis as unknown as {
@@ -343,7 +383,7 @@ export const greenScreenQueue =
   new Queue<GreenScreenJob>(GREEN_SCREEN_QUEUE, {
     connection: redisConnection,
     defaultJobOptions: {
-      attempts: 2,
+      attempts: 3,
       backoff: { type: "exponential", delay: 3000 },
       removeOnComplete: 50,
       removeOnFail: 50,
@@ -382,7 +422,11 @@ if (process.env.NODE_ENV !== "production") {
  * So: drop any *finished* record for this id before adding. Jobs still
  * waiting/active are deliberately left alone — that's the dedup we do want.
  */
-export async function enqueueGreenScreenCompose(backgroundId: string, sourceFilename: string) {
+export async function enqueueGreenScreenCompose(
+  backgroundId: string,
+  sourceFilename: string,
+  generationId?: string | null
+) {
   const jobId = greenScreenJobId(backgroundId, sourceFilename);
 
   const existing = await greenScreenQueue.getJob(jobId);
@@ -395,7 +439,12 @@ export async function enqueueGreenScreenCompose(backgroundId: string, sourceFile
     }
   }
 
-  return greenScreenQueue.add("compose", { backgroundId, sourceFilename }, { jobId });
+  await upsertTaskPending(generationId, `greenscreen-${backgroundId}`, jobId, {
+    backgroundId,
+    sourceFilename,
+    generationId,
+  });
+  return greenScreenQueue.add("compose", { backgroundId, sourceFilename, generationId }, { jobId });
 }
 
 /**
@@ -415,12 +464,12 @@ export function greenScreenJobId(backgroundId: string, sourceFilename: string): 
  * All 5 backgrounds are queued in parallel so they render concurrently,
  * eliminating latency when the user clicks on a background swatch.
  */
-export async function enqueueAllBackgroundsForSource(sourceFilename: string) {
+export async function enqueueAllBackgroundsForSource(sourceFilename: string, generationId?: string | null) {
   const { GREEN_SCREEN_BACKGROUNDS } = await import("@/lib/green-screen");
 
   const jobs = await Promise.all(
     GREEN_SCREEN_BACKGROUNDS.map((bg) =>
-      enqueueGreenScreenCompose(bg.id, sourceFilename).catch((err) => {
+      enqueueGreenScreenCompose(bg.id, sourceFilename, generationId).catch((err) => {
         console.error(`[background-queue] Failed to enqueue ${bg.id}: ${err.message}`);
         return null;
       })
@@ -451,6 +500,9 @@ export interface VideoExportJob {
   aspect: "portrait" | "landscape";
   /** A lib/green-screen.ts background id, or "none" (see NO_BACKGROUND in lib/video-export.ts). */
   backgroundId: string;
+  generationId?: string | null;
+  /** Which screen (11 or 12) requested this export — used for the ScreenPublication variant publish. */
+  screenId?: number;
 }
 
 const globalForVideoExportQueue = globalThis as unknown as {
@@ -462,7 +514,7 @@ export const videoExportQueue =
   new Queue<VideoExportJob>(VIDEO_EXPORT_QUEUE, {
     connection: redisConnection,
     defaultJobOptions: {
-      attempts: 2,
+      attempts: 3,
       backoff: { type: "exponential", delay: 15000 },
       removeOnComplete: 50,
       removeOnFail: 100,
@@ -474,7 +526,9 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export async function enqueueVideoExport(job: VideoExportJob) {
-  const jobId = `export-${job.aspect}-${job.language}-${job.backgroundId}-${job.reelFilename}`;
+  // generationId baked in (not just reelFilename) so a superseded generation's
+  // export job can never collide with/short-circuit a new generation's job id.
+  const jobId = `export-${job.aspect}-${job.language}-${job.backgroundId}-${job.generationId ?? "legacy"}-${job.reelFilename}`;
   const existing = await videoExportQueue.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
@@ -482,5 +536,35 @@ export async function enqueueVideoExport(job: VideoExportJob) {
       await existing.remove().catch(() => {});
     }
   }
+  if (job.generationId && job.screenId) {
+    await upsertTaskPending(job.generationId, `video-export-${job.screenId}`, jobId, { ...job });
+  }
   return videoExportQueue.add("compose", job, { jobId });
+}
+
+// ---------------------------------------------------------------------------
+// Watchdog support (app/worker/watchdog.ts): given a GenerationTask.taskType,
+// find the BullMQ queue it lives on so the watchdog can look its job up by
+// GenerationTask.jobId and inspect job.getState().
+// ---------------------------------------------------------------------------
+
+export function getQueueForTaskType(taskType: string): Queue<any> | undefined {
+  if (taskType === "transcription") return transcriptionQueue;
+  if (taskType === "highlight-analysis") return highlightAnalysisQueue;
+  if (taskType === "highlight-reel") return highlightQueue;
+  if (taskType.startsWith("greenscreen-")) return greenScreenQueue;
+  if (taskType.startsWith("video-export-")) return videoExportQueue;
+
+  if (taskType.startsWith("translation-")) {
+    const langCode = taskType.slice("translation-".length);
+    const entry = TRANSLATION_LANGUAGES.find((l) => l.langCode === langCode);
+    return entry ? translationQueues.get(entry.queue) : undefined;
+  }
+  if (taskType.startsWith("tts-")) {
+    const langCode = taskType.slice("tts-".length);
+    const entry = AUDIO_LANGUAGES.find((l) => l.langCode === langCode);
+    return entry ? audioConversionQueues.get(entry.queue) : undefined;
+  }
+
+  return undefined;
 }

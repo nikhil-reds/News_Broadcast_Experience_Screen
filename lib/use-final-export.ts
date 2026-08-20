@@ -1,24 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { fetchCurrentSession } from "@/lib/current-session";
+import { useScreenPublication, type PublicationStatus } from "@/lib/use-screen-publication";
 import type { ExportAspect } from "@/lib/video-export";
 
 const POLL_MS = 3000;
 /** save-audio's placeholder file — same filter Screens 04/05/08 already apply. */
 const IGNORED_AUDIO_FILENAME = "master-audio-16k.wav";
 
-export type FinalExportStatus =
-  | "waiting-for-reel"
-  | "queued"
-  | "processing"
-  | "completed"
-  | "failed";
+export type FinalExportStatus = PublicationStatus;
 
 export interface FinalExportState {
+  /** Last known-good export URL — populated for "current", "preparing" (the previous one), and "failed" (ditto). Only null before anything has ever published. */
   videoUrl: string | null;
   status: FinalExportStatus;
   error: string | null;
+  progress: { completed: number; total: number } | null;
 }
 
 interface RecordingItem {
@@ -26,23 +24,25 @@ interface RecordingItem {
   url: string;
 }
 
+interface VideoExportAssets {
+  outputUrl?: string;
+}
+
 /**
- * Drives Screen 11/12's final export: resolves the current session's reel +
- * source audio + selected background/subtitle-language, POSTs
- * /api/video-export, and polls the resulting job until it's ready — kicking
- * off a fresh export automatically whenever the operator changes the
- * background (Screen 07) or subtitle language (Screen 08), since those
- * change what /api/video-export is even asked to render.
+ * Drives Screen 11/12's final export. Two independent halves:
+ *  - a POST to /api/video-export whenever the (reel, audio, language,
+ *    background, aspect) combo changes, to kick off a new render. The server
+ *    now owns generationId derivation, debouncing rapid background/language
+ *    changes, and recording this as Screen 11/12's pending variant — this
+ *    hook doesn't need to poll that job directly at all.
+ *  - lib/use-screen-publication.ts, which is the ONLY source of what's
+ *    actually displayed: the last successfully published export, never a
+ *    partially-rendered one.
  */
 export function useFinalExport(aspect: ExportAspect): FinalExportState {
-  const [state, setState] = useState<FinalExportState>({
-    videoUrl: null,
-    status: "waiting-for-reel",
-    error: null,
-  });
-
+  const screenId = aspect === "portrait" ? 11 : 12;
+  const publication = useScreenPublication<VideoExportAssets>(screenId);
   const lastRequestKey = useRef<string | null>(null);
-  const activeJobId = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,8 +57,6 @@ export function useFinalExport(aspect: ExportAspect): FinalExportState {
       const res = await fetch(scoped);
       const data = res.ok ? await res.json() : {};
       let list: T[] = data[listKey] || [];
-      // Session exists but nothing uploaded under it yet (still processing) —
-      // fall back to the unscoped newest, same pattern as RecordingLooper.
       if (list.length === 0 && sessionId) {
         const fallbackRes = await fetch(path);
         const fallbackData = fallbackRes.ok ? await fallbackRes.json() : {};
@@ -75,74 +73,21 @@ export function useFinalExport(aspect: ExportAspect): FinalExportState {
       const backgroundId = session?.selectedBackgroundId || "none";
       const language = session?.selectedSubtitleLanguage || "English";
 
-      const reel = await resolveNewest<RecordingItem>(
-        "/api/save-recording?kind=highlight",
-        sessionId,
-        "recordings"
-      );
-      if (!reel) {
-        if (!cancelled) setState({ videoUrl: null, status: "waiting-for-reel", error: null });
-        timer = setTimeout(tick, POLL_MS);
-        return;
-      }
-
-      const audioList = await resolveNewest<RecordingItem>("/api/save-audio", sessionId, "audioFiles");
+      const reel = await resolveNewest<RecordingItem>("/api/save-recording?kind=highlight", sessionId, "recordings");
+      const audioList = reel ? await resolveNewest<RecordingItem>("/api/save-audio", sessionId, "audioFiles") : null;
       const audio = audioList && audioList.filename !== IGNORED_AUDIO_FILENAME ? audioList : null;
-      if (!audio) {
-        if (!cancelled) setState({ videoUrl: null, status: "waiting-for-reel", error: null });
-        timer = setTimeout(tick, POLL_MS);
-        return;
-      }
 
-      const requestKey = `${reel.filename}::${audio.url}::${language}::${backgroundId}::${aspect}`;
-
-      if (requestKey !== lastRequestKey.current) {
-        lastRequestKey.current = requestKey;
-        activeJobId.current = null;
-        try {
-          const res = await fetch("/api/video-export", {
+      if (reel && audio) {
+        const requestKey = `${reel.filename}::${audio.url}::${language}::${backgroundId}::${aspect}`;
+        if (requestKey !== lastRequestKey.current) {
+          lastRequestKey.current = requestKey;
+          // Fire-and-forget: the response is just an ack, not the source of
+          // truth for what's displayed — useScreenPublication above is.
+          fetch("/api/video-export", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              reelFilename: reel.filename,
-              sourceAudio: audio.url,
-              language,
-              aspect,
-              backgroundId,
-            }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Failed to start export");
-          activeJobId.current = data.videoJob.id;
-          if (!cancelled) {
-            setState({
-              videoUrl: data.videoJob.status === "completed" ? data.videoJob.outputUrl : null,
-              status: data.videoJob.status,
-              error: null,
-            });
-          }
-        } catch (err) {
-          if (!cancelled) {
-            setState({
-              videoUrl: null,
-              status: "failed",
-              error: err instanceof Error ? err.message : "Failed to start export",
-            });
-          }
-        }
-      } else if (activeJobId.current) {
-        try {
-          const res = await fetch(`/api/video-export/${activeJobId.current}`);
-          const data = await res.json();
-          if (res.ok && data.videoJob && !cancelled) {
-            setState({
-              videoUrl: data.videoJob.status === "completed" ? data.videoJob.outputUrl : null,
-              status: data.videoJob.status,
-              error: data.videoJob.status === "failed" ? data.videoJob.errorMessage : null,
-            });
-          }
-        } catch {
-          /* keep last known state until the next tick */
+            body: JSON.stringify({ reelFilename: reel.filename, sourceAudio: audio.url, language, aspect, backgroundId }),
+          }).catch(() => {});
         }
       }
 
@@ -156,5 +101,10 @@ export function useFinalExport(aspect: ExportAspect): FinalExportState {
     };
   }, [aspect]);
 
-  return state;
+  return {
+    videoUrl: publication.assets?.outputUrl ?? null,
+    status: publication.status,
+    error: publication.status === "failed" ? publication.failureReason : null,
+    progress: publication.progress,
+  };
 }
