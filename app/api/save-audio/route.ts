@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     // Best-effort: a Redis/worker outage must not fail the upload.
     let queued = false;
     try {
-      await enqueueTranscription(filename);
+      await enqueueTranscription(filename, sessionId);
       queued = true;
     } catch (queueErr: any) {
       console.error("Failed to enqueue transcription job:", queueErr.message);
