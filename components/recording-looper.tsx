@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { recordingSourceQuery, type RecordingSource } from "@/lib/camera-recordings";
+import { useScreenPublication } from "@/lib/use-screen-publication";
 
 interface RecordingItem {
   filename: string;
@@ -20,22 +21,38 @@ interface RecordingItem {
  * `frame` defaults to full-bleed (fills the browser viewport). Screen 11
  * passes a mobile-sized box instead — a portrait phone preview centered on
  * the page rather than a full-screen kiosk display.
+ *
+ * `screenId`: when passed (Screen 06 only, for the highlight reel — Screens
+ * 01-03 loop raw camera takes with no derived pipeline to gate on and don't
+ * pass this), the newest-reel lookup below is replaced entirely by
+ * lib/use-screen-publication.ts, so this component only ever shows a fully-
+ * rendered reel for a generation whose highlight-analysis + highlight-reel
+ * tasks have both completed — never a mid-render one.
  */
 export default function RecordingLooper({
   source,
   muted = true,
   frame,
+  screenId,
 }: {
   source: RecordingSource;
   muted?: boolean;
   frame?: { width: number; height: number };
+  screenId?: number;
 }) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [soundBlocked, setSoundBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const query = recordingSourceQuery(source);
 
+  const publication = useScreenPublication<{ videoUrl: string; filename: string }>(screenId ?? null);
   useEffect(() => {
+    if (screenId == null) return;
+    if (publication.assets?.videoUrl) setVideoUrl(publication.assets.videoUrl);
+  }, [screenId, publication.assets]);
+
+  useEffect(() => {
+    if (screenId != null) return; // generation-gated above instead
     let cancelled = false;
 
     const fetchLatestRecording = async () => {
@@ -87,7 +104,7 @@ export default function RecordingLooper({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [query]);
+  }, [query, screenId]);
 
   // Unmuted autoplay can be blocked by the browser without a prior user
   // gesture — the native `autoPlay` attribute fails silently in that case
@@ -139,6 +156,17 @@ export default function RecordingLooper({
         {soundBlocked && (
           <div className="absolute bottom-6 right-6 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs font-mono text-slate-200">
             🔇 Click to enable sound
+          </div>
+        )}
+        {screenId != null && publication.status === "preparing" && (
+          <div className="absolute bottom-6 left-6 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs font-mono text-slate-400">
+            Preparing next reel…
+            {publication.progress ? ` ${publication.progress.completed}/${publication.progress.total}` : ""}
+          </div>
+        )}
+        {screenId != null && publication.status === "failed" && (
+          <div className="absolute bottom-6 left-6 px-3 py-2 rounded-lg bg-red-950/85 border border-red-800 text-xs font-mono text-red-200">
+            Next reel failed — showing last good one
           </div>
         )}
       </div>
