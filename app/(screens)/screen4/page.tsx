@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNexmosphere } from "@/lib/use-nexmosphere";
+import { useScreenPublication } from "@/lib/use-screen-publication";
 
 /** Volume moved per detent of the Nexmosphere knob (5% per click). */
 const VOLUME_STEP = 0.05;
@@ -10,42 +11,27 @@ const DEFAULT_VOLUME = 0.8;
 const clampVolume = (v: number) => Math.min(1, Math.max(0, v));
 
 interface TranscriptSegment {
-  id: number;
   start: number;
   end: number;
   text: string;
 }
 
-interface TranscriptData {
+interface Screen4Assets {
+  audioUrl: string | null;
   text: string;
-  language: string;
-  duration: number;
   segments: TranscriptSegment[];
-  createdAt: string;
-  sourceAudio: string;
-}
-
-interface AudioFileItem {
-  filename: string;
-  url: string;
-  size: number;
-  createdAt: string;
 }
 
 export default function Screen4Page() {
-  const [audioFiles, setAudioFiles] = useState<AudioFileItem[]>([]);
-  const [selectedUrl, setSelectedUrl] = useState<string>("");
-  const [transcript, setTranscript] = useState<TranscriptData | null>(null);
+  const publication = useScreenPublication<Screen4Assets>(4);
+  const selectedUrl = publication.assets?.audioUrl ?? null;
+  const segments = publication.assets?.segments ?? [];
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
-  const [activeSegmentId, setActiveSegmentId] = useState<number | null>(null);
+  const [activeSegmentIndex, setActiveSegmentIndex] = useState<number | null>(null);
 
-  const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
-  const [status, setStatus] = useState<string>("");
-
-  // Playback volume, driven by the physical rotary knob (and the slider below).
   // Playback volume, driven by the physical rotary knob (and the slider below).
   const [volume, setVolume] = useState<number>(DEFAULT_VOLUME);
 
@@ -54,9 +40,6 @@ export default function Screen4Page() {
   const lastTextRef = useRef<string>("");
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const attemptedRef = useRef<Set<string>>(new Set());
-
-  const filenameFromUrl = (url: string) => url.split("/").pop() || "";
 
   // ---- Physical rotary knob -> volume ---------------------------------------
   const { status: nexStatus } = useNexmosphere({
@@ -77,139 +60,28 @@ export default function Screen4Page() {
     }
   }, [selectedUrl]);
 
-  // ---- Data loading ---------------------------------------------------------
-  const fetchAudioFiles = useCallback(async () => {
-    try {
-      // Scope to the current BroadcastSession so this screen's audio matches
-      // what Screens 1-3/6 are showing footage for. Falls back to unscoped
-      // (old behavior) if there's no session yet.
-      let sessionId: string | null = null;
-      try {
-        const sessionRes = await fetch("/api/sessions/current");
-        if (sessionRes.ok) {
-          sessionId = (await sessionRes.json()).session?.id ?? null;
-        }
-      } catch {
-        /* fall through to unscoped lookup */
-      }
-
-      const query = sessionId ? `?sessionId=${sessionId}` : "";
-      const res = await fetch(`/api/save-audio${query}`);
-      if (!res.ok) return [] as AudioFileItem[];
-      const data = await res.json();
-      let files: AudioFileItem[] = (data.audioFiles || []).filter(
-        (a: AudioFileItem) => a.filename !== "master-audio-16k.wav"
-      );
-      // Brand-new session with no audio uploaded yet — fall back to unscoped.
-      if (files.length === 0 && sessionId) {
-        const fallbackRes = await fetch("/api/save-audio");
-        if (fallbackRes.ok) {
-          const fallbackData = await fallbackRes.json();
-          files = (fallbackData.audioFiles || []).filter(
-            (a: AudioFileItem) => a.filename !== "master-audio-16k.wav"
-          );
-        }
-      }
-      setAudioFiles(files);
-      return files;
-    } catch {
-      return [] as AudioFileItem[];
-    }
-  }, []);
-
-  // Takes the exact audio URL Screen 4 just selected — previously this called
-  // `/api/transcript` with no filter at all, which returned whatever
-  // transcript row was globally newest rather than the one matching the audio
-  // this screen was about to play.
-  const fetchTranscript = useCallback(async (sourceAudio: string) => {
-    try {
-      const res = await fetch(`/api/transcript?sourceAudio=${encodeURIComponent(sourceAudio)}`);
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (data.exists && data.transcript) {
-        setTranscript(data.transcript);
-        return data.transcript as TranscriptData;
-      }
-    } catch {
-      /* ignore */
-    }
-    return null;
-  }, []);
-
-  // ---- Transcription via Docker Whisper ------------------------------------
-  const runTranscription = useCallback(
-    async (url: string) => {
-      const filename = filenameFromUrl(url);
-      if (!filename) return;
-      setIsTranscribing(true);
-      setStatus("Transcribing with Whisper...");
-      try {
-        const res = await fetch("/api/transcribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename }),
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          setTranscript(data.transcript);
-          setStatus("");
-        } else {
-          setStatus(`Error: ${data.error || "transcription failed"}`);
-        }
-      } catch (err: any) {
-        setStatus(`Error: ${err.message}`);
-      } finally {
-        setIsTranscribing(false);
-      }
-    },
-    []
-  );
-
-  // ---- Mount: always use the newest recording -----------------------------
-  useEffect(() => {
-    (async () => {
-      const files = await fetchAudioFiles(); // newest first
-      if (files.length === 0) return;
-      const newest = files[0].url;
-      setSelectedUrl(newest);
-      attemptedRef.current.add(newest);
-      const existing = await fetchTranscript(newest);
-      const cachedMatches = existing && existing.sourceAudio === newest && existing.segments?.length > 0;
-      if (!cachedMatches) runTranscription(newest);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ---- When the user switches audio, transcribe if needed -------------------
+  // ---- When the generation-gated audio actually changes, reset playback -----
   useEffect(() => {
     if (!selectedUrl) return;
     setIsPlaying(false);
     setCurrentTime(0);
-    setActiveSegmentId(null);
+    setActiveSegmentIndex(null);
+    lastTextRef.current = "";
+    setDisplayText("");
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
-    const matches = transcript && transcript.sourceAudio === selectedUrl;
-    if (!matches && !attemptedRef.current.has(selectedUrl)) {
-      attemptedRef.current.add(selectedUrl);
-      runTranscription(selectedUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUrl]);
 
   // ---- Sync active segment with playback ------------------------------------
   useEffect(() => {
-    if (!transcript?.segments?.length) return;
-    const seg = transcript.segments.find(
-      (s) => currentTime >= s.start && currentTime <= s.end
-    );
-    const id = seg ? seg.id : null;
-    if (id !== activeSegmentId) setActiveSegmentId(id);
-  }, [currentTime, transcript, activeSegmentId]);
+    if (!segments.length) return;
+    const idx = segments.findIndex((s) => currentTime >= s.start && currentTime <= s.end);
+    if (idx !== activeSegmentIndex) setActiveSegmentIndex(idx);
+  }, [currentTime, segments, activeSegmentIndex]);
 
   // ---- Manage animated text updates ---------------------------------------
-  const segments = transcript?.segments || [];
   useEffect(() => {
     const activeSeg = segments.find(
       (s) => currentTime >= s.start && currentTime <= s.end
@@ -270,7 +142,7 @@ export default function Screen4Page() {
       className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center font-sans p-8 select-none cursor-pointer"
     >
       <div className="max-w-5xl text-center">
-        {isTranscribing ? (
+        {!selectedUrl && publication.status === "preparing" ? (
           <p className="text-2xl text-slate-500 animate-pulse font-medium">
             Transcribing audio...
           </p>
