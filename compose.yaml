@@ -15,18 +15,7 @@ services:
     restart: unless-stopped
 
 
-  web:
-    build:
-      context: ./public/nextjs-faster-whisper/web
-    environment:
-      WHISPER_API_URL: http://whisper:8000
-    ports:
-      - "3000:3000"
-    depends_on:
-      whisper:
-        condition: service_healthy
-    restart: unless-stopped
-
+  
   db:
     image: postgres:16-alpine
     restart: always
