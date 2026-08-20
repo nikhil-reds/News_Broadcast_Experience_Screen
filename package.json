@@ -22,7 +22,10 @@
     "worker:tts": "tsx app/worker/tts.ts",
     "worker:green-screen": "tsx app/worker/green-screen-compose.ts",
     "worker:video-export": "tsx app/worker/video-export.ts",
-    "worker:all": "tsx app/worker/all.ts"
+    "worker:video": "tsx app/worker/video.ts",
+    "worker:watchdog": "tsx app/worker/watchdog.ts",
+    "worker:all": "node scripts/run-workers.mjs",
+    "worker:all-single-process": "tsx app/worker/all.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
