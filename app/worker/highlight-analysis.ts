@@ -20,19 +20,34 @@ import "dotenv/config";
 import { Worker, type Job } from "bullmq";
 import { redisConnection } from "@/lib/redis";
 import { HIGHLIGHT_ANALYSIS_QUEUE, type HighlightPairJob, enqueueHighlightReel } from "@/lib/queue";
-import { analyzeHighlightSegments } from "@/lib/highlight-analysis";
+import { analyzeHighlightSegments, HIGHLIGHT_ANALYSIS_TIMEOUT_MS } from "@/lib/highlight-analysis";
+import { markTaskProcessing, markTaskCompleted, markTaskFailed } from "@/lib/generation";
+import { startHeartbeat } from "@/lib/generation-heartbeat";
 
 const WORKER_NAME = "highlight-analysis-worker";
+// A little above the Gemini call's own timeout so a genuinely slow (not
+// stuck) analysis's lock doesn't expire mid-call — see the watchdog plan's
+// note on lockDuration vs. BullMQ's native stalled-job reclaim.
+const LOCK_DURATION_MS = HIGHLIGHT_ANALYSIS_TIMEOUT_MS + 2 * 60 * 1000;
 
 const worker = new Worker<HighlightPairJob>(
   HIGHLIGHT_ANALYSIS_QUEUE,
   async (job: Job<HighlightPairJob>) => {
-    const { cam1Filename, cam2Filename, cam3Filename } = job.data;
+    const { cam1Filename, cam2Filename, cam3Filename, generationId } = job.data;
+    await markTaskProcessing(generationId, "highlight-analysis", job.id);
     console.log(
       `[${WORKER_NAME}] job ${job.id} → analyzing "${cam1Filename}" + "${cam2Filename}" + "${cam3Filename}"`
     );
 
-    const analysis = await analyzeHighlightSegments(cam1Filename, cam2Filename, cam3Filename);
+    const heartbeat = startHeartbeat({ generationId, taskType: "highlight-analysis", jobId: job.id });
+    let analysis;
+    try {
+      analysis = await analyzeHighlightSegments(cam1Filename, cam2Filename, cam3Filename);
+      await heartbeat.stop();
+    } catch (err) {
+      await heartbeat.stop();
+      throw err;
+    }
 
     console.log(
       `[${WORKER_NAME}] job ${job.id} done: "${analysis.title}" — ${analysis.segments.length} segment(s)`
@@ -45,7 +60,8 @@ const worker = new Worker<HighlightPairJob>(
     }
 
     // Chain into stage 2 now that the segments are known.
-    await enqueueHighlightReel(cam1Filename, cam2Filename, cam3Filename, analysis);
+    await enqueueHighlightReel(cam1Filename, cam2Filename, cam3Filename, analysis, generationId);
+    await markTaskCompleted(generationId, "highlight-analysis");
 
     return {
       title: analysis.title,
@@ -58,7 +74,7 @@ const worker = new Worker<HighlightPairJob>(
     // Gemini upload + inference is the expensive part; one session at a time.
     concurrency: 1,
     // A long take can spend minutes in Gemini alone.
-    lockDuration: 20 * 60 * 1000,
+    lockDuration: LOCK_DURATION_MS,
   }
 );
 
@@ -71,8 +87,16 @@ worker.on("active", (job) => {
 worker.on("completed", (job) => {
   console.log(`[${WORKER_NAME}] ✅ completed job ${job.id}`);
 });
-worker.on("failed", (job, err) => {
+worker.on("failed", async (job, err) => {
   console.error(`[${WORKER_NAME}] ❌ job ${job?.id} failed: ${err.message}`);
+  await markTaskFailed(
+    job?.data?.generationId,
+    "highlight-analysis",
+    err.message,
+    job?.attemptsMade ?? 1,
+    job?.opts?.attempts ?? 3,
+    job?.id
+  );
 });
 worker.on("error", (err) => {
   console.error(`[${WORKER_NAME}] worker error: ${err.message}`);
