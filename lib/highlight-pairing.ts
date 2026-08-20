@@ -45,6 +45,11 @@ export async function enqueueHighlightIfSessionComplete(sessionId: string | null
   const cam2Filename = byCamera[2]!;
   const cam3Filename = byCamera[3]!;
 
+  const audio = await prisma.audioFile.findFirst({ where: { sessionId } });
+  if (!audio) {
+    return { queued: false, reason: `waiting on master audio for session ${sessionId}` };
+  }
+
   // The reel name is derived from the camera-1 take, so an existing row means
   // this session has already been cut.
   const existing = await prisma.videoRecording.findUnique({
@@ -57,7 +62,8 @@ export async function enqueueHighlightIfSessionComplete(sessionId: string | null
 
   // Kicks off stage 1 (Gemini analysis) only — stage 2 (the ffmpeg render) is
   // chained from within app/worker/highlight-analysis.ts once Gemini's picks
-  // are known, since its queue payload requires those segments.
-  await enqueueHighlightAnalysis(cam1Filename, cam2Filename, cam3Filename);
+  // are known, since its queue payload requires those segments. sessionId IS
+  // the generationId (same value) — this take's BroadcastSession row.
+  await enqueueHighlightAnalysis(cam1Filename, cam2Filename, cam3Filename, sessionId);
   return { queued: true };
 }

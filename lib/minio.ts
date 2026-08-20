@@ -91,6 +91,16 @@ export async function objectExists(bucket: string, key: string): Promise<boolean
   }
 }
 
+/** Delete one object. Missing objects are treated as already-deleted, not an error. */
+export async function deleteObject(bucket: string, key: string): Promise<void> {
+  try {
+    await minioClient.removeObject(bucket, key);
+  } catch (err: any) {
+    if (err?.code === "NoSuchKey" || err?.code === "NotFound") return;
+    throw err;
+  }
+}
+
 /** Read an object fully into a Buffer. */
 export async function getObjectBuffer(bucket: string, key: string): Promise<Buffer> {
   const stream = await minioClient.getObject(bucket, key);
