@@ -54,7 +54,16 @@ model VideoRecording {
 /// 11/12 know which background and subtitle language to bake into the export.
 model BroadcastSession {
   id                       String    @id @default(uuid())
+  /// Human-friendly "Generation #N" number for logs/UI — this row IS the
+  /// generation record for one full camera1+camera2+camera3+audio recording
+  /// cycle (see docs/generation-pipeline.md).
+  seq                      Int       @unique @default(autoincrement())
   status                   String    @default("recording") // "recording" | "processing" | "ready"
+  /// Whether every *base* pipeline task for this generation (transcription,
+  /// all 4 translations, all 4 TTS, highlight-analysis, highlight-reel, all 5
+  /// green-screen backgrounds) has finished — independent of whether any
+  /// individual screen has published this generation yet.
+  pipelineStatus           String    @default("processing") // "processing" | "ready" | "failed"
   selectedBackgroundId     String?
   selectedSubtitleLanguage String    @default("English")
   startedAt                DateTime  @default(now())
@@ -62,29 +71,108 @@ model BroadcastSession {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
-  videoRecordings VideoRecording[]
-  audioFiles      AudioFile[]
+  videoRecordings        VideoRecording[]
+  audioFiles             AudioFile[]
+  transcripts            Transcript[]
+  transcriptTranslations TranscriptTranslation[]
+  translationAudios      TranslationAudio[]
+  videoJobs              VideoJob[]
+  generationTasks        GenerationTask[]
+  currentPublications    ScreenPublication[] @relation("CurrentPublications")
+  pendingPublications    ScreenPublication[] @relation("PendingPublications")
 
   @@map("broadcast_sessions")
 }
 
+/// Per-generation status of every pipeline task (transcription, one per
+/// translation language, one per TTS language, highlight-analysis,
+/// highlight-reel, one per green-screen background). The single source of
+/// truth for retries, stale-generation checks, and per-screen readiness —
+/// see docs/generation-pipeline.md.
+model GenerationTask {
+  id           String    @id @default(uuid())
+  generationId String
+  generation   BroadcastSession @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  taskType     String    // e.g. "transcription" | "translation-de" | "tts-hi" | "highlight-reel" | "greenscreen-city-skyline" | "video-export-11"
+  status       String    @default("pending") // "pending" | "processing" | "completed" | "failed" | "cancelled" (watchdog: stale, no live generation/variant to recover for)
+  attempt      Int       @default(0)
+  maxAttempts  Int       @default(3)
+  jobId        String?
+  errorMessage String?   @db.Text
+  startedAt    DateTime?
+  completedAt  DateTime?
+  /// Watchdog fields (app/worker/watchdog.ts) — a worker still alive but
+  /// wedged on a promise that never resolves keeps its BullMQ lock renewed,
+  /// so lock expiry alone can't detect it; this heartbeat can.
+  lastHeartbeatAt DateTime?
+  progressPercent Int?
+  progressMessage String?
+  /// OS pid of a child process *this worker itself* spawned (ffmpeg) — used
+  /// only for best-effort orphan cleanup, never trusted for correctness.
+  processId       Int?
+  /// Optimistic-lock guard so two watchdog instances can't both act on the
+  /// same stale row — see the claim step in app/worker/watchdog.ts.
+  recoveryAttempt Int       @default(0)
+  /// Snapshot of the exact arguments this task's enqueue*() call in
+  /// lib/queue.ts was given — the watchdog needs this to actually
+  /// reconstruct a re-enqueue when a task's BullMQ job has gone missing
+  /// entirely (crash before enqueue landed, Redis data lost); without it
+  /// there'd be nothing to call enqueueTranscription/enqueueTranslations/etc.
+  /// with.
+  payload      Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([generationId, taskType])
+  @@index([generationId])
+  @@map("generation_tasks")
+}
+
+/// What each of the 12 screens actually renders: the last known-good
+/// ("current") generation/variant, plus at most one in-flight ("pending")
+/// one. A screen only ever swaps `current*` for `pending*` once every
+/// required GenerationTask for that screen has completed successfully — see
+/// docs/generation-pipeline.md.
+model ScreenPublication {
+  id                   String    @id @default(uuid())
+  screenId             Int       @unique
+  currentGenerationId  String?
+  currentGeneration    BroadcastSession? @relation("CurrentPublications", fields: [currentGenerationId], references: [id])
+  /// Snapshot of the params actually being shown, e.g. {"language":"Hindi","backgroundId":"newsroom-blue","aspect":"landscape"}
+  currentParams        Json?
+  pendingGenerationId  String?
+  pendingGeneration    BroadcastSession? @relation("PendingPublications", fields: [pendingGenerationId], references: [id])
+  pendingParams        Json?
+  pendingStatus        String    @default("idle") // "idle" | "preparing" | "failed"
+  pendingFailureReason String?   @db.Text
+  updatedAt            DateTime  @updatedAt
+
+  @@map("screen_publications")
+}
+
 /// Stores full speech-to-text transcript output generated by Whisper (Docker / Cloud / CLI)
 model Transcript {
-  id          String              @id @default(uuid())
-  sourceAudio String
-  audioFile   AudioFile?          @relation(fields: [audioFileId], references: [id], onDelete: Cascade)
-  audioFileId String?
-  language    String              @default("en")
-  duration    Float
-  sttEngine   String              @default("Docker Faster-Whisper")
-  text        String              @db.Text
-  srtContent  String?             @db.Text
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id           String              @id @default(uuid())
+  sourceAudio  String
+  audioFile    AudioFile?          @relation(fields: [audioFileId], references: [id], onDelete: Cascade)
+  audioFileId  String?
+  /// Which recording cycle this transcript belongs to — added so the
+  /// transcription→translation→TTS chain can be scoped/staled by generation
+  /// instead of resolved purely by "newest transcript for this sourceAudio".
+  generationId String?
+  generation   BroadcastSession?   @relation(fields: [generationId], references: [id])
+  language     String              @default("en")
+  duration     Float
+  sttEngine    String              @default("Docker Faster-Whisper")
+  text         String              @db.Text
+  srtContent   String?             @db.Text
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   segments     TranscriptSegment[]
   translations TranscriptTranslation[]
 
+  @@index([generationId])
   @@map("transcripts")
 }
 
@@ -93,6 +181,11 @@ model TranscriptTranslation {
   id           String     @id @default(uuid())
   transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
   transcriptId String
+  /// Same recording cycle as the source Transcript — duplicated here (rather
+  /// than joined through) so translation/TTS workers can stale-check without
+  /// an extra hop.
+  generationId String?
+  generation   BroadcastSession? @relation(fields: [generationId], references: [id])
   language     String     // "German" | "Hindi" | "French" | "Spanish"
   langCode     String     // "de" | "hi" | "fr" | "es"
   text         String     @db.Text
@@ -107,6 +200,7 @@ model TranscriptTranslation {
   audio    TranslationAudio?
 
   @@unique([transcriptId, language])
+  @@index([generationId])
   @@map("transcript_translations")
 }
 
@@ -115,6 +209,8 @@ model TranslationAudio {
   id            String                @id @default(uuid())
   translation   TranscriptTranslation @relation(fields: [translationId], references: [id], onDelete: Cascade)
   translationId String                @unique
+  generationId  String?
+  generation    BroadcastSession?     @relation(fields: [generationId], references: [id])
   language      String
   langCode      String
   bucket        String                @default("tts-audio")
@@ -125,6 +221,7 @@ model TranslationAudio {
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
 
+  @@index([generationId])
   @@map("translation_audio")
 }
 
@@ -189,6 +286,11 @@ model VideoJob {
   id            String   @id @default(uuid())
   reelFilename  String
   sourceAudio   String
+  /// Which recording cycle this export renders from — lets the video-export
+  /// worker detect a superseded generation before publishing, and lets
+  /// cleanup find every export tied to an old generation.
+  generationId  String?
+  generation    BroadcastSession? @relation(fields: [generationId], references: [id])
   language      String
   aspect        String   // "portrait" | "landscape"
   /// A lib/green-screen.ts background id, or "none" (NO_BACKGROUND in
@@ -206,6 +308,7 @@ model VideoJob {
   updatedAt     DateTime @updatedAt
 
   @@unique([reelFilename, language, aspect, backgroundId])
+  @@index([generationId])
   @@map("video_jobs")
 }
 

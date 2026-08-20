@@ -34,6 +34,20 @@ import { backgroundImagePath } from "@/lib/green-screen-paths";
 /** Sentinel meaning "no background swap" — see VideoJob.backgroundId in schema.prisma. */
 export const NO_BACKGROUND = "none";
 
+/**
+ * Bounds the final ffmpeg composite pass so a hung/runaway export can't sit
+ * on the worker's single concurrency slot indefinitely — a live incident saw
+ * one stuck for 30+ minutes at near-zero CPU while newer requests queued up
+ * behind it. On timeout the ffmpeg child is killed and the run rejects like
+ * any other ffmpeg failure, so BullMQ's existing attempts/backoff (see
+ * lib/queue.ts) retries it exactly like any other failure. Follows the same
+ * env-var-override convention as BG_QUEUE_CONCURRENCY (lib/queue.ts).
+ */
+export const FFMPEG_EXPORT_TIMEOUT_MS = parseInt(
+  process.env.FFMPEG_EXPORT_TIMEOUT_MS || String(10 * 60 * 1000),
+  10
+);
+
 export type ExportAspect = "portrait" | "landscape";
 
 const DIMENSIONS: Record<ExportAspect, { width: number; height: number; crop: boolean }> = {
@@ -181,8 +195,10 @@ export async function composeExportVideo(params: {
   aspect: ExportAspect;
   /** One of lib/green-screen.ts's GREEN_SCREEN_BACKGROUNDS ids, or NO_BACKGROUND. */
   backgroundId?: string;
+  /** Fired every ~30s with the ffmpeg child's pid — see lib/generation-heartbeat.ts. */
+  onHeartbeat?: (pid: number) => void;
 }): Promise<ComposeExportResult> {
-  const { reelFilename, sourceAudio, language, aspect, backgroundId = NO_BACKGROUND } = params;
+  const { reelFilename, sourceAudio, language, aspect, backgroundId = NO_BACKGROUND, onHeartbeat } = params;
   const langCode = LANGUAGE_CODES[language] || "en";
   const dims = DIMENSIONS[aspect];
   const background = backgroundId === NO_BACKGROUND ? undefined : findBackground(backgroundId);
@@ -221,6 +237,8 @@ export async function composeExportVideo(params: {
       subtitles,
       backgroundImage: background ? backgroundImagePath(background.id) : undefined,
       cwd: workDir,
+      timeoutMs: FFMPEG_EXPORT_TIMEOUT_MS,
+      onHeartbeat,
     });
 
     const bytes = await readFile(outPath);
