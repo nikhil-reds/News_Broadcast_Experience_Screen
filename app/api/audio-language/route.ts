@@ -150,7 +150,8 @@ export async function POST(req: NextRequest) {
         target.langCode,
         translation.id,
         filenameFromSourceAudio(sourceAudio),
-        translation.text
+        translation.text,
+        transcript.generationId
       );
     }
 
