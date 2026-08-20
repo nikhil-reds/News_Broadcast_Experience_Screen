@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { enqueueGreenScreenCompose } from "@/lib/queue";
 import { composedFilename, composedOutputUrl, findBackground } from "@/lib/green-screen";
 import { VIDEO_BUCKET, objectExists } from "@/lib/minio";
+import { setPendingVariant } from "@/lib/generation";
+import { debounce } from "@/lib/debounce";
+
+/** Screen 07 is the only screen this route ever serves. */
+const SCREEN_ID = 7;
 
 /**
  * Screen 07's "change the background" action.
@@ -39,7 +45,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const job = await enqueueGreenScreenCompose(backgroundId, sourceFilename);
+    const recording = await prisma.videoRecording.findUnique({
+      where: { filename: sourceFilename },
+      select: { sessionId: true },
+    });
+    const generationId = recording?.sessionId ?? null;
+
+    if (generationId) {
+      await setPendingVariant(SCREEN_ID, generationId, { backgroundId });
+    }
+
+    // Coalesce rapid swatch clicks: if the operator picks 4 backgrounds in
+    // quick succession, only the last click's job should actually enqueue —
+    // hence a per-SCREEN key (not per-background, which would let all 4 through).
+    const job = await debounce(`green-screen:screen${SCREEN_ID}`, 700, () =>
+      enqueueGreenScreenCompose(backgroundId, sourceFilename, generationId)
+    );
     return NextResponse.json({ status: "queued", jobId: job.id });
   } catch (error) {
     console.error("Error enqueueing green-screen compose job:", error);
