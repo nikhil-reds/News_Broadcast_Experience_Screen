@@ -15,16 +15,62 @@ const TARGET_HEIGHT = 720;
 const TARGET_FPS = 30;
 const TARGET_SAMPLE_RATE = 48000;
 
-function run(bin: string, args: string[], cwd?: string): Promise<string> {
+/**
+ * `timeoutMs`, when given, kills the child with SIGKILL if it hasn't exited
+ * by then and rejects instead of hanging forever — added after a live
+ * incident where a video-export ffmpeg pass sat stuck for 30+ minutes at
+ * near-zero CPU, tying up a worker concurrency slot. A killed run rejects
+ * like any other ffmpeg failure, so BullMQ's existing attempts/backoff
+ * handles the retry with no extra plumbing. While a timeout is armed, a
+ * heartbeat log every 30s gives visibility into a slow/hung run without
+ * needing to parse ffmpeg's own `-progress` output.
+ *
+ * `onHeartbeat`, when given, fires on that same 30s tick with the child's
+ * pid — the caller (lib/generation-heartbeat.ts) uses this to write
+ * GenerationTask.lastHeartbeatAt/processId instead of running a second,
+ * independent timer alongside this one.
+ */
+function run(
+  bin: string,
+  args: string[],
+  cwd?: string,
+  timeoutMs?: number,
+  onHeartbeat?: (pid: number) => void
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { cwd, windowsHide: true });
+    const startedAt = Date.now();
+    if (onHeartbeat && child.pid) onHeartbeat(child.pid); // record the pid right away, don't wait for the first 30s tick
 
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
+    let timer: NodeJS.Timeout | undefined;
+    let heartbeat: NodeJS.Timeout | undefined;
+
+    if (timeoutMs || onHeartbeat) {
+      heartbeat = setInterval(() => {
+        console.log(`[ffmpeg] "${bin}" still running after ${Math.round((Date.now() - startedAt) / 1000)}s`);
+        if (onHeartbeat && child.pid) onHeartbeat(child.pid);
+      }, 30_000);
+    }
+    if (timeoutMs) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGKILL");
+      }, timeoutMs);
+    }
+
+    const clearTimers = () => {
+      if (timer) clearTimeout(timer);
+      if (heartbeat) clearInterval(heartbeat);
+    };
+
     child.stdout.on("data", (d) => (stdout += d.toString()));
     child.stderr.on("data", (d) => (stderr += d.toString()));
 
     child.on("error", (err: NodeJS.ErrnoException) => {
+      clearTimers();
       if (err.code === "ENOENT") {
         reject(
           new Error(
@@ -38,6 +84,11 @@ function run(bin: string, args: string[], cwd?: string): Promise<string> {
     });
 
     child.on("close", (code) => {
+      clearTimers();
+      if (timedOut) {
+        reject(new Error(`${bin} timed out after ${Math.round(timeoutMs! / 60000)} minutes and was killed`));
+        return;
+      }
       if (code === 0) resolve(stdout);
       else reject(new Error(`${bin} exited ${code}: ${stderr.trim().slice(-800)}`));
     });
@@ -81,8 +132,10 @@ export async function extractNormalizedClip(opts: {
   output: string;
   withSilentAudio: boolean;
   cwd?: string;
+  timeoutMs?: number;
+  onHeartbeat?: (pid: number) => void;
 }): Promise<void> {
-  const { input, start, end, output, withSilentAudio, cwd } = opts;
+  const { input, start, end, output, withSilentAudio, cwd, timeoutMs, onHeartbeat } = opts;
   const duration = end - start;
 
   const args = [
@@ -120,7 +173,7 @@ export async function extractNormalizedClip(opts: {
     output
   );
 
-  await run(FFMPEG_BIN, args, cwd);
+  await run(FFMPEG_BIN, args, cwd, timeoutMs, onHeartbeat);
 }
 
 /**
@@ -145,12 +198,14 @@ export async function composeGreenScreenBackground(opts: {
   output: string;
   width?: number;
   height?: number;
+  timeoutMs?: number;
+  onHeartbeat?: (pid: number) => void;
 }): Promise<void> {
   // 960x540 + ultrafast trims the render meaningfully versus 720p/veryfast
   // (~30-40% faster in testing) at a quality cost that doesn't matter for a
   // studio-monitor-sized card. Screen 07 also pre-warms every background in
   // the background on load, so this preset is only ever felt on a cold start.
-  const { input, backgroundImage, output, width = 960, height = 540 } = opts;
+  const { input, backgroundImage, output, width = 960, height = 540, timeoutMs, onHeartbeat } = opts;
 
   const filter =
     `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,` +
@@ -190,7 +245,7 @@ export async function composeGreenScreenBackground(opts: {
     "-shortest",
     "-movflags", "+faststart",
     output,
-  ]);
+  ], undefined, timeoutMs, onHeartbeat);
 }
 
 export interface SubtitleOverlay {
@@ -229,8 +284,12 @@ export async function composeFinalExport(opts: {
   /** Chromakey the reel onto this background image instead of a plain scale/crop. */
   backgroundImage?: string;
   cwd: string;
+  /** Bound the ffmpeg pass and kill+reject if it runs longer than this. */
+  timeoutMs?: number;
+  onHeartbeat?: (pid: number) => void;
 }): Promise<void> {
-  const { input, output, width, height, crop, subtitles, logoPath, backgroundImage, cwd } = opts;
+  const { input, output, width, height, crop, subtitles, logoPath, backgroundImage, cwd, timeoutMs, onHeartbeat } =
+    opts;
 
   const scaleFilter = crop
     ? `scale=-2:${height},crop=${width}:${height}:(iw-${width})/2:0`
@@ -248,8 +307,7 @@ export async function composeFinalExport(opts: {
   const subtitleStartIndex = mainIndex + 1;
 
   for (const sub of subtitles) {
-    const duration = Math.max(0.1, sub.end - sub.start);
-    args.push("-loop", "1", "-t", duration.toFixed(3), "-i", sub.pngPath);
+    args.push("-loop", "1", "-i", sub.pngPath);
   }
   if (logoPath) args.push("-i", logoPath);
 
@@ -312,7 +370,7 @@ export async function composeFinalExport(opts: {
     output
   );
 
-  await run(FFMPEG_BIN, args, cwd);
+  await run(FFMPEG_BIN, args, cwd, timeoutMs, onHeartbeat);
 }
 
 /**
@@ -323,7 +381,9 @@ export async function concatClips(
   clips: string[],
   output: string,
   cwd: string,
-  listFilename = "concat-list.txt"
+  listFilename = "concat-list.txt",
+  timeoutMs?: number,
+  onHeartbeat?: (pid: number) => void
 ): Promise<void> {
   const { writeFile } = await import("node:fs/promises");
   const { join } = await import("node:path");
@@ -345,6 +405,8 @@ export async function concatClips(
       "-movflags", "+faststart",
       output,
     ],
-    cwd
+    cwd,
+    timeoutMs,
+    onHeartbeat
   );
 }
