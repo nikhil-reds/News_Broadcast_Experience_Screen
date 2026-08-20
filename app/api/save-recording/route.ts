@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     // render in the background while the operator reviews footage on Screens
     // 01-06, so by the time they reach Screen 07 the swap is usually instant.
     if (cameraIdFromFilename(filename) === 1) {
-      enqueueAllBackgroundsForSource(filename).catch((err) => {
+      enqueueAllBackgroundsForSource(filename, sessionId).catch((err) => {
         console.error(`Failed to pre-warm backgrounds for "${filename}":`, err.message);
       });
     }
