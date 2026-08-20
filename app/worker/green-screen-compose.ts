@@ -28,13 +28,32 @@ import { composeGreenScreenBackground } from "@/lib/ffmpeg";
 import { VIDEO_BUCKET, downloadObjectToFile, uploadObject } from "@/lib/minio";
 import { composedFilename, composedOutputUrl, findBackground } from "@/lib/green-screen";
 import { backgroundImagePath } from "@/lib/green-screen-paths";
+import { markTaskProcessing, markTaskCompleted, markTaskFailed, publishVariant, failVariant } from "@/lib/generation";
+import { startHeartbeat } from "@/lib/generation-heartbeat";
+
+// Same env-var-override convention as FFMPEG_EXPORT_TIMEOUT_MS (lib/video-export.ts).
+const FFMPEG_GREENSCREEN_TIMEOUT_MS = parseInt(process.env.FFMPEG_GREENSCREEN_TIMEOUT_MS || String(5 * 60 * 1000), 10);
+
+/**
+ * Screen 07 is the only consumer of this worker's output as a CURRENT/NEXT
+ * "variant" (which single background is actively displayed) rather than a
+ * base task everyone waits on together — see lib/generation.ts's
+ * VARIANT_SCREENS comment. This job's payload doesn't carry a screenId
+ * (the same queue also serves the "prewarm all 5 backgrounds" call from
+ * save-recording, which has no screen in mind at all), so publishVariant/
+ * failVariant are called unconditionally below — they internally no-op
+ * unless Screen 07's ScreenPublication.pendingParams actually matches this
+ * exact (generationId, backgroundId), so a prewarm job harmlessly no-ops too.
+ */
+const SCREEN_7 = 7;
 
 const WORKER_NAME = "green-screen-compose-worker";
 
 const worker = new Worker<GreenScreenJob>(
   GREEN_SCREEN_QUEUE,
   async (job: Job<GreenScreenJob>) => {
-    const { backgroundId, sourceFilename } = job.data;
+    const { backgroundId, sourceFilename, generationId } = job.data;
+    await markTaskProcessing(generationId, `greenscreen-${backgroundId}`, job.id);
 
     const background = findBackground(backgroundId);
     if (!background) {
@@ -45,6 +64,7 @@ const worker = new Worker<GreenScreenJob>(
       `[${WORKER_NAME}] job ${job.id} → compositing "${sourceFilename}" onto "${backgroundId}"`
     );
 
+    const heartbeat = startHeartbeat({ generationId, taskType: `greenscreen-${backgroundId}`, jobId: job.id });
     const workDir = await mkdtemp(join(tmpdir(), "green-screen-"));
     try {
       const sourcePath = join(workDir, "source.mp4");
@@ -55,6 +75,8 @@ const worker = new Worker<GreenScreenJob>(
         input: sourcePath,
         backgroundImage: backgroundImagePath(backgroundId),
         output: outputPath,
+        timeoutMs: FFMPEG_GREENSCREEN_TIMEOUT_MS,
+        onHeartbeat: (pid) => heartbeat.touch(undefined, `ffmpeg pid ${pid}`),
       });
 
       const outputFilename = composedFilename(backgroundId, sourceFilename);
@@ -64,8 +86,14 @@ const worker = new Worker<GreenScreenJob>(
       const url = composedOutputUrl(backgroundId, sourceFilename);
       console.log(`[${WORKER_NAME}] job ${job.id} done → ${url}`);
 
+      await markTaskCompleted(generationId, `greenscreen-${backgroundId}`);
+      if (generationId) {
+        await publishVariant(SCREEN_7, generationId, { backgroundId }, { videoUrl: url });
+      }
+
       return { backgroundId, sourceFilename, url };
     } finally {
+      await heartbeat.stop();
       await rm(workDir, { recursive: true, force: true });
     }
   },
@@ -78,7 +106,10 @@ const worker = new Worker<GreenScreenJob>(
     // at a time. Results are cached per (background, take) anyway, so a
     // given (background, take) pair only ever pays for one ffmpeg pass.
     concurrency: parseInt(process.env.BG_QUEUE_CONCURRENCY || "5", 10),
-    lockDuration: 5 * 60 * 1000,
+    // A little above the ffmpeg pass's own timeout so a genuinely slow (not
+    // stuck) composite's lock doesn't expire mid-render — see the watchdog
+    // plan's note on lockDuration vs. BullMQ's native stalled-job reclaim.
+    lockDuration: FFMPEG_GREENSCREEN_TIMEOUT_MS + 2 * 60 * 1000,
   }
 );
 
@@ -91,8 +122,21 @@ worker.on("active", (job) => {
 worker.on("completed", (job) => {
   console.log(`[${WORKER_NAME}] ✅ completed job ${job.id}`);
 });
-worker.on("failed", (job, err) => {
+worker.on("failed", async (job, err) => {
   console.error(`[${WORKER_NAME}] ❌ job ${job?.id} failed: ${describeError(err)}`);
+  const attemptsMade = job?.attemptsMade ?? 1;
+  const maxAttempts = job?.opts?.attempts ?? 3;
+  await markTaskFailed(
+    job?.data?.generationId,
+    `greenscreen-${job?.data?.backgroundId}`,
+    err.message,
+    attemptsMade,
+    maxAttempts,
+    job?.id
+  );
+  if (job?.data?.generationId && attemptsMade >= maxAttempts) {
+    await failVariant(SCREEN_7, job.data.generationId, { backgroundId: job.data.backgroundId }, err.message);
+  }
 });
 worker.on("error", (err) => {
   console.error(`[${WORKER_NAME}] worker error: ${describeError(err)}`);
