@@ -15,9 +15,14 @@ import "dotenv/config";
 import { Worker, type Job } from "bullmq";
 import { redisConnection } from "@/lib/redis";
 import { TRANSCRIPTION_QUEUE, type TranscriptionJob } from "@/lib/queue";
-import { transcribeAndStore } from "@/lib/transcribe";
+import { transcribeAndStore, WHISPER_TIMEOUT_MS } from "@/lib/transcribe";
+import { markTaskFailed } from "@/lib/generation";
 
 const WORKER_NAME = "audio-transcription-worker";
+// A little above Whisper's own timeout so a genuinely slow (not stuck) clip's
+// lock doesn't expire mid-transcription — see the watchdog plan's note on
+// lockDuration vs. BullMQ's native stalled-job reclaim.
+const LOCK_DURATION_MS = WHISPER_TIMEOUT_MS + 2 * 60 * 1000;
 
 const worker = new Worker<TranscriptionJob>(
   TRANSCRIPTION_QUEUE,
@@ -45,6 +50,7 @@ const worker = new Worker<TranscriptionJob>(
     name: WORKER_NAME,
     connection: redisConnection,
     concurrency: 1, // Whisper on CPU is heavy; process one clip at a time.
+    lockDuration: LOCK_DURATION_MS,
   }
 );
 
@@ -57,8 +63,16 @@ worker.on("active", (job) => {
 worker.on("completed", (job) => {
   console.log(`[${WORKER_NAME}] ✅ completed job ${job.id}`);
 });
-worker.on("failed", (job, err) => {
+worker.on("failed", async (job, err) => {
   console.error(`[${WORKER_NAME}] ❌ job ${job?.id} failed: ${err.message}`);
+  await markTaskFailed(
+    job?.data?.generationId,
+    "transcription",
+    err.message,
+    job?.attemptsMade ?? 1,
+    job?.opts?.attempts ?? 3,
+    job?.id
+  );
 });
 worker.on("error", (err) => {
   console.error(`[${WORKER_NAME}] worker error: ${err.message}`);
