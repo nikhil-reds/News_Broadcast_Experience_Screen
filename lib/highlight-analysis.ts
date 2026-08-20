@@ -39,6 +39,47 @@ const MAX_SEGMENT_SECONDS = 20;
 const MAX_SEGMENTS = 8;
 const MAX_REEL_SECONDS = 90;
 
+/**
+ * Bounds the whole Gemini round-trip (uploading all three takes, waiting for
+ * them to go ACTIVE, then generateContent) so a hung upload or a wedged
+ * inference call can't sit on this worker's single concurrency slot forever —
+ * same rationale as FFMPEG_EXPORT_TIMEOUT_MS (lib/video-export.ts). On timeout
+ * the call rejects like any other Gemini failure, so BullMQ's existing
+ * attempts/backoff (lib/queue.ts) retries it exactly like any other failure.
+ * Follows the same env-var-override convention as BG_QUEUE_CONCURRENCY
+ * (lib/queue.ts).
+ *
+ * Deliberately a DIFFERENT env var than lib/gemini.ts's own internal
+ * `GEMINI_TIMEOUT_MS` (which bounds just the low-level generateJson fetch,
+ * defaulting to 15 min, shared with lib/translation.ts) — this one bounds
+ * the whole upload+wait+generate round trip from the outside, and the two
+ * are tuned independently on purpose. Since this one defaults tighter (5 min
+ * vs 15), it's the one that actually fires in practice with default config;
+ * lib/gemini.ts's is the deeper backstop.
+ */
+export const HIGHLIGHT_ANALYSIS_TIMEOUT_MS = parseInt(
+  process.env.HIGHLIGHT_ANALYSIS_TIMEOUT_MS || String(5 * 60 * 1000),
+  10
+);
+
+/**
+ * Races `fn` against an AbortController-driven timer, rejecting with a clear
+ * error instead of letting a hung call sit forever. `selectSegments` below
+ * calls three separate lib/gemini.ts functions (upload/wait/generate), none
+ * of which accept an abort signal individually, so the timeout is applied
+ * around the whole step rather than threaded into each fetch.
+ */
+function withAbortTimeout<T>(fn: () => Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  const controller = new AbortController();
+  const timedOut = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener("abort", () => {
+      reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 60000)} minutes`));
+    });
+  });
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return Promise.race([fn(), timedOut]).finally(() => clearTimeout(timer));
+}
+
 export interface HighlightSegment {
   camera: CameraId;
   start: number;
@@ -218,13 +259,18 @@ export async function analyzeHighlightSegments(
       3: await hasAudioStream(sources[3]),
     };
 
-    const { title, segments: proposed } = await selectSegments(
-      [
-        { cameraId: 1, path: sources[1], filename: cam1Filename },
-        { cameraId: 2, path: sources[2], filename: cam2Filename },
-        { cameraId: 3, path: sources[3], filename: cam3Filename },
-      ],
-      durations
+    const { title, segments: proposed } = await withAbortTimeout(
+      () =>
+        selectSegments(
+          [
+            { cameraId: 1, path: sources[1], filename: cam1Filename },
+            { cameraId: 2, path: sources[2], filename: cam2Filename },
+            { cameraId: 3, path: sources[3], filename: cam3Filename },
+          ],
+          durations
+        ),
+      HIGHLIGHT_ANALYSIS_TIMEOUT_MS,
+      "Gemini call"
     );
 
     const segments = sanitizeSegments(proposed, durations);
