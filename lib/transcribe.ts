@@ -6,6 +6,20 @@ import {
   uploadObject,
 } from "@/lib/minio";
 import { enqueueTranslations } from "@/lib/queue";
+import { markTaskProcessing, markTaskCompleted } from "@/lib/generation";
+import { withHeartbeat } from "@/lib/generation-heartbeat";
+
+/**
+ * Bounds the Whisper HTTP call so a hung Docker container sits for a bounded
+ * time before throwing instead of forever — audio files can be long, so this
+ * is generous. A throw here is what lets BullMQ's existing attempts/backoff
+ * (see lib/queue.ts) actually retry a wedged call; see app/worker/watchdog.ts
+ * for the stuck-job detector this pairs with.
+ */
+export const WHISPER_TIMEOUT_MS = parseInt(
+  process.env.WHISPER_TIMEOUT_MS || String(5 * 60 * 1000),
+  10
+);
 
 export interface TranscriptSegment {
   id: number;
@@ -61,19 +75,18 @@ export async function runWhisper(
   ];
 
   for (const whisperUrl of whisperUrls) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), WHISPER_TIMEOUT_MS);
     try {
       const form = new FormData();
       form.append("file", new Blob([new Uint8Array(audioBuffer)], { type: "audio/wav" }), filename);
       form.append("task", "transcribe");
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 300000);
       const res = await fetch(whisperUrl, {
         method: "POST",
         body: form,
         signal: controller.signal,
       });
-      clearTimeout(timeoutId);
 
       if (!res.ok) continue;
       const data = await res.json();
@@ -91,7 +104,17 @@ export async function runWhisper(
       // Whisper reachable but no speech detected.
       if (data && "segments" in data) return { segments: [], duration };
     } catch (err: any) {
+      if (err.name === "AbortError") {
+        // A hung Whisper call must throw (not silently fall through to the
+        // next fallback URL) so BullMQ's attempts/backoff actually retries —
+        // see app/worker/watchdog.ts for the stuck-job detector this pairs with.
+        throw new Error(
+          `Whisper transcription timed out after ${Math.round(WHISPER_TIMEOUT_MS / 60000)} minutes`
+        );
+      }
       console.log(`Whisper endpoint ${whisperUrl} unavailable: ${err.message}`);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
   return { segments: [], duration: 0 };
@@ -103,10 +126,21 @@ export async function runWhisper(
  * persist Transcript + segments to Postgres.
  */
 export async function transcribeAndStore(filename: string): Promise<TranscribeResult> {
+  // AudioFile.sessionId IS the generationId for this chain (set by
+  // POST /api/save-audio when the recording was uploaded) — look it up
+  // up front so the "processing" mark below is scoped to the right
+  // generation even before this function's own upsert runs.
+  const existingAudio = await prisma.audioFile.findUnique({ where: { filename } });
+  const generationId = existingAudio?.sessionId ?? null;
+  await markTaskProcessing(generationId, "transcription");
+
   const audioBuffer = await getObjectBuffer(AUDIO_BUCKET, filename);
   const sourceAudio = `/api/asset/${AUDIO_BUCKET}/${encodeURIComponent(filename)}`;
 
-  const { segments, duration } = await runWhisper(audioBuffer, filename);
+  const { segments, duration } = await withHeartbeat(
+    { generationId, taskType: "transcription" },
+    () => runWhisper(audioBuffer, filename)
+  );
   const text = segments.map((s) => s.text).join(" ");
   const srtContent = generateSrt(segments);
   const sttEngine =
@@ -143,6 +177,7 @@ export async function transcribeAndStore(filename: string): Promise<TranscribeRe
     data: {
       sourceAudio,
       audioFileId: audio.id,
+      generationId,
       language: "en",
       duration,
       sttEngine,
@@ -159,13 +194,15 @@ export async function transcribeAndStore(filename: string): Promise<TranscribeRe
     },
   });
 
+  await markTaskCompleted(generationId, "transcription");
+
   // English .txt is saved and the transcript is persisted — fan out to the 4
   // per-language translation workers (german/hindi/french/spanish-transcript).
   // Best-effort: a queue/Redis outage must not fail the transcription itself.
   let translationsQueued = false;
   if (segments.length > 0) {
     try {
-      await enqueueTranslations(filename, segments, saved.id);
+      await enqueueTranslations(filename, segments, saved.id, generationId);
       translationsQueued = true;
     } catch (err: any) {
       console.error(`Failed to enqueue translations for "${filename}": ${err.message}`);

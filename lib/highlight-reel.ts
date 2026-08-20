@@ -23,6 +23,22 @@ import type { HighlightAnalysisResult, HighlightSegment } from "@/lib/highlight-
 
 export type { HighlightSegment };
 
+/**
+ * Bounds this stage's ffmpeg calls (one extractNormalizedClip per segment,
+ * plus one concatClips) so a hung ffmpeg process can't sit on this worker's
+ * single concurrency slot forever — same rationale as FFMPEG_EXPORT_TIMEOUT_MS
+ * (lib/video-export.ts). Sized above a single ffmpeg pass since a reel's
+ * render can spend several extractNormalizedClip calls plus one concatClips
+ * inside the same job. On timeout the ffmpeg child is killed and the run
+ * rejects like any other ffmpeg failure, so BullMQ's existing attempts/backoff
+ * (lib/queue.ts) retries it exactly like any other failure. Follows the same
+ * env-var-override convention as BG_QUEUE_CONCURRENCY (lib/queue.ts).
+ */
+export const FFMPEG_HIGHLIGHT_TIMEOUT_MS = parseInt(
+  process.env.FFMPEG_HIGHLIGHT_TIMEOUT_MS || String(8 * 60 * 1000),
+  10
+);
+
 export interface HighlightReelResult {
   filename: string;
   url: string;
@@ -43,9 +59,16 @@ export async function renderHighlightReel(
   cam1Filename: string,
   cam2Filename: string,
   cam3Filename: string,
-  analysis: HighlightAnalysisResult
+  analysis: HighlightAnalysisResult,
+  generationId?: string | null,
+  opts?: {
+    /** Bound each ffmpeg pass and kill+reject it if it runs longer than this. */
+    timeoutMs?: number;
+    onHeartbeat?: (pid: number) => void;
+  }
 ): Promise<HighlightReelResult> {
   const { title, segments, audio } = analysis;
+  const { timeoutMs, onHeartbeat } = opts || {};
   const workDir = await mkdtemp(join(tmpdir(), "highlight-render-"));
 
   try {
@@ -70,13 +93,15 @@ export async function renderHighlightReel(
         output: clip,
         withSilentAudio: !audio[segment.camera],
         cwd: workDir,
+        timeoutMs,
+        onHeartbeat,
       });
       clips.push(clip);
     }
 
     const reelFilename = highlightFilenameFor(cam1Filename);
     const reelPath = join(workDir, "highlight.mp4");
-    await concatClips(clips, "highlight.mp4", workDir);
+    await concatClips(clips, "highlight.mp4", workDir, undefined, timeoutMs, onHeartbeat);
 
     const reelBytes = await readFile(reelPath);
     await uploadObject(VIDEO_BUCKET, reelFilename, reelBytes, "video/mp4");
@@ -91,8 +116,9 @@ export async function renderHighlightReel(
         objectKey: reelFilename,
         contentType: "video/mp4",
         size: reelBytes.length,
+        sessionId: generationId,
       },
-      update: { url, size: reelBytes.length, contentType: "video/mp4" },
+      update: { url, size: reelBytes.length, contentType: "video/mp4", sessionId: generationId },
     });
 
     // Sidecar keyed off the REEL's filename (not the analysis stage's, which
