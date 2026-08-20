@@ -25,7 +25,7 @@ export default function FinalExportPlayer({
   frame?: { width: number; height: number };
   adPosition?: "bottom" | "left";
 }) {
-  const { videoUrl, status, error } = useFinalExport(aspect);
+  const { videoUrl, status, error, progress } = useFinalExport(aspect);
   const { activeAd } = useAdRotation();
 
   const [soundBlocked, setSoundBlocked] = useState(false);
@@ -72,11 +72,23 @@ export default function FinalExportPlayer({
           <div className="w-full h-full flex items-center justify-center text-center px-6 text-slate-500 text-sm font-mono">
             {status === "failed"
               ? error || "Export failed — check `npm run worker:video-export` logs"
-              : status === "processing"
+              : status === "preparing"
                 ? "Rendering final export…"
-                : status === "queued"
-                  ? "Export queued…"
-                  : "Waiting for a highlight reel…"}
+                : "Waiting for a highlight reel…"}
+          </div>
+        )}
+
+        {/* Never replace a last-known-good export with a partial one — only
+            layer a small non-blocking indicator on top while the next one
+            renders or if it failed. */}
+        {videoUrl && status === "preparing" && (
+          <div className="absolute bottom-6 left-6 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs font-mono text-slate-400 z-30">
+            Preparing next export…{progress ? ` ${progress.completed}/${progress.total}` : ""}
+          </div>
+        )}
+        {videoUrl && status === "failed" && (
+          <div className="absolute bottom-6 left-6 px-3 py-2 rounded-lg bg-red-950/85 border border-red-800 text-xs font-mono text-red-200 z-30">
+            Next export failed — showing last good one
           </div>
         )}
 
