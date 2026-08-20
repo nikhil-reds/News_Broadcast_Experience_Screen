@@ -42,8 +42,9 @@ export async function persistTranslation(params: {
   filename: string;
   segments: { start: number; end: number }[];
   translatedTexts: string[];
+  generationId?: string | null;
 }) {
-  const { transcriptId, language, langCode, filename, segments, translatedTexts } = params;
+  const { transcriptId, language, langCode, filename, segments, translatedTexts, generationId } = params;
   const flatText = translatedTexts.join(" ");
   const objectKey = `${filename}.${langCode}.txt`;
 
@@ -60,6 +61,7 @@ export async function persistTranslation(params: {
       where: { transcriptId_language: { transcriptId, language } },
       create: {
         transcriptId,
+        generationId,
         language,
         langCode,
         text: flatText,
@@ -68,7 +70,7 @@ export async function persistTranslation(params: {
         url,
         model: TRANSLATION_MODEL,
       },
-      update: { text: flatText, objectKey, url, model: TRANSLATION_MODEL },
+      update: { generationId, text: flatText, objectKey, url, model: TRANSLATION_MODEL },
     });
 
     await tx.transcriptTranslationSegment.deleteMany({
@@ -93,7 +95,7 @@ export async function persistTranslation(params: {
   // this was called by a background worker or the on-demand cache-fill path.
   if (flatText.trim()) {
     try {
-      await enqueueAudioConversion(langCode, translation.id, filename, flatText);
+      await enqueueAudioConversion(langCode, translation.id, filename, flatText, generationId);
     } catch (err: any) {
       console.error(`Failed to enqueue audio conversion for "${filename}" (${language}): ${err.message}`);
     }
