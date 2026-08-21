@@ -407,43 +407,14 @@ export default function Screen7Page() {
   };
 
   const isProcessing = pendingId !== null;
-  const activeLabel = selectedId
-    ? GREEN_SCREEN_BACKGROUNDS.find((b) => b.id === selectedId)?.label
-    : sourceFilename
-      ? "Compositing default background…"
-      : "Waiting for camera 1…";
   const stillWarmingCount = warmingIds.size;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-800/80">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-mono text-[10px] uppercase font-bold border border-emerald-500/30">
-            Screen 07
-          </span>
-          <span className="text-sm text-slate-400">Live Virtual Background</span>
-        </div>
-        <span className="text-xs font-mono text-slate-500">
-          Showing: <span className="text-slate-300">{activeLabel}</span>
-        </span>
-      </header>
-
-      <main className="flex-1 flex flex-col items-center px-6 py-10 gap-10">
-        {/* Green-screen video card */}
-        <section className="w-full max-w-4xl space-y-4 bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <span>🎬</span> Camera 1 — Composited
-              </h2>
-              <p className="text-xs text-slate-400">
-                Chroma-keyed live against the background you pick below
-              </p>
-            </div>
-          </div>
-
+    <div className="h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
+      <main className="relative h-full w-full">
+        <section className="absolute inset-0 bg-black">
           <div
-            className="relative rounded-xl overflow-hidden border border-slate-800 bg-black aspect-video"
+            className="relative h-full w-full overflow-hidden bg-black"
             onClick={() => {
               if (!soundBlocked) return;
               videoRef.current
@@ -498,14 +469,14 @@ export default function Screen7Page() {
           </div>
 
           {errorMessage && (
-            <div className="p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-xs">
+            <div className="absolute left-6 top-6 z-20 rounded-xl border border-rose-500/30 bg-rose-950/85 p-3.5 text-xs text-rose-300 backdrop-blur-md">
               {errorMessage}
             </div>
           )}
         </section>
 
         {/* Background picker */}
-        <section className="w-full max-w-4xl space-y-3">
+        <section className="absolute inset-x-6 bottom-6 z-20 mx-auto max-w-4xl space-y-3 rounded-2xl border border-slate-800/80 bg-slate-950/80 p-4 shadow-2xl backdrop-blur-md">
           <div className="flex items-center justify-center gap-2">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">
               Choose a Background
@@ -517,7 +488,7 @@ export default function Screen7Page() {
               </span>
             )}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
             {GREEN_SCREEN_BACKGROUNDS.map((bg) => {
               const key = sourceFilename ? keyFor(bg.id, sourceFilename) : null;
               const isActive = selectedId === bg.id;
