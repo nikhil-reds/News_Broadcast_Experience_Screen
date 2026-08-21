@@ -65,8 +65,21 @@ const COMMIT_DELAY_MS = 400;
 /** How often to re-check whether a queued Gemini TTS take has landed. */
 const POLL_MS = 3000;
 
+function TranscriptSkeleton() {
+  return (
+    <div
+      className="space-y-8 animate-pulse"
+      role="status"
+      aria-label="Loading audio transcript"
+    >
+      <div className="h-16 sm:h-24 md:h-28 w-full rounded-2xl bg-slate-800/80" />
+      <div className="h-16 sm:h-24 md:h-28 w-11/12 rounded-2xl bg-slate-800/65" />
+      <div className="h-16 sm:h-24 md:h-28 w-9/12 rounded-2xl bg-slate-800/45" />
+    </div>
+  );
+}
+
 export default function Screen5Page() {
-  const [audioFiles, setAudioFiles] = useState<AudioFileItem[]>([]);
   const [selectedUrl, setSelectedUrl] = useState<string>("");
   const [languages, setLanguages] = useState<AudioLanguageEntry[]>(FALLBACK_LANGUAGES);
 
@@ -82,6 +95,8 @@ export default function Screen5Page() {
   const [duration, setDuration] = useState<number>(0);
   const [status, setStatus] = useState<string>("");
   const [isPreparing, setIsPreparing] = useState<boolean>(false);
+  const [isLoadingCatalogue, setIsLoadingCatalogue] = useState<boolean>(true);
+  const [isLoadingTranscript, setIsLoadingTranscript] = useState<boolean>(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Playback should survive a language change: remember whether it was running
@@ -95,7 +110,7 @@ export default function Screen5Page() {
   const activeUrl = active?.original ? selectedUrl : active?.url || "";
 
   // ---- Physical rotary knob -> language ring --------------------------------
-  const { status: nexStatus, lastFrame: lastNexFrame } = useNexmosphere({
+  useNexmosphere({
     onRotate: (delta) => {
       setIndex((prev) => {
         const n = languages.length;
@@ -147,7 +162,6 @@ export default function Screen5Page() {
         const files: AudioFileItem[] = (data.audioFiles || []).filter(
           (a: AudioFileItem) => a.filename !== "master-audio-16k.wav"
         );
-        setAudioFiles(files);
         if (files.length === 0) {
           setStatus("No recordings found yet.");
           return;
@@ -155,6 +169,8 @@ export default function Screen5Page() {
         setSelectedUrl(files[0].url); // newest first
       } catch (err: any) {
         setStatus(`Error loading recordings: ${err.message}`);
+      } finally {
+        setIsLoadingCatalogue(false);
       }
     })();
   }, []);
@@ -235,11 +251,18 @@ export default function Screen5Page() {
 
   // ---- Transcript text for the committed language ---------------------------
   useEffect(() => {
-    if (!selectedUrl || !active) return;
-    if (segments[active.language]) return;
+    if (!selectedUrl || !active) {
+      const resetLoading = window.setTimeout(() => setIsLoadingTranscript(false), 0);
+      return () => window.clearTimeout(resetLoading);
+    }
+    if (segments[active.language]) {
+      const resetLoading = window.setTimeout(() => setIsLoadingTranscript(false), 0);
+      return () => window.clearTimeout(resetLoading);
+    }
 
     let cancelled = false;
     (async () => {
+      setIsLoadingTranscript(true);
       const path = active.original ? "english" : active.language.toLowerCase();
       try {
         const res = await fetch(
@@ -252,6 +275,8 @@ export default function Screen5Page() {
         }
       } catch {
         /* the language card still works without the text */
+      } finally {
+        if (!cancelled) setIsLoadingTranscript(false);
       }
     })();
 
@@ -313,47 +338,6 @@ export default function Screen5Page() {
   // ---------------------------------------------------------------------------
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-800/80">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 font-mono text-[10px] uppercase font-bold border border-amber-500/30">
-            Screen 05
-          </span>
-          <span className="text-sm text-slate-400">Audio Language — Rotary Control</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Rotary panel telemetry — confirms the knob is reaching this screen. */}
-          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800">
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${
-                nexStatus?.connected ? "bg-emerald-400 animate-pulse" : "bg-slate-600"
-              }`}
-            />
-            <div className="leading-tight">
-              <p className="text-[11px] font-semibold text-slate-200">
-                Knob {nexStatus?.connected ? "Live" : "Offline"}
-              </p>
-              <p className="text-[10px] font-mono text-slate-500">
-                {lastNexFrame ? lastNexFrame.raw : "turn to change language"}
-              </p>
-            </div>
-          </div>
-
-          <select
-            value={selectedUrl}
-            onChange={(e) => setSelectedUrl(e.target.value)}
-            className="bg-slate-900 text-slate-200 text-xs px-3 py-2 rounded-lg border border-slate-800 focus:outline-none focus:border-amber-500 font-mono max-w-[260px]"
-          >
-            {audioFiles.length === 0 && <option value="">No audio files found</option>}
-            {audioFiles.map((a) => (
-              <option key={a.filename} value={a.url}>
-                {a.filename}
-              </option>
-            ))}
-          </select>
-        </div>
-      </header>
-
       {/* Language ring — the knob moves the highlight, clicking works too. */}
       <div className="flex flex-wrap items-center justify-center gap-2 px-6 py-4 border-b border-slate-900">
         {languages.map((l, i) => {
@@ -396,7 +380,9 @@ export default function Screen5Page() {
       <main className="flex-1 overflow-y-auto px-6 py-12">
         <div className="max-w-5xl mx-auto py-12">
           {/* Transcript in the selected language. */}
-          {displaySegments.length > 0 ? (
+          {isLoadingCatalogue || (Boolean(selectedUrl) && isLoadingTranscript) ? (
+            <TranscriptSkeleton />
+          ) : displaySegments.length > 0 ? (
             <div className="space-y-8">
               {displaySegments.map((seg) => {
                 const isActive = activeSegmentId === seg.id;
