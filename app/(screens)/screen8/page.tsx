@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { fetchCurrentSession, patchSession } from "@/lib/current-session";
+import { composedOutputUrl } from "@/lib/green-screen";
 
 interface TimedCue {
   start: number;
@@ -32,7 +33,6 @@ const LANGUAGES = [
 const REEL_POLL_MS = 5000;
 
 export default function Screen8Page() {
-  const [audioFiles, setAudioFiles] = useState<AudioFileItem[]>([]);
   const [selectedUrl, setSelectedUrl] = useState<string>("");
   const [hasTranscript, setHasTranscript] = useState<boolean>(false);
 
@@ -48,8 +48,9 @@ export default function Screen8Page() {
   const [cuesError, setCuesError] = useState<string | null>(null);
 
   const [videoTime, setVideoTime] = useState<number>(0);
+  const [soundBlocked, setSoundBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const activeLineRef = useRef<HTMLParagraphElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const attemptedRef = useRef<Set<string>>(new Set());
 
   const filenameFromUrl = (url: string) => url.split("/").pop() || "";
@@ -63,24 +64,23 @@ export default function Screen8Page() {
       const files: AudioFileItem[] = (data.audioFiles || []).filter(
         (a: AudioFileItem) => a.filename !== "master-audio-16k.wav"
       );
-      setAudioFiles(files);
       return files;
     } catch {
       return [] as AudioFileItem[];
     }
   }, []);
 
-  // ---- Data loading: latest highlight reel (same source as Screens 06/09-12) -
+  // ---- Data loading: fixed green-screen composite from camera 1 ------------
   useEffect(() => {
     let cancelled = false;
     const fetchLatestReel = async () => {
       try {
-        const res = await fetch("/api/save-recording?kind=highlight");
+        const res = await fetch("/api/save-recording?camera=1");
         if (!res.ok) return;
         const data = await res.json();
         const list: RecordingItem[] = data.recordings || [];
         if (list.length > 0 && !cancelled) {
-          setReelUrl(list[0].url);
+          setReelUrl(composedOutputUrl("newsroom-blue", list[0].filename));
           setReelFilename(list[0].filename);
         }
       } catch {
@@ -163,9 +163,17 @@ export default function Screen8Page() {
     })();
   }, [selectedUrl, checkTranscriptExists, runTranscription]);
 
-  // ---- Subtitle cues: that language's transcript re-timed onto the reel's --
-  // own cut timeline (see lib/video-export.ts) — fetched whenever the audio,
-  // reel, or language selection is ready.
+  // Screen 5's English source is this selected original audio. Keep the
+  // highlight reel muted and use the original track as the audible source.
+  useEffect(() => {
+    if (!selectedUrl || !audioRef.current) return;
+    audioRef.current
+      .play()
+      .then(() => setSoundBlocked(false))
+      .catch(() => setSoundBlocked(true));
+  }, [selectedUrl]);
+
+  // ---- Subtitle cues: composite footage uses the original camera timeline. --
   useEffect(() => {
     if (!selectedUrl || !reelFilename || !hasTranscript) return;
     let cancelled = false;
@@ -174,13 +182,12 @@ export default function Screen8Page() {
       setCuesError(null);
       try {
         const res = await fetch(
-          `/api/subtitle-cues?reelFilename=${encodeURIComponent(reelFilename)}` +
-            `&sourceAudio=${encodeURIComponent(selectedUrl)}&language=${encodeURIComponent(language)}`
+          `/api/transcript/${language.toLowerCase()}?sourceAudio=${encodeURIComponent(selectedUrl)}`
         );
         const data = await res.json();
         if (cancelled) return;
-        if (res.ok && Array.isArray(data.cues)) {
-          setCues(data.cues);
+        if (res.ok && Array.isArray(data.transcript?.segments)) {
+          setCues(data.transcript.segments);
         } else {
           setCues([]);
           setCuesError(data.error || "Failed to load subtitle cues");
@@ -215,61 +222,17 @@ export default function Screen8Page() {
 
   const activeCue = cues.find((c) => videoTime >= c.start && videoTime <= c.end) ?? null;
 
-  // ---- Auto-scroll the active reference line into view -----------------------
-  useEffect(() => {
-    if (activeLineRef.current) {
-      activeLineRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, [activeCue]);
-
-  const seekTo = (start: number) => {
-    const el = videoRef.current;
-    if (!el) return;
-    el.currentTime = start;
-    el.play().catch(() => {});
+  const enableAudio = () => {
+    audioRef.current
+      ?.play()
+      .then(() => setSoundBlocked(false))
+      .catch(() => setSoundBlocked(true));
   };
 
   const isTranslating = isLoadingCues && language !== "English";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Minimal top bar: source + whisper action */}
-      <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-800/80">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-400 font-mono text-[10px] uppercase font-bold border border-indigo-500/30">
-            Screen 08
-          </span>
-          <span className="text-sm text-slate-400">Highlight Reel + Subtitle Preview</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedUrl}
-            onChange={(e) => setSelectedUrl(e.target.value)}
-            className="bg-slate-900 text-slate-200 text-xs px-3 py-2 rounded-lg border border-slate-800 focus:outline-none focus:border-emerald-500 font-mono max-w-[260px]"
-          >
-            {audioFiles.length === 0 && <option value="">No audio files found</option>}
-            {audioFiles.map((a) => (
-              <option key={a.filename} value={a.url}>
-                {a.filename}
-              </option>
-            ))}
-          </select>
-
-          <button
-            onClick={() => selectedUrl && runTranscription(selectedUrl)}
-            disabled={isTranscribing || !selectedUrl}
-            className={`text-xs px-3.5 py-2 rounded-lg font-bold transition ${
-              isTranscribing || !selectedUrl
-                ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                : "bg-emerald-600 hover:bg-emerald-500 text-white"
-            }`}
-          >
-            {isTranscribing ? "Transcribing…" : "↻ Transcribe"}
-          </button>
-        </div>
-      </header>
-
+    <div className="h-screen overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans">
       {/* Language selector buttons */}
       <div className="flex flex-wrap items-center justify-center gap-2 px-6 py-4 border-b border-slate-900">
         {LANGUAGES.map((l) => {
@@ -305,8 +268,11 @@ export default function Screen8Page() {
       )}
 
       {/* Highlight reel with subtitle overlay */}
-      <main className="flex-1 flex flex-col items-center gap-6 px-6 py-8 overflow-y-auto">
-        <div className="relative w-full max-w-4xl aspect-video rounded-2xl bg-black border border-slate-800/80 overflow-hidden shadow-2xl">
+      <main className="min-h-0 flex-1 overflow-hidden">
+        <div
+          className="relative h-full w-full bg-black overflow-hidden"
+          onClick={enableAudio}
+        >
           {reelUrl ? (
             <video
               key={reelUrl}
@@ -314,14 +280,24 @@ export default function Screen8Page() {
               src={reelUrl}
               autoPlay
               loop
+              muted
               controls
               playsInline
               onTimeUpdate={() => videoRef.current && setVideoTime(videoRef.current.currentTime)}
-              className="w-full h-full object-contain"
+              onPlay={enableAudio}
+              onPause={() => audioRef.current?.pause()}
+              className="w-full h-full object-cover"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm font-mono">
               No highlight reel yet — record all 3 cameras to generate one.
+            </div>
+          )}
+          <audio ref={audioRef} src={selectedUrl || undefined} autoPlay loop />
+
+          {soundBlocked && (
+            <div className="absolute right-4 top-4 rounded-lg border border-slate-700 bg-slate-950/85 px-3 py-2 text-xs font-mono text-slate-200">
+              🔊 Click video to enable original audio
             </div>
           )}
 
@@ -335,40 +311,6 @@ export default function Screen8Page() {
           )}
         </div>
 
-        {/* Reference list of every cue, in reel order — click to seek */}
-        <div className="w-full max-w-4xl space-y-2">
-          {isLoadingCues ? (
-            <p className="text-center text-sm text-slate-500 animate-pulse py-6">
-              {language === "English" ? "Loading subtitles…" : `Translating to ${language}…`}
-            </p>
-          ) : cues.length > 0 ? (
-            cues.map((cue, i) => {
-              const isActive = activeCue === cue;
-              return (
-                <p
-                  key={i}
-                  ref={isActive ? activeLineRef : null}
-                  onClick={() => seekTo(cue.start)}
-                  className={`cursor-pointer text-sm rounded-lg px-3 py-2 transition ${
-                    isActive
-                      ? "bg-indigo-600/20 border border-indigo-500/40 text-white font-bold"
-                      : "text-slate-500 hover:text-slate-300 hover:bg-slate-900"
-                  }`}
-                >
-                  {cue.text}
-                </p>
-              );
-            })
-          ) : (
-            <p className="text-center text-sm text-slate-600 py-6">
-              {!reelFilename
-                ? "Waiting on a highlight reel."
-                : !hasTranscript
-                  ? 'No transcript yet — press "Transcribe" above.'
-                  : "No subtitle cues overlap this reel's cut."}
-            </p>
-          )}
-        </div>
       </main>
     </div>
   );
