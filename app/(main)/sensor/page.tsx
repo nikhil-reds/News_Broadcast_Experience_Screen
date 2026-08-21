@@ -1,329 +1,138 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
-interface NexmosphereFrame {
+interface MediaEvent {
   raw: string;
-  address: string;
   command: string;
   value: string;
   at: string;
 }
 
-interface NexmosphereStatus {
-  connected: boolean;
-  path: string;
-  baudRate: number;
-  lastError: string | null;
-  lastEventAt: string | null;
-  lastEventRaw: string | null;
-  subscribers: number;
-}
-
 export default function SensorPage() {
-  const [nexStatus, setNexStatus] = useState<NexmosphereStatus | null>(null);
-  const [eventsList, setEventsList] = useState<NexmosphereFrame[]>([]);
-  const [customFrame, setCustomFrame] = useState("");
-  const [simulating, setSimulating] = useState(false);
-  const [simError, setSimError] = useState<string | null>(null);
-
-  // Keep track of button states locally based on recent frames
-  const [button1Pressed, setButton1Pressed] = useState(false);
-  const [button2Pressed, setButton2Pressed] = useState(false);
+  const [events, setEvents] = useState<MediaEvent[]>([]);
+  const [mediaPlaying, setMediaPlaying] = useState(false);
+  const [mediaVolume, setMediaVolume] = useState(50);
+  const [lastEvent, setLastEvent] = useState("Waiting for ESP32 media keys…");
 
   useEffect(() => {
-    const source = new EventSource("/api/nexmosphere/events");
-
-    source.addEventListener("status", (e) => {
-      try {
-        setNexStatus(JSON.parse((e as MessageEvent).data));
-      } catch (err) {
-        console.error("Bad status payload:", err);
-      }
-    });
-
-    source.addEventListener("frame", (e) => {
-      try {
-        const frame: NexmosphereFrame = JSON.parse((e as MessageEvent).data);
-        setEventsList((prev) => [frame, ...prev.slice(0, 19)]);
-        
-        // Update local status fields
-        setNexStatus((prev) =>
-          prev
-            ? {
-                ...prev,
-                connected: true,
-                lastEventAt: frame.at,
-                lastEventRaw: frame.raw,
-              }
-            : null
-        );
-
-        // Flash button indicators on trigger frames
-        if (frame.raw === "X001A[17]") {
-          setButton1Pressed(true);
-          setTimeout(() => setButton1Pressed(false), 800);
-        } else if (frame.raw === "X001A[3]") {
-          setButton2Pressed(true);
-          setTimeout(() => setButton2Pressed(false), 800);
-        }
-      } catch (err) {
-        console.error("Bad frame payload:", err);
-      }
-    });
-
-    source.onerror = () => {
-      setNexStatus((prev) => (prev ? { ...prev, connected: false } : null));
+    const record = (command: string, value: string) => {
+      const at = new Date().toISOString();
+      setLastEvent(`${command.replaceAll("_", " ")} · ${value}`);
+      setEvents((previous) => [
+        { raw: `ESP32:${command}:${value}`, command, value, at },
+        ...previous.slice(0, 11),
+      ]);
     };
 
-    return () => source.close();
+    const onMediaKey = (event: KeyboardEvent) => {
+      if (event.key === "MediaPlayPause") {
+        if (event.repeat) return;
+        event.preventDefault();
+        setMediaPlaying((playing) => {
+          const next = !playing;
+          record("PLAY_PAUSE", next ? "PLAYING" : "PAUSED");
+          return next;
+        });
+      } else if (event.key === "MediaPlay" || event.key === "MediaPause") {
+        event.preventDefault();
+        const playing = event.key === "MediaPlay";
+        setMediaPlaying(playing);
+        record(playing ? "PLAY" : "PAUSE", playing ? "PLAYING" : "PAUSED");
+      } else if (event.key === "AudioVolumeUp" || event.key === "AudioVolumeDown") {
+        event.preventDefault();
+        const delta = event.key === "AudioVolumeUp" ? 5 : -5;
+        setMediaVolume((volume) => {
+          const next = Math.max(0, Math.min(100, volume + delta));
+          record(delta > 0 ? "VOLUME_UP" : "VOLUME_DOWN", `${next}%`);
+          return next;
+        });
+      }
+    };
+
+    window.addEventListener("keydown", onMediaKey);
+    return () => window.removeEventListener("keydown", onMediaKey);
   }, []);
 
-  const simulateFrame = async (rawFrame: string) => {
-    setSimulating(true);
-    setSimError(null);
-    try {
-      const res = await fetch("/api/nexmosphere/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ raw: rawFrame }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setSimError(data.error || "Simulation failed");
-      }
-    } catch (err: any) {
-      setSimError(err.message);
-    } finally {
-      setSimulating(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Main Grid */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Column: Connection & Controller Status */}
-        <div className="space-y-6 lg:col-span-1">
-          <section className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl space-y-6">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-3">
-              Serial Controller Telemetry
-            </h2>
-
-            <div className="space-y-4">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400">Port Path</span>
-                <span className="font-mono text-slate-200">{nexStatus?.path || "COM3"}</span>
+    <main className="min-h-screen bg-slate-950 px-5 py-10 font-sans text-slate-100 sm:px-8">
+      <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-3xl border border-cyan-500/25 bg-slate-900/40 p-7 shadow-2xl shadow-cyan-950/20 backdrop-blur-md sm:p-10">
+          <div className="flex items-start justify-between gap-5 border-b border-slate-800 pb-6">
+            <div>
+              <div className="mb-2 flex items-center gap-2 font-mono text-[10px] font-bold tracking-[0.24em] text-cyan-300">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
+                BLUETOOTH HID
               </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400">Baud Rate</span>
-                <span className="font-mono text-slate-200">{nexStatus?.baudRate || "115200"} bps</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400">Active Subscribers</span>
-                <span className="font-mono text-cyan-400 font-bold">{nexStatus?.subscribers ?? 0}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400">Last Error</span>
-                <span className={`font-mono text-xs ${nexStatus?.lastError ? "text-rose-400" : "text-slate-500"}`}>
-                  {nexStatus?.lastError || "None"}
-                </span>
-              </div>
+              <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">ESP32 Media Controller</h1>
+              <p className="mt-2 text-sm text-slate-400">Play/pause button and rotary volume monitor</p>
             </div>
-          </section>
+            <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 font-mono text-[10px] font-bold tracking-wider text-cyan-200">
+              LISTENING
+            </span>
+          </div>
 
-          {/* Controller Event Injector (Simulator) */}
-          <section className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl space-y-6">
-            <div className="border-b border-slate-800 pb-3">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-                Hardware Simulator
-              </h2>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Simulate serial interface X-talk commands during dev or testing.
+          <div className="mt-10 grid gap-10 sm:grid-cols-2">
+            <div className="flex flex-col items-center text-center">
+              <div className={`flex h-44 w-44 items-center justify-center rounded-full border-8 shadow-2xl transition-colors ${mediaPlaying ? "border-emerald-400/70 bg-emerald-500/15 shadow-emerald-950/50" : "border-slate-700 bg-slate-950 shadow-black/40"}`}>
+                <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full border border-slate-700 bg-slate-900">
+                  <span className="text-4xl">{mediaPlaying ? "❚❚" : "▶"}</span>
+                  <span className="mt-2 font-mono text-[10px] tracking-widest text-slate-400">MEDIA BUTTON</span>
+                </div>
+              </div>
+              <p className={`mt-5 font-mono text-sm font-bold tracking-wider ${mediaPlaying ? "text-emerald-300" : "text-slate-300"}`}>
+                {mediaPlaying ? "PLAYING" : "PAUSED"}
               </p>
+              <p className="mt-1 text-xs text-slate-500">Press the physical button to toggle</p>
             </div>
 
-            {simError && (
-              <div className="p-3 rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-300 text-xs font-mono">
-                Error: {simError}
+            <div className="flex flex-col items-center text-center">
+              <div
+                className="flex h-44 w-44 items-center justify-center rounded-full p-3 shadow-2xl shadow-cyan-950/35"
+                style={{ background: `conic-gradient(#22d3ee ${mediaVolume}%, #1e293b 0)` }}
+              >
+                <div className="flex h-full w-full flex-col items-center justify-center rounded-full border border-slate-700 bg-slate-950">
+                  <span className="font-mono text-4xl font-extrabold text-cyan-300">{mediaVolume}</span>
+                  <span className="mt-1 font-mono text-xs tracking-widest text-slate-400">VOLUME %</span>
+                </div>
+              </div>
+              <p className="mt-5 font-mono text-sm font-bold tracking-wider text-cyan-300">ROTARY VOLUME</p>
+              <p className="mt-1 text-xs text-slate-500">Turn clockwise or counter-clockwise</p>
+            </div>
+          </div>
+
+          <div className="mt-10 rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 font-mono text-xs text-slate-400">
+            <span className="text-slate-600">LAST EVENT / </span>{lastEvent}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6 shadow-2xl shadow-black/25 backdrop-blur-md sm:p-7">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div>
+              <h2 className="font-mono text-sm font-extrabold tracking-wider text-slate-200">HARDWARE EVENT LOG</h2>
+              <p className="mt-1 text-xs text-slate-500">Events received while this page is focused</p>
+            </div>
+            <button onClick={() => setEvents([])} className="font-mono text-xs text-cyan-300 hover:text-cyan-100">CLEAR</button>
+          </div>
+
+          <div className="mt-4 divide-y divide-slate-800/80">
+            {events.length ? events.map((event) => (
+              <div key={`${event.at}-${event.raw}`} className="py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-xs font-bold text-cyan-300">{event.command.replaceAll("_", " ")}</span>
+                  <span className="font-mono text-xs text-slate-300">{event.value}</span>
+                </div>
+                <p className="mt-1 font-mono text-[10px] text-slate-600">{new Date(event.at).toLocaleTimeString()}</p>
+              </div>
+            )) : (
+              <div className="py-20 text-center">
+                <p className="font-mono text-sm text-slate-500">AWAITING INPUT</p>
+                <p className="mt-2 text-xs leading-relaxed text-slate-600">Use the ESP32 play/pause button or rotate the volume knob.</p>
               </div>
             )}
-
-            <div className="space-y-3">
-              <button
-                onClick={() => simulateFrame("X001A[17]")}
-                disabled={simulating}
-                className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-semibold text-xs transition shadow-lg shadow-emerald-950 flex items-center justify-center gap-2"
-              >
-                <span>🔘</span> Simulate Button 1 (Start Recording)
-              </button>
-
-              <button
-                onClick={() => simulateFrame("X001A[3]")}
-                disabled={simulating}
-                className="w-full py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 font-semibold text-xs transition shadow-lg shadow-rose-950 flex items-center justify-center gap-2"
-              >
-                <span>🔘</span> Simulate Button 2 (Stop Recording)
-              </button>
-            </div>
-
-            <div className="relative flex items-center pt-2">
-              <div className="flex-grow border-t border-slate-800"></div>
-              <span className="flex-shrink mx-3 text-[10px] text-slate-500 uppercase tracking-widest font-mono">
-                Raw Input
-              </span>
-              <div className="flex-grow border-t border-slate-800"></div>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (customFrame.trim()) simulateFrame(customFrame.trim());
-              }}
-              className="space-y-3"
-            >
-              <input
-                type="text"
-                placeholder="e.g. X002A[1]"
-                value={customFrame}
-                onChange={(e) => setCustomFrame(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500"
-              />
-              <button
-                type="submit"
-                disabled={simulating || !customFrame.trim()}
-                className="w-full py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition disabled:opacity-50"
-              >
-                Send Raw Frame
-              </button>
-            </form>
-          </section>
-        </div>
-
-        {/* Center/Right Columns: Active Sensor Status & Live Logs */}
-        <div className="lg:col-span-2 space-y-8">
-          
-          {/* Active Sensor Nodes Grid */}
-          <section className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl space-y-6">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-3">
-              Active Sensor Nodes
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* Sensor Node 01: Buttons */}
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-5 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800/60 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🔘</span>
-                    <div>
-                      <h3 className="text-xs font-bold text-slate-200">Address 001: Buttons</h3>
-                      <p className="text-[10px] text-slate-500 font-mono">X-talk Interface</p>
-                    </div>
-                  </div>
-                  <span className="text-[9px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded">
-                    ACTIVE
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div className={`p-3 rounded-lg border transition ${
-                    button1Pressed ? "bg-emerald-500/10 border-emerald-500/50" : "bg-slate-900/40 border-slate-800/50"
-                  }`}>
-                    <p className="text-[10px] text-slate-400">Button 1 (Arm)</p>
-                    <p className="text-xs font-bold font-mono mt-1 text-slate-200">
-                      {button1Pressed ? "PRESSED" : "IDLE"}
-                    </p>
-                  </div>
-
-                  <div className={`p-3 rounded-lg border transition ${
-                    button2Pressed ? "bg-rose-500/10 border-rose-500/50" : "bg-slate-900/40 border-slate-800/50"
-                  }`}>
-                    <p className="text-[10px] text-slate-400">Button 2 (Stop)</p>
-                    <p className="text-xs font-bold font-mono mt-1 text-slate-200">
-                      {button2Pressed ? "PRESSED" : "IDLE"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sensor Node 02: Presence Sensor (Mock / Sim ready) */}
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-5 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800/60 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🚶</span>
-                    <div>
-                      <h3 className="text-xs font-bold text-slate-200">Address 002: Presence</h3>
-                      <p className="text-[10px] text-slate-500 font-mono">X-eye Motion</p>
-                    </div>
-                  </div>
-                  <span className="text-[9px] font-mono bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded">
-                    STANDBY
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-800/50">
-                  <p className="text-[10px] text-slate-400">Status</p>
-                  <p className="text-xs font-bold font-mono mt-1 text-slate-400">
-                    NO MOTION DETECTED
-                  </p>
-                </div>
-              </div>
-
-            </div>
-          </section>
-
-          {/* Live Controller Event Log */}
-          <section className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <div>
-                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-                  Live Event Stream
-                </h2>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Real-time log of raw serial ASCII frames transmitted by the hardware
-                </p>
-              </div>
-              <button
-                onClick={() => setEventsList([])}
-                className="text-[11px] text-cyan-400 hover:underline font-mono"
-              >
-                Clear Log
-              </button>
-            </div>
-
-            <div className="bg-slate-950 border border-slate-800 rounded-xl font-mono text-xs overflow-hidden">
-              <div className="grid grid-cols-4 bg-slate-900 p-2.5 border-b border-slate-800 text-slate-400 font-bold">
-                <div>Timestamp</div>
-                <div>Address</div>
-                <div>Command</div>
-                <div className="text-right">Raw Frame</div>
-              </div>
-              
-              <div className="max-h-60 overflow-y-auto divide-y divide-slate-900/60 min-h-[150px]">
-                {eventsList.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 italic">
-                    Waiting for events... (Press simulate buttons above or trigger physical hardware)
-                  </div>
-                ) : (
-                  eventsList.map((evt, idx) => (
-                    <div key={idx} className="grid grid-cols-4 p-2.5 hover:bg-slate-900/30 transition text-slate-300">
-                      <div className="text-slate-500">
-                        {new Date(evt.at).toLocaleTimeString()}
-                      </div>
-                      <div className="text-cyan-400">{evt.address}</div>
-                      <div className="text-amber-400">{evt.command}</div>
-                      <div className="text-right text-slate-100 font-bold">{evt.raw}</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </section>
-
-        </div>
-      </main>
-    </div>
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }
