@@ -33,7 +33,14 @@ export async function POST(req: NextRequest) {
     where: { reelFilename_language_aspect_backgroundId: { reelFilename, language, aspect, backgroundId } },
   });
 
-  if (existing && (existing.status === "completed" || existing.status === "processing" || existing.status === "queued")) {
+  // Only a genuinely-finished export is safe to short-circuit on — a
+  // "processing"/"queued" row can go stale forever if the worker that owned
+  // it crashed or its BullMQ job was reclaimed/retried, and this route has
+  // no way to tell a live one from a dead one just by reading that column.
+  // enqueueVideoExport() below already re-checks the *real* BullMQ job state
+  // before deciding to reuse or recreate it, so it's the authoritative dedup
+  // — this early return only needs to cover the "nothing to do" case.
+  if (existing && existing.status === "completed") {
     return NextResponse.json({ videoJob: existing });
   }
 
@@ -56,8 +63,8 @@ export async function POST(req: NextRequest) {
   const videoJob = await debounce(`video-export:screen${screenId}`, 700, async () => {
     const job = await prisma.videoJob.upsert({
       where: { reelFilename_language_aspect_backgroundId: { reelFilename, language, aspect, backgroundId } },
-      create: { reelFilename, sourceAudio, language, aspect, backgroundId, status: "queued" },
-      update: { sourceAudio, status: "queued", errorMessage: null },
+      create: { reelFilename, sourceAudio, language, aspect, backgroundId, status: "queued", generationId },
+      update: { sourceAudio, status: "queued", errorMessage: null, generationId },
     });
 
     try {
