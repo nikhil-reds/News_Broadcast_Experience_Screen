@@ -9,6 +9,20 @@ import { spawn } from "node:child_process";
 export const FFMPEG_BIN = process.env.FFMPEG_PATH || "ffmpeg";
 export const FFPROBE_BIN = process.env.FFPROBE_PATH || "ffprobe";
 
+/**
+ * Caps libx264's own internal thread pool per ffmpeg process. Without this,
+ * every encode defaults to using every core the machine has — harmless when
+ * exactly one ffmpeg process runs at a time, but the "video" worker group
+ * can have up to 7 running concurrently (video-export ×1 + highlight-reel
+ * ×1 + green-screen-compose × BG_QUEUE_CONCURRENCY, default 5), and 7
+ * processes each trying to claim all 8 cores thrash rather than share —
+ * observed live as one process pegged at 500-600%+ CPU for many minutes
+ * while its siblings sat at 0% making no progress at all, which looks
+ * exactly like a hang from the outside (and eventually trips the ffmpeg
+ * timeout) but is actually oversubscription, not a stuck process.
+ */
+const FFMPEG_THREADS = parseInt(process.env.FFMPEG_THREADS || "2", 10);
+
 /** Every clip is normalized to this so the final concat can stream-copy. */
 const TARGET_WIDTH = 1280;
 const TARGET_HEIGHT = 720;
@@ -165,6 +179,7 @@ export async function extractNormalizedClip(opts: {
     "-c:v", "libx264",
     "-preset", "veryfast",
     "-crf", "23",
+    "-threads", String(FFMPEG_THREADS),
     "-c:a", "aac",
     "-b:a", "128k",
     "-ar", String(TARGET_SAMPLE_RATE),
@@ -239,6 +254,7 @@ export async function composeGreenScreenBackground(opts: {
     "-c:v", "libx264",
     "-preset", "ultrafast",
     "-crf", "23",
+    "-threads", String(FFMPEG_THREADS),
     "-pix_fmt", "yuv420p",
     "-c:a", "aac",
     "-b:a", "192k",
@@ -361,6 +377,8 @@ export async function composeFinalExport(opts: {
     "medium",
     "-crf",
     "20",
+    "-threads",
+    String(FFMPEG_THREADS),
     "-c:a",
     "aac",
     "-b:a",
