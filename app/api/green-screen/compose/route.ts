@@ -4,7 +4,6 @@ import { enqueueGreenScreenCompose } from "@/lib/queue";
 import { composedFilename, composedOutputUrl, findBackground } from "@/lib/green-screen";
 import { VIDEO_BUCKET, objectExists } from "@/lib/minio";
 import { setPendingVariant } from "@/lib/generation";
-import { debounce } from "@/lib/debounce";
 
 /** Screen 07 is the only screen this route ever serves. */
 const SCREEN_ID = 7;
@@ -55,12 +54,11 @@ export async function POST(req: NextRequest) {
       await setPendingVariant(SCREEN_ID, generationId, { backgroundId });
     }
 
-    // Coalesce rapid swatch clicks: if the operator picks 4 backgrounds in
-    // quick succession, only the last click's job should actually enqueue —
-    // hence a per-SCREEN key (not per-background, which would let all 4 through).
-    const job = await debounce(`green-screen:screen${SCREEN_ID}`, 700, () =>
-      enqueueGreenScreenCompose(backgroundId, sourceFilename, generationId)
-    );
+    // Each background/take pair needs its own job. A shared screen-level
+    // debounce incorrectly gave every swatch request the final swatch's job,
+    // leaving the other backgrounds permanently unable to render. The queue
+    // job id already deduplicates identical pairs.
+    const job = await enqueueGreenScreenCompose(backgroundId, sourceFilename, generationId);
     return NextResponse.json({ status: "queued", jobId: job.id });
   } catch (error) {
     console.error("Error enqueueing green-screen compose job:", error);
