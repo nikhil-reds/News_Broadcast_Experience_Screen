@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 
 const POLL_MS = 3000;
+const REQUEST_TIMEOUT_MS = 8000;
 
 export type PublicationStatus = "current" | "preparing" | "failed" | "waiting-for-reel";
 
 export interface ScreenPublicationState<TAssets = Record<string, unknown>> {
+  /** True only until the first publication request finishes. */
+  isLoading: boolean;
   status: PublicationStatus;
   generationId: string | null;
   seq: number | null;
@@ -17,6 +20,7 @@ export interface ScreenPublicationState<TAssets = Record<string, unknown>> {
 }
 
 const IDLE_STATE: ScreenPublicationState<never> = {
+  isLoading: true,
   status: "waiting-for-reel",
   generationId: null,
   seq: null,
@@ -45,16 +49,26 @@ export function useScreenPublication<TAssets = Record<string, unknown>>(
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const tick = async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       try {
-        const res = await fetch(`/api/screens/${screenId}/publication`);
+        const res = await fetch(`/api/screens/${screenId}/publication`, {
+          signal: controller.signal,
+        });
         if (res.ok) {
           const data = await res.json();
-          if (!cancelled) setState(data);
+          if (!cancelled) setState({ ...data, isLoading: false });
+        } else if (!cancelled) {
+          setState((previous) => ({ ...previous, isLoading: false }));
         }
       } catch {
-        /* keep last known state until the next tick */
+        // Stop the initial skeleton even if the service is temporarily down;
+        // future polls continue trying in the background.
+        if (!cancelled) setState((previous) => ({ ...previous, isLoading: false }));
+      } finally {
+        clearTimeout(timeout);
+        if (!cancelled) timer = setTimeout(tick, POLL_MS);
       }
-      timer = setTimeout(tick, POLL_MS);
     };
 
     tick();
