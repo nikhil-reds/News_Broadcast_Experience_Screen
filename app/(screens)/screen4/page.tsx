@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useNexmosphere } from "@/lib/use-nexmosphere";
-import { useScreenPublication } from "@/lib/use-screen-publication";
 
 /** Volume moved per detent of the Nexmosphere knob (5% per click). */
 const VOLUME_STEP = 0.05;
@@ -16,22 +15,49 @@ interface TranscriptSegment {
   text: string;
 }
 
-interface Screen4Assets {
-  audioUrl: string | null;
-  text: string;
-  segments: TranscriptSegment[];
+interface AudioFileItem {
+  filename: string;
+  url: string;
+}
+
+const POLL_MS = 3000;
+
+function TeleprompterSkeleton() {
+  return (
+    <div
+      className="w-full max-w-5xl space-y-7 animate-pulse"
+      role="status"
+      aria-label="Loading teleprompter audio"
+    >
+      <div className="h-7 w-32 mx-auto rounded-full bg-slate-800/90" />
+      <div className="h-16 sm:h-24 md:h-28 w-full rounded-2xl bg-slate-800/80" />
+      <div className="h-16 sm:h-24 md:h-28 w-11/12 mx-auto rounded-2xl bg-slate-800/65" />
+      <div className="h-16 sm:h-24 md:h-28 w-8/12 mx-auto rounded-2xl bg-slate-800/45" />
+    </div>
+  );
+}
+
+function WaitingForBroadcast() {
+  return (
+    <div className="space-y-3" role="status" aria-live="polite">
+      <div className="flex items-center justify-center gap-2 text-slate-400">
+        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+        <p className="text-xl font-medium">Waiting for the next broadcast</p>
+      </div>
+      <p className="text-sm text-slate-600">
+        The teleprompter will begin automatically when the audio is ready.
+      </p>
+    </div>
+  );
 }
 
 export default function Screen4Page() {
-  const publication = useScreenPublication<Screen4Assets>(4);
-  const selectedUrl = publication.assets?.audioUrl ?? null;
-  const segments = publication.assets?.segments ?? [];
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [segments, setSegments] = useState<TranscriptSegment[]>([]);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(true);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
-  const [duration, setDuration] = useState<number>(0);
-  const [activeSegmentIndex, setActiveSegmentIndex] = useState<number | null>(null);
-
   // Playback volume, driven by the physical rotary knob (and the slider below).
   const [volume, setVolume] = useState<number>(DEFAULT_VOLUME);
 
@@ -42,11 +68,73 @@ export default function Screen4Page() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // ---- Physical rotary knob -> volume ---------------------------------------
-  const { status: nexStatus } = useNexmosphere({
+  useNexmosphere({
     onRotate: (delta) => {
       setVolume((prev) => clampVolume(prev + delta * VOLUME_STEP));
     },
   });
+
+  // Use the same newest original-audio source as Screen 5 rather than waiting
+  // for a separately published generation to become current.
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchLatestAudio = async () => {
+      try {
+        const res = await fetch("/api/save-audio");
+        if (!res.ok) return;
+        const data = await res.json();
+        const latest = (data.audioFiles as AudioFileItem[] | undefined)?.find(
+          (file) => file.filename !== "master-audio-16k.wav"
+        );
+        if (!cancelled) setSelectedUrl(latest?.url ?? null);
+      } catch {
+        // Keep the last successful audio while the next poll retries.
+      } finally {
+        if (!cancelled) setIsLoadingAudio(false);
+      }
+    };
+
+    fetchLatestAudio();
+    const timer = setInterval(fetchLatestAudio, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  // The transcription worker can finish after the audio upload, so retry this
+  // endpoint until the newest recording's English transcript is available.
+  useEffect(() => {
+    if (!selectedUrl) {
+      setSegments([]);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchTranscript = async () => {
+      try {
+        const res = await fetch(
+          `/api/transcript/english?sourceAudio=${encodeURIComponent(selectedUrl)}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.exists && Array.isArray(data.transcript?.segments)) {
+          setSegments(data.transcript.segments);
+        }
+      } catch {
+        // The next poll will retry while transcription is in progress.
+      }
+    };
+
+    setSegments([]);
+    fetchTranscript();
+    const timer = setInterval(fetchTranscript, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [selectedUrl]);
 
   // The <audio> element is the source of truth for volume
   useEffect(() => {
@@ -60,12 +148,11 @@ export default function Screen4Page() {
     }
   }, [selectedUrl]);
 
-  // ---- When the generation-gated audio actually changes, reset playback -----
+  // ---- When the newest audio changes, reset playback ------------------------
   useEffect(() => {
     if (!selectedUrl) return;
     setIsPlaying(false);
     setCurrentTime(0);
-    setActiveSegmentIndex(null);
     lastTextRef.current = "";
     setDisplayText("");
     if (audioRef.current) {
@@ -73,13 +160,6 @@ export default function Screen4Page() {
       audioRef.current.currentTime = 0;
     }
   }, [selectedUrl]);
-
-  // ---- Sync active segment with playback ------------------------------------
-  useEffect(() => {
-    if (!segments.length) return;
-    const idx = segments.findIndex((s) => currentTime >= s.start && currentTime <= s.end);
-    if (idx !== activeSegmentIndex) setActiveSegmentIndex(idx);
-  }, [currentTime, segments, activeSegmentIndex]);
 
   // ---- Manage animated text updates ---------------------------------------
   useEffect(() => {
@@ -104,27 +184,6 @@ export default function Screen4Page() {
     }
   }, [currentTime, segments]);
 
-  // Keep the React duration state in sync, accepting only finite values.
-  const syncDuration = () => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (isFinite(el.duration) && el.duration > 0) {
-      setDuration(el.duration);
-    } else if (el.duration === Infinity) {
-      const onSeeked = () => {
-        el.removeEventListener("seeked", onSeeked);
-        if (isFinite(el.duration) && el.duration > 0) setDuration(el.duration);
-        el.currentTime = 0;
-      };
-      el.addEventListener("seeked", onSeeked);
-      try {
-        el.currentTime = 1e7;
-      } catch {
-        el.removeEventListener("seeked", onSeeked);
-      }
-    }
-  };
-
   // ---- Controls -------------------------------------------------------------
   const togglePlay = () => {
     const el = audioRef.current;
@@ -141,11 +200,13 @@ export default function Screen4Page() {
       onClick={togglePlay}
       className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center font-sans p-8 select-none cursor-pointer"
     >
-      <div className="max-w-5xl text-center">
-        {!selectedUrl && publication.status === "preparing" ? (
-          <p className="text-2xl text-slate-500 animate-pulse font-medium">
-            Transcribing audio...
-          </p>
+      <div className="w-full max-w-5xl text-center">
+        {!selectedUrl && isLoadingAudio ? (
+          <TeleprompterSkeleton />
+        ) : !selectedUrl ? (
+          <WaitingForBroadcast />
+        ) : !segments.length ? (
+          <TeleprompterSkeleton />
         ) : displayText ? (
           <p
             className={`font-extrabold leading-tight tracking-tight transition-all duration-300 ease-out transform ${
@@ -158,7 +219,7 @@ export default function Screen4Page() {
           </p>
         ) : (
           <p className="text-2xl text-slate-600 animate-pulse font-medium">
-            {selectedUrl ? "Listening..." : "No audio recorded yet."}
+            Listening...
           </p>
         )}
       </div>
@@ -169,17 +230,12 @@ export default function Screen4Page() {
         loop
         autoPlay
         onTimeUpdate={() => audioRef.current && setCurrentTime(audioRef.current.currentTime)}
-        onLoadedMetadata={syncDuration}
-        onDurationChange={syncDuration}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => {
           setIsPlaying(false);
-          const d = audioRef.current?.duration;
-          if (d && isFinite(d)) setCurrentTime(d);
         }}
       />
     </div>
   );
 }
-
