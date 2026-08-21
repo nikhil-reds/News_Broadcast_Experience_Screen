@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { composedOutputUrl } from "@/lib/green-screen";
 
 interface DeviceConfig {
   name: string;
@@ -137,41 +138,35 @@ const DEVICES: DeviceConfig[] = [
 ];
 
 export default function MultiDevicePreviewPage() {
-  const [time, setTime] = useState("");
+  const [compositeUrl, setCompositeUrl] = useState<string | null>(null);
 
+  // Every device preview displays the same fixed green-screen composite used
+  // by Screens 8–12, rather than a placeholder or raw camera footage.
   useEffect(() => {
-    const timer = setInterval(() => {
-      const now = new Date();
-      setTime(now.toLocaleTimeString("en-US", { hour12: false }));
-    }, 1000);
-    return () => clearInterval(timer);
+    let cancelled = false;
+    const loadComposite = async () => {
+      try {
+        const res = await fetch("/api/save-recording?camera=1");
+        if (!res.ok) return;
+        const data = await res.json();
+        const latest = data.recordings?.[0] as { filename?: string } | undefined;
+        if (latest?.filename && !cancelled) {
+          setCompositeUrl(composedOutputUrl("newsroom-blue", latest.filename));
+        }
+      } catch {
+        // Preserve the last successfully loaded preview.
+      }
+    };
+    loadComposite();
+    const timer = setInterval(loadComposite, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-sans p-8 space-y-8 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-900 pb-5">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs px-2.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase font-bold tracking-wider font-mono">
-              Broadcast Matrix
-            </span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] text-emerald-400 font-mono tracking-wider">ACTIVE MATRIX MONITOR</span>
-          </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">Responsive Multi-Device Preview</h1>
-          <p className="text-slate-400 text-sm max-w-2xl">
-            Simultaneous multi-device preview matrix running synchronized highlights across 12 standard responsive device profiles.
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold font-mono text-cyan-400 tracking-wider">
-            {time || "00:00:00"}
-          </div>
-          <span className="text-[10px] text-slate-500 font-mono">UTC SYSTEM TIME</span>
-        </div>
-      </div>
-
+    <div className="min-h-screen bg-slate-950 p-8 font-sans text-slate-100 animate-fade-in">
       {/* Masonry / Random Collage layout matching the drawing */}
       <div className="columns-1 sm:columns-2 md:columns-3 xl:columns-4 gap-6 space-y-6 max-w-7xl mx-auto w-full">
         {DEVICES.map((device, index) => (
@@ -204,14 +199,20 @@ export default function MultiDevicePreviewPage() {
                   </div>
                 )}
                 
-                <video
-                  src="/vecteezy_young-businesswoman-thinking-while-working-on-the-computer_31759070.mp4"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
+                {compositeUrl ? (
+                  <video
+                    key={compositeUrl}
+                    src={compositeUrl}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="h-full w-full object-cover"
+                    aria-label="Composited background preview"
+                  />
+                ) : (
+                  <div className="h-full w-full animate-pulse bg-slate-900/70" aria-label="Loading composited preview" />
+                )}
               </div>
             </div>
           </div>
