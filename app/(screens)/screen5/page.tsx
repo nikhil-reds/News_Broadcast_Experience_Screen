@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNexmosphere } from "@/lib/use-nexmosphere";
 
 /**
@@ -64,6 +64,7 @@ const FALLBACK_LANGUAGES: AudioLanguageEntry[] = [
 const COMMIT_DELAY_MS = 400;
 /** How often to re-check whether a queued Gemini TTS take has landed. */
 const POLL_MS = 3000;
+const TRANSCRIPT_CENTER_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 function TranscriptSkeleton() {
   return (
@@ -87,12 +88,12 @@ export default function Screen5Page() {
   // and is what actually drives audio loading.
   const [index, setIndex] = useState<number>(0);
   const [committedIndex, setCommittedIndex] = useState<number>(0);
-  const [knobDirection, setKnobDirection] = useState<"cw" | "ccw" | null>(null);
 
   const [segments, setSegments] = useState<Record<string, TranscriptSegment[]>>({});
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
+  const [trackOffset, setTrackOffset] = useState<number>(0);
   const [status, setStatus] = useState<string>("");
   const [isPreparing, setIsPreparing] = useState<boolean>(false);
   const [isLoadingCatalogue, setIsLoadingCatalogue] = useState<boolean>(true);
@@ -102,11 +103,10 @@ export default function Screen5Page() {
   // Playback should survive a language change: remember whether it was running
   // when the source was swapped and resume once the new take can play.
   const resumeRef = useRef<boolean>(false);
-  const knobFlashRef = useRef<NodeJS.Timeout | null>(null);
-  const activeLineRef = useRef<HTMLParagraphElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const lineRefs = useRef<(HTMLParagraphElement | null)[]>([]);
 
   const active = languages[committedIndex] ?? languages[0];
-  const highlighted = languages[index] ?? languages[0];
   const activeUrl = active?.original ? selectedUrl : active?.url || "";
 
   // ---- Physical rotary knob -> language ring --------------------------------
@@ -116,17 +116,8 @@ export default function Screen5Page() {
         const n = languages.length;
         return ((prev + delta) % n + n) % n;
       });
-      setKnobDirection(delta > 0 ? "cw" : "ccw");
-      if (knobFlashRef.current) clearTimeout(knobFlashRef.current);
-      knobFlashRef.current = setTimeout(() => setKnobDirection(null), 900);
     },
   });
-
-  useEffect(() => {
-    return () => {
-      if (knobFlashRef.current) clearTimeout(knobFlashRef.current);
-    };
-  }, []);
 
   // Commit the knob position once it stops moving.
   useEffect(() => {
@@ -167,8 +158,12 @@ export default function Screen5Page() {
           return;
         }
         setSelectedUrl(files[0].url); // newest first
-      } catch (err: any) {
-        setStatus(`Error loading recordings: ${err.message}`);
+      } catch (err: unknown) {
+        setStatus(
+          `Error loading recordings: ${
+            err instanceof Error ? err.message : "unknown error"
+          }`
+        );
       } finally {
         setIsLoadingCatalogue(false);
       }
@@ -178,11 +173,15 @@ export default function Screen5Page() {
   // A different broadcast means a different set of translated takes.
   useEffect(() => {
     if (!selectedUrl) return;
-    setIndex(0);
-    setCommittedIndex(0);
-    setSegments({});
-    setCurrentTime(0);
-    fetchCatalogue(selectedUrl);
+    const resetTimer = window.setTimeout(() => {
+      setIndex(0);
+      setCommittedIndex(0);
+      setSegments({});
+      setCurrentTime(0);
+      setTrackOffset(0);
+      fetchCatalogue(selectedUrl);
+    }, 0);
+    return () => window.clearTimeout(resetTimer);
   }, [selectedUrl, fetchCatalogue]);
 
   // ---- Make the committed language playable ---------------------------------
@@ -191,13 +190,15 @@ export default function Screen5Page() {
   // until the take shows up.
   useEffect(() => {
     if (!selectedUrl || !active || active.original) {
-      setIsPreparing(false);
-      return;
+      const resetTimer = window.setTimeout(() => setIsPreparing(false), 0);
+      return () => window.clearTimeout(resetTimer);
     }
     if (active.ready) {
-      setIsPreparing(false);
-      setStatus(`Playing the ${active.language} audio track`);
-      return;
+      const readyTimer = window.setTimeout(() => {
+        setIsPreparing(false);
+        setStatus(`Playing the ${active.language} audio track`);
+      }, 0);
+      return () => window.clearTimeout(readyTimer);
     }
 
     let cancelled = false;
@@ -220,9 +221,9 @@ export default function Screen5Page() {
           return;
         }
         if (Array.isArray(data.languages)) setLanguages(data.languages as AudioLanguageEntry[]);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (cancelled) return;
-        setStatus(`Error: ${err.message}`);
+        setStatus(`Error: ${err instanceof Error ? err.message : "unknown error"}`);
         setIsPreparing(false);
         return;
       }
@@ -293,8 +294,12 @@ export default function Screen5Page() {
   }, [committedIndex]);
 
   useEffect(() => {
-    setCurrentTime(0);
-    setDuration(0);
+    const resetTimer = window.setTimeout(() => {
+      setCurrentTime(0);
+      setDuration(0);
+      setTrackOffset(0);
+    }, 0);
+    return () => window.clearTimeout(resetTimer);
   }, [activeUrl]);
 
   const togglePlay = () => {
@@ -323,17 +328,40 @@ export default function Screen5Page() {
     if (isFinite(el.duration) && el.duration > 0) setDuration(el.duration);
   };
 
-  const displaySegments = active ? segments[active.language] || [] : [];
-  const activeSegmentId = displaySegments.find(
-    (s) => currentTime >= s.start && currentTime <= s.end
-  )?.id ?? null;
+  const activeLanguage = active?.language ?? "";
+  const displaySegments = useMemo(
+    () => (activeLanguage ? segments[activeLanguage] ?? [] : []),
+    [activeLanguage, segments]
+  );
+  const activeSegmentIndex = useMemo(() => {
+    if (!displaySegments.length) return -1;
 
-  // ---- Auto-scroll the active line into view --------------------------------
+    const exactIndex = displaySegments.findIndex(
+      (s) => currentTime >= s.start && currentTime < s.end
+    );
+    if (exactIndex !== -1) return exactIndex;
+
+    const nextIndex = displaySegments.findIndex((s) => currentTime < s.start);
+    if (nextIndex === -1) return displaySegments.length - 1;
+    return Math.max(0, nextIndex - 1);
+  }, [currentTime, displaySegments]);
+
+  // ---- Center-lock the active transcript line without using browser scroll ---
   useEffect(() => {
-    if (activeLineRef.current) {
-      activeLineRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [activeSegmentId]);
+    if (activeSegmentIndex < 0) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const viewport = viewportRef.current;
+      const activeLine = lineRefs.current[activeSegmentIndex];
+      if (!viewport || !activeLine) return;
+
+      const viewportCenter = viewport.clientHeight / 2;
+      const lineCenter = activeLine.offsetTop + activeLine.offsetHeight / 2;
+      setTrackOffset(viewportCenter - lineCenter);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeSegmentIndex, displaySegments.length]);
 
   // ---------------------------------------------------------------------------
   return (
@@ -377,29 +405,71 @@ export default function Screen5Page() {
         </div>
       )}
 
-      <main className="flex-1 overflow-y-auto px-6 py-12">
-        <div className="max-w-5xl mx-auto py-12">
+      <main className="relative flex-1 overflow-hidden px-6 py-14 sm:py-16">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-36 bg-gradient-to-b from-slate-950 via-slate-950/85 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-36 bg-gradient-to-t from-slate-950 via-slate-950/85 to-transparent" />
+
+        <div className="mx-auto flex h-full max-w-6xl items-center">
           {/* Transcript in the selected language. */}
           {isLoadingCatalogue || (Boolean(selectedUrl) && isLoadingTranscript) ? (
             <TranscriptSkeleton />
           ) : displaySegments.length > 0 ? (
-            <div className="space-y-8">
-              {displaySegments.map((seg) => {
-                const isActive = activeSegmentId === seg.id;
+            <div
+              ref={viewportRef}
+              className="relative h-[56vh] min-h-[380px] w-full overflow-hidden"
+              aria-live="polite"
+            >
+              <div
+                className="absolute left-0 top-0 w-full py-[34vh] transition-transform duration-700 will-change-transform"
+                style={{
+                  transform: `translateY(${trackOffset}px)`,
+                  transitionTimingFunction: TRANSCRIPT_CENTER_EASING,
+                }}
+              >
+              {displaySegments.map((seg, segmentIndex) => {
+                const indexDistance = activeSegmentIndex < 0 ? 0 : segmentIndex - activeSegmentIndex;
+                const absoluteDistance = Math.abs(indexDistance);
+                const isActive = indexDistance === 0;
+                const isPast = indexDistance < 0;
+                const isVisible = indexDistance >= -3 && indexDistance <= 4;
+                const opacity = isActive
+                  ? 1
+                  : !isVisible
+                  ? 0
+                  : isPast
+                  ? Math.max(0.14, 0.45 - absoluteDistance * 0.12)
+                  : Math.max(0.24, 0.68 - absoluteDistance * 0.1);
+                const scale = isActive
+                  ? 1
+                  : isPast
+                  ? Math.max(0.9, 0.98 - absoluteDistance * 0.025)
+                  : Math.max(0.92, 0.99 - absoluteDistance * 0.02);
+
                 return (
                   <p
                     key={seg.id}
-                    ref={isActive ? activeLineRef : null}
-                    className={`font-extrabold leading-tight tracking-tight transition-all duration-300 ${
+                    ref={(node) => {
+                      lineRefs.current[segmentIndex] = node;
+                    }}
+                    className={`mx-auto max-w-5xl text-center leading-[1.12] transition-all duration-700 [overflow-wrap:break-word] ${
                       isActive
-                        ? "text-white text-5xl sm:text-7xl md:text-8xl scale-[1.01]"
-                        : "text-slate-700 text-3xl sm:text-4xl hover:text-slate-500"
+                        ? "py-4 text-2xl font-extrabold text-white sm:text-3xl md:text-4xl"
+                        : "py-2 text-xl font-semibold text-slate-400 sm:text-2xl md:text-3xl"
                     }`}
+                    style={{
+                      opacity,
+                      transform: `translateY(${
+                        isActive ? 0 : isPast ? -absoluteDistance * 8 : absoluteDistance * 10
+                      }px) scale(${scale})`,
+                      transitionTimingFunction: TRANSCRIPT_CENTER_EASING,
+                    }}
+                    aria-current={isActive ? "true" : undefined}
                   >
                     {seg.text}
                   </p>
                 );
               })}
+              </div>
             </div>
           ) : (
             <p className="text-center text-2xl text-slate-600 animate-pulse font-medium py-24">
@@ -454,7 +524,9 @@ export default function Screen5Page() {
         <audio
           ref={audioRef}
           src={activeUrl || undefined}
+          loop
           onTimeUpdate={() => audioRef.current && setCurrentTime(audioRef.current.currentTime)}
+          onSeeked={() => audioRef.current && setCurrentTime(audioRef.current.currentTime)}
           onLoadedMetadata={syncDuration}
           onDurationChange={syncDuration}
           onCanPlay={() => {
@@ -466,8 +538,7 @@ export default function Screen5Page() {
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           onEnded={() => {
-            setIsPlaying(false);
-            resumeRef.current = false;
+            setCurrentTime(0);
           }}
         />
       </footer>
