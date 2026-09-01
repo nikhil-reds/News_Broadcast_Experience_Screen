@@ -15,9 +15,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { prisma } from "@/lib/prisma";
-import { TRANSCRIPTS_BUCKET, VIDEO_BUCKET, downloadObjectToFile, uploadObject } from "@/lib/minio";
+import { AUDIO_BUCKET, TRANSCRIPTS_BUCKET, VIDEO_BUCKET, downloadObjectToFile, uploadObject } from "@/lib/minio";
 import { GEMINI_MODEL } from "@/lib/gemini";
-import { concatClips, extractNormalizedClip } from "@/lib/ffmpeg";
+import {
+  concatClips,
+  extractNormalizedClip,
+  extractSyncedHighlightClip,
+  probeStreamDurations,
+} from "@/lib/ffmpeg";
 import { highlightFilenameFor, type CameraId } from "@/lib/camera-recordings";
 import type { HighlightAnalysisResult, HighlightSegment } from "@/lib/highlight-analysis";
 
@@ -49,6 +54,39 @@ export interface HighlightReelResult {
   model: string;
 }
 
+const SYNC_TOLERANCE_SECONDS = 0.15;
+
+async function findMasterAudio(generationId?: string | null) {
+  if (!generationId) return null;
+  return prisma.audioFile.findFirst({
+    where: {
+      sessionId: generationId,
+      filename: { not: "master-audio-16k.wav" },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+function assertSyncedDurations(
+  label: string,
+  durations: { video: number | null; audio: number | null }
+) {
+  if (durations.video == null) {
+    throw new Error(`${label} has no video duration`);
+  }
+  if (durations.audio == null) {
+    throw new Error(`${label} has no audio duration`);
+  }
+
+  const difference = Math.abs(durations.video - durations.audio);
+  if (difference > SYNC_TOLERANCE_SECONDS) {
+    throw new Error(
+      `${label} audio/video duration mismatch: video=${durations.video.toFixed(3)}s ` +
+        `audio=${durations.audio.toFixed(3)}s diff=${difference.toFixed(3)}s`
+    );
+  }
+}
+
 /**
  * Cuts and joins the segments stage 1 already decided on. Re-downloads the
  * three takes rather than sharing stage 1's temp dir — the two stages are
@@ -72,6 +110,10 @@ export async function renderHighlightReel(
   const workDir = await mkdtemp(join(tmpdir(), "highlight-render-"));
 
   try {
+    const masterAudio = await findMasterAudio(generationId);
+    const masterAudioPath = masterAudio
+      ? join(workDir, `master-${masterAudio.objectKey || masterAudio.filename}`)
+      : null;
     const sources: Record<CameraId, string> = {
       1: join(workDir, `cam1-${cam1Filename}`),
       2: join(workDir, `cam2-${cam2Filename}`),
@@ -81,27 +123,80 @@ export async function renderHighlightReel(
       downloadObjectToFile(VIDEO_BUCKET, cam1Filename, sources[1]),
       downloadObjectToFile(VIDEO_BUCKET, cam2Filename, sources[2]),
       downloadObjectToFile(VIDEO_BUCKET, cam3Filename, sources[3]),
+      ...(masterAudio && masterAudioPath
+        ? [downloadObjectToFile(AUDIO_BUCKET, masterAudio.objectKey || masterAudio.filename, masterAudioPath)]
+        : []),
     ]);
+
+    if (!masterAudioPath) {
+      console.warn(
+        `[highlight-reel] No master audio found for generation ${generationId || "(none)"}; ` +
+          "falling back to camera audio/silence."
+      );
+    }
 
     const clips: string[] = [];
     for (const [index, segment] of segments.entries()) {
       const clip = `clip-${String(index).padStart(3, "0")}.mp4`;
-      await extractNormalizedClip({
-        input: sources[segment.camera],
-        start: segment.start,
-        end: segment.end,
-        output: clip,
-        withSilentAudio: !audio[segment.camera],
-        cwd: workDir,
-        timeoutMs,
-        onHeartbeat,
+      const expectedDuration = segment.end - segment.start;
+
+      console.log({
+        segmentNumber: index + 1,
+        camera: segment.camera,
+        sessionStart: segment.start,
+        sessionEnd: segment.end,
+        cameraOffset: 0,
+        videoStart: segment.start,
+        videoEnd: segment.end,
+        audioOffset: 0,
+        audioStart: segment.start,
+        audioEnd: segment.end,
+        expectedDuration,
       });
+
+      if (masterAudioPath) {
+        await extractSyncedHighlightClip({
+          videoInput: sources[segment.camera],
+          audioInput: masterAudioPath,
+          start: segment.start,
+          end: segment.end,
+          output: clip,
+          cwd: workDir,
+          timeoutMs,
+          onHeartbeat,
+        });
+      } else {
+        await extractNormalizedClip({
+          input: sources[segment.camera],
+          start: segment.start,
+          end: segment.end,
+          output: clip,
+          withSilentAudio: !audio[segment.camera],
+          cwd: workDir,
+          timeoutMs,
+          onHeartbeat,
+        });
+      }
+
+      const clipDurations = await probeStreamDurations(join(workDir, clip));
+      console.log({
+        segmentNumber: index + 1,
+        videoDuration: clipDurations.video,
+        audioDuration: clipDurations.audio,
+        difference:
+          clipDurations.video != null && clipDurations.audio != null
+            ? Math.abs(clipDurations.video - clipDurations.audio)
+            : null,
+      });
+      assertSyncedDurations(`highlight segment ${index + 1}`, clipDurations);
       clips.push(clip);
     }
 
     const reelFilename = highlightFilenameFor(cam1Filename);
     const reelPath = join(workDir, "highlight.mp4");
     await concatClips(clips, "highlight.mp4", workDir, undefined, timeoutMs, onHeartbeat);
+    const finalDurations = await probeStreamDurations(reelPath);
+    assertSyncedDurations("final highlight reel", finalDurations);
 
     const reelBytes = await readFile(reelPath);
     await uploadObject(VIDEO_BUCKET, reelFilename, reelBytes, "video/mp4");
@@ -132,7 +227,34 @@ export async function renderHighlightReel(
       sidecarKey,
       Buffer.from(
         JSON.stringify(
-          { title, model: GEMINI_MODEL, sources: [cam1Filename, cam2Filename, cam3Filename], segments },
+          {
+            title,
+            model: GEMINI_MODEL,
+            sessionId: generationId ?? null,
+            masterAudio: masterAudio
+              ? {
+                  filename: masterAudio.filename,
+                  objectKey: masterAudio.objectKey || masterAudio.filename,
+                  url: masterAudio.url,
+                }
+              : null,
+            sync: {
+              camera1Offset: 0,
+              camera2Offset: 0,
+              camera3Offset: 0,
+              audioOffset: 0,
+            },
+            sources: [cam1Filename, cam2Filename, cam3Filename],
+            segments,
+            validation: {
+              videoDuration: finalDurations.video,
+              audioDuration: finalDurations.audio,
+              difference:
+                finalDurations.video != null && finalDurations.audio != null
+                  ? Math.abs(finalDurations.video - finalDurations.audio)
+                  : null,
+            },
+          },
           null,
           2
         ),

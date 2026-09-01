@@ -134,6 +134,43 @@ export async function hasAudioStream(file: string): Promise<boolean> {
   return out.trim().length > 0;
 }
 
+export interface MediaStreamDurations {
+  video: number | null;
+  audio: number | null;
+  format: number | null;
+}
+
+export async function probeStreamDurations(file: string): Promise<MediaStreamDurations> {
+  const out = await run(FFPROBE_BIN, [
+    "-v", "error",
+    "-show_entries", "stream=codec_type,duration:format=duration",
+    "-of", "json",
+    file,
+  ]);
+  const parsed = JSON.parse(out) as {
+    streams?: { codec_type?: string; duration?: string }[];
+    format?: { duration?: string };
+  };
+
+  const format = Number(parsed.format?.duration);
+  let video: number | null = null;
+  let audio: number | null = null;
+
+  for (const stream of parsed.streams || []) {
+    const duration = Number(stream.duration);
+    const value = Number.isFinite(duration) && duration > 0 ? duration : null;
+    if (stream.codec_type === "video" && video == null) video = value;
+    if (stream.codec_type === "audio" && audio == null) audio = value;
+  }
+
+  const fallback = Number.isFinite(format) && format > 0 ? format : null;
+  return {
+    video: video ?? fallback,
+    audio: audio ?? fallback,
+    format: fallback,
+  };
+}
+
 /**
  * Cut [start, end) out of `input` and re-encode it to the shared target format.
  * Camera 2 records video-only, so clips from it get a silent track grafted on —
@@ -189,6 +226,66 @@ export async function extractNormalizedClip(opts: {
   );
 
   await run(FFMPEG_BIN, args, cwd, timeoutMs, onHeartbeat);
+}
+
+/**
+ * Cut one selected camera segment and the same session-time range from the
+ * master audio, reset both timestamps to zero, normalize, and mux them into a
+ * single concat-ready MP4. The master audio stays the source of truth for lip
+ * sync; the selected camera only supplies the visual angle.
+ */
+export async function extractSyncedHighlightClip(opts: {
+  videoInput: string;
+  audioInput: string;
+  start: number;
+  end: number;
+  output: string;
+  cwd?: string;
+  timeoutMs?: number;
+  onHeartbeat?: (pid: number) => void;
+}): Promise<void> {
+  const { videoInput, audioInput, start, end, output, cwd, timeoutMs, onHeartbeat } = opts;
+  const duration = end - start;
+  const fadeSeconds = Math.min(0.01, duration / 4);
+  const fadeOutStart = Math.max(0, duration - fadeSeconds);
+  const filter =
+    `[0:v]trim=start=${start.toFixed(3)}:end=${end.toFixed(3)},` +
+    `setpts=PTS-STARTPTS,` +
+    `scale=${TARGET_WIDTH}:${TARGET_HEIGHT}:force_original_aspect_ratio=decrease,` +
+    `pad=${TARGET_WIDTH}:${TARGET_HEIGHT}:(ow-iw)/2:(oh-ih)/2,` +
+    `fps=${TARGET_FPS},format=yuv420p[v];` +
+    `[1:a]atrim=start=${start.toFixed(3)}:end=${end.toFixed(3)},` +
+    `asetpts=PTS-STARTPTS,` +
+    `afade=t=in:st=0:d=${fadeSeconds.toFixed(3)},` +
+    `afade=t=out:st=${fadeOutStart.toFixed(3)}:d=${fadeSeconds.toFixed(3)},` +
+    `aresample=${TARGET_SAMPLE_RATE},aformat=channel_layouts=stereo[a]`;
+
+  await run(
+    FFMPEG_BIN,
+    [
+      "-y",
+      "-hide_banner",
+      "-loglevel", "error",
+      "-i", videoInput,
+      "-i", audioInput,
+      "-filter_complex", filter,
+      "-map", "[v]",
+      "-map", "[a]",
+      "-c:v", "libx264",
+      "-preset", "veryfast",
+      "-crf", "23",
+      "-threads", String(FFMPEG_THREADS),
+      "-c:a", "aac",
+      "-b:a", "128k",
+      "-ar", String(TARGET_SAMPLE_RATE),
+      "-ac", "2",
+      "-shortest",
+      output,
+    ],
+    cwd,
+    timeoutMs,
+    onHeartbeat
+  );
 }
 
 /**
