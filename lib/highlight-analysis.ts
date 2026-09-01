@@ -125,6 +125,13 @@ function buildPrompt(durations: Record<CameraId, number>): string {
     `- VIDEO B = CAMERA 02 (${durations[2].toFixed(1)}s, second angle, no audio)`,
     `- VIDEO C = CAMERA 03 (${durations[3].toFixed(1)}s, third angle, no audio)`,
     "",
+    "All three camera videos show the same synchronized session timeline.",
+    "Your start/end timestamps must refer to the COMMON SESSION TIMELINE.",
+    'The "camera" field only determines which camera angle should be displayed.',
+    "The matching master audio from that same session time range will be used",
+    "automatically during rendering. Do not compensate for audio synchronization",
+    "yourself; only choose editorially appropriate camera angles and time ranges.",
+    "",
     "Pick the most engaging seconds of the session: the strongest delivery, the",
     "clearest statements, visible reactions and gestures, and moments where the",
     "second or third angle is more interesting than the first. Skip dead air, fumbles,",
@@ -136,9 +143,9 @@ function buildPrompt(durations: Record<CameraId, number>): string {
     `- The segments must total no more than ${MAX_REEL_SECONDS} seconds.`,
     "- Order the segments chronologically and do not overlap them in time.",
     "- Cut between the three cameras where it makes the reel more watchable.",
-    '- "start" and "end" are seconds from the beginning of the file for the camera',
-    "  named in that segment, as numbers (e.g. 12.5), never as MM:SS text.",
-    "- Every timestamp must be inside that camera's duration listed above.",
+    '- "start" and "end" are seconds from the beginning of the common session',
+    "  timeline, as numbers (e.g. 12.5), never as MM:SS text.",
+    "- Every timestamp must be inside the listed duration for the selected camera.",
   ].join("\n");
 }
 
