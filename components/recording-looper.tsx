@@ -26,7 +26,8 @@ interface TimedCue {
  * Screen 01 and 02 take a camera each, Screen 06 takes the Gemini reel.
  *
  * `muted` defaults to true (Screens 01-03 are silent camera monitors). Screen
- * 06 keeps the reel muted and uses the same original audio source as Screen 5.
+ * 06 passes `muted={false}` because the rendered highlight MP4 contains its
+ * own synchronized audio track.
  *
  * `frame` defaults to full-bleed (fills the browser viewport). Screen 11
  * passes a mobile-sized box instead — a portrait phone preview centered on
@@ -76,8 +77,11 @@ export default function RecordingLooper({
   useEffect(() => {
     if (screenId == null) return;
     if (publication.assets?.videoUrl) {
-      setVideoUrl(publication.assets.videoUrl);
-      setVideoFilename(publication.assets.filename);
+      const syncTimer = window.setTimeout(() => {
+        setVideoUrl(publication.assets?.videoUrl ?? null);
+        setVideoFilename(publication.assets?.filename ?? null);
+      }, 0);
+      return () => window.clearTimeout(syncTimer);
     }
   }, [screenId, publication.assets]);
 
@@ -139,7 +143,7 @@ export default function RecordingLooper({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [query, screenId]);
+  }, [compositeBackgroundId, query, screenId]);
 
   // Match Screen 5's English source: the latest saved original recording,
   // excluding the 16 kHz derivative made for transcription.
@@ -174,8 +178,8 @@ export default function RecordingLooper({
   // recording's unedited timestamps.
   useEffect(() => {
     if (!englishSubtitles || !videoFilename || !originalAudioUrl) {
-      setCues([]);
-      return;
+      const resetTimer = window.setTimeout(() => setCues([]), 0);
+      return () => window.clearTimeout(resetTimer);
     }
     let cancelled = false;
     const fetchCues = async () => {
@@ -199,9 +203,8 @@ export default function RecordingLooper({
     };
   }, [compositeBackgroundId, englishSubtitles, originalAudioUrl, videoFilename]);
 
-  // Start the reel first. When Screen 6 is using original audio, start its
-  // separate English track at the same time; the video remains muted so the
-  // two audio tracks never overlap.
+  // Start the video first. Some composed/export previews still opt into a
+  // separate original audio track; Screen 6 now uses embedded highlight audio.
   useEffect(() => {
     if (!videoUrl || !videoRef.current) return;
     videoRef.current.play().catch(() => {
