@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNexmosphere } from "@/lib/use-nexmosphere";
 
 /** Volume moved per detent of the Nexmosphere knob (5% per click). */
@@ -21,6 +21,29 @@ interface AudioFileItem {
 }
 
 const POLL_MS = 3000;
+const WORDS_PER_CHUNK = 11;
+const MIN_READ_MS = 2300;
+const MAX_READ_MS = 5200;
+const WORD_READ_MS = 230;
+const EXIT_ANIMATION_MS = 320;
+
+const normalizeSpaces = (value: string) => value.replace(/\s+/g, " ").trim();
+
+function chunkText(text: string, wordsPerChunk = WORDS_PER_CHUNK) {
+  const words = normalizeSpaces(text).split(" ").filter(Boolean);
+  const chunks: string[] = [];
+
+  for (let i = 0; i < words.length; i += wordsPerChunk) {
+    chunks.push(words.slice(i, i + wordsPerChunk).join(" "));
+  }
+
+  return chunks;
+}
+
+function getReadingDuration(text: string) {
+  const wordCount = normalizeSpaces(text).split(" ").filter(Boolean).length;
+  return Math.min(MAX_READ_MS, Math.max(MIN_READ_MS, wordCount * WORD_READ_MS));
+}
 
 function TeleprompterSkeleton() {
   return (
@@ -57,15 +80,21 @@ export default function Screen4Page() {
   const [isLoadingAudio, setIsLoadingAudio] = useState(true);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [currentTime, setCurrentTime] = useState<number>(0);
   // Playback volume, driven by the physical rotary knob (and the slider below).
   const [volume, setVolume] = useState<number>(DEFAULT_VOLUME);
 
-  const [displayText, setDisplayText] = useState<string>("");
-  const [fadeState, setFadeState] = useState<"in" | "out">("in");
-  const lastTextRef = useRef<string>("");
+  const [displayChunkIndex, setDisplayChunkIndex] = useState(0);
+  const [textPhase, setTextPhase] = useState<"enter" | "exit">("enter");
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const displayChunks = useMemo(
+    () => segments.flatMap((segment) => chunkText(segment.text)),
+    [segments]
+  );
+  const safeDisplayChunkIndex = displayChunks.length
+    ? displayChunkIndex % displayChunks.length
+    : 0;
+  const displayText = displayChunks[safeDisplayChunkIndex] ?? "";
 
   // ---- Physical rotary knob -> volume ---------------------------------------
   useNexmosphere({
@@ -107,7 +136,6 @@ export default function Screen4Page() {
   // endpoint until the newest recording's English transcript is available.
   useEffect(() => {
     if (!selectedUrl) {
-      setSegments([]);
       return;
     }
 
@@ -127,11 +155,12 @@ export default function Screen4Page() {
       }
     };
 
-    setSegments([]);
+    const resetTimer = window.setTimeout(() => setSegments([]), 0);
     fetchTranscript();
     const timer = setInterval(fetchTranscript, POLL_MS);
     return () => {
       cancelled = true;
+      window.clearTimeout(resetTimer);
       clearInterval(timer);
     };
   }, [selectedUrl]);
@@ -151,38 +180,57 @@ export default function Screen4Page() {
   // ---- When the newest audio changes, reset playback ------------------------
   useEffect(() => {
     if (!selectedUrl) return;
-    setIsPlaying(false);
-    setCurrentTime(0);
-    lastTextRef.current = "";
-    setDisplayText("");
+    const resetTimer = window.setTimeout(() => {
+      setIsPlaying(false);
+      setDisplayChunkIndex(0);
+      setTextPhase("enter");
+    }, 0);
+
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
+
+    return () => window.clearTimeout(resetTimer);
   }, [selectedUrl]);
 
-  // ---- Manage animated text updates ---------------------------------------
+  // ---- Manage animated text updates ----------------------------------------
   useEffect(() => {
-    const activeSeg = segments.find(
-      (s) => currentTime >= s.start && currentTime <= s.end
-    );
+    const resetTimer = window.setTimeout(() => {
+      setDisplayChunkIndex(0);
+      setTextPhase("enter");
+    }, 0);
 
-    if (activeSeg) {
-      if (activeSeg.text !== lastTextRef.current) {
-        setFadeState("out");
-        const t = setTimeout(() => {
-          setDisplayText(activeSeg.text);
-          setFadeState("in");
-          lastTextRef.current = activeSeg.text;
-        }, 150);
-        return () => clearTimeout(t);
-      }
-    } else if (!lastTextRef.current && segments.length > 0) {
-      // Show first segment immediately on load
-      setDisplayText(segments[0].text);
-      lastTextRef.current = segments[0].text;
+    if (!displayChunks.length) {
+      return () => window.clearTimeout(resetTimer);
     }
-  }, [currentTime, segments]);
+
+    return () => {
+      window.clearTimeout(resetTimer);
+    };
+  }, [displayChunks.length]);
+
+  useEffect(() => {
+    if (!displayChunks.length || !displayText) {
+      return;
+    }
+
+    const readDuration = getReadingDuration(displayText);
+
+    const readTimer = window.setTimeout(() => {
+      setTextPhase("exit");
+    }, readDuration);
+
+    const nextTimer = window.setTimeout(() => {
+      setDisplayChunkIndex((prev) => (prev + 1) % displayChunks.length);
+      setTextPhase("enter");
+    }, readDuration + EXIT_ANIMATION_MS);
+
+    return () => {
+      window.clearTimeout(readTimer);
+      window.clearTimeout(nextTimer);
+    };
+  }, [displayChunkIndex, displayChunks.length, displayText]);
 
   // ---- Controls -------------------------------------------------------------
   const togglePlay = () => {
@@ -198,9 +246,12 @@ export default function Screen4Page() {
   return (
     <div
       onClick={togglePlay}
-      className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center font-sans p-8 select-none cursor-pointer"
+      className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center overflow-hidden font-sans p-8 select-none cursor-pointer"
     >
-      <div className="w-full max-w-5xl text-center">
+      <div className="relative w-full max-w-6xl text-center">
+        <div className="pointer-events-none absolute inset-x-0 -top-40 h-52 bg-gradient-to-b from-cyan-500/10 to-transparent blur-3xl" />
+        <div className="pointer-events-none absolute inset-x-0 -bottom-40 h-52 bg-gradient-to-t from-amber-400/10 to-transparent blur-3xl" />
+
         {!selectedUrl && isLoadingAudio ? (
           <TeleprompterSkeleton />
         ) : !selectedUrl ? (
@@ -208,15 +259,21 @@ export default function Screen4Page() {
         ) : !segments.length ? (
           <TeleprompterSkeleton />
         ) : displayText ? (
-          <p
-            className={`font-extrabold leading-tight tracking-tight transition-all duration-300 ease-out transform ${
-              fadeState === "in"
-                ? "opacity-100 scale-100 text-white text-5xl sm:text-7xl md:text-8xl"
-                : "opacity-0 scale-95 text-slate-600 text-5xl sm:text-7xl md:text-8xl"
-            }`}
+          <div
+            className="relative mx-auto flex min-h-[42vh] w-full items-center justify-center overflow-hidden px-2 sm:px-6"
+            aria-live="polite"
           >
-            {displayText}
-          </p>
+            <p
+              key={displayChunkIndex}
+              className={`max-w-5xl text-balance font-extrabold leading-[1.08] text-white [overflow-wrap:break-word] text-4xl sm:text-6xl md:text-7xl lg:text-8xl motion-reduce:transition-opacity motion-reduce:transform-none transition-all duration-500 ease-out ${
+                textPhase === "enter"
+                  ? "translate-y-0 scale-100 opacity-100 blur-0"
+                  : "-translate-y-8 scale-[0.98] opacity-0 blur-sm"
+              }`}
+            >
+              {displayText}
+            </p>
+          </div>
         ) : (
           <p className="text-2xl text-slate-600 animate-pulse font-medium">
             Listening...
@@ -229,7 +286,6 @@ export default function Screen4Page() {
         src={selectedUrl || undefined}
         loop
         autoPlay
-        onTimeUpdate={() => audioRef.current && setCurrentTime(audioRef.current.currentTime)}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => {
