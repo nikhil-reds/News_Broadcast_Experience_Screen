@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNexmosphere } from "@/lib/use-nexmosphere";
 
 /** Volume moved per detent of the Nexmosphere knob (5% per click). */
@@ -12,6 +12,8 @@ const clampVolume = (v: number) => Math.min(1, Math.max(0, v));
 interface TranscriptSegment {
   start: number;
   end: number;
+  startTime?: number;
+  endTime?: number;
   text: string;
 }
 
@@ -21,28 +23,41 @@ interface AudioFileItem {
 }
 
 const POLL_MS = 3000;
-const WORDS_PER_CHUNK = 11;
-const MIN_READ_MS = 2300;
-const MAX_READ_MS = 5200;
-const WORD_READ_MS = 230;
-const EXIT_ANIMATION_MS = 320;
+const TRANSCRIPT_CENTER_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
+const DEBUG_TRANSCRIPT_SYNC = process.env.NODE_ENV === "development";
 
-const normalizeSpaces = (value: string) => value.replace(/\s+/g, " ").trim();
+const getSegmentStart = (segment: TranscriptSegment) =>
+  segment.startTime ?? segment.start;
 
-function chunkText(text: string, wordsPerChunk = WORDS_PER_CHUNK) {
-  const words = normalizeSpaces(text).split(" ").filter(Boolean);
-  const chunks: string[] = [];
+const getSegmentEnd = (segment: TranscriptSegment) =>
+  segment.endTime ?? segment.end;
 
-  for (let i = 0; i < words.length; i += wordsPerChunk) {
-    chunks.push(words.slice(i, i + wordsPerChunk).join(" "));
+function findActiveTranscriptIndex(
+  transcript: TranscriptSegment[],
+  currentTime: number,
+  previousIndex: number
+) {
+  const activeIndex = transcript.findIndex(
+    (item) => currentTime >= getSegmentStart(item) && currentTime < getSegmentEnd(item)
+  );
+  if (activeIndex !== -1) return activeIndex;
+
+  if (previousIndex >= 0) {
+    const previous = transcript[previousIndex];
+    const next = transcript[previousIndex + 1];
+    if (
+      previous &&
+      currentTime >= getSegmentEnd(previous) &&
+      (!next || currentTime < getSegmentStart(next))
+    ) {
+      return previousIndex;
+    }
   }
 
-  return chunks;
-}
-
-function getReadingDuration(text: string) {
-  const wordCount = normalizeSpaces(text).split(" ").filter(Boolean).length;
-  return Math.min(MAX_READ_MS, Math.max(MIN_READ_MS, wordCount * WORD_READ_MS));
+  const nextIndex = transcript.findIndex((item) => currentTime < getSegmentStart(item));
+  if (nextIndex === 0) return -1;
+  if (nextIndex === -1) return transcript.length ? transcript.length - 1 : -1;
+  return Math.max(0, nextIndex - 1);
 }
 
 function TeleprompterSkeleton() {
@@ -83,18 +98,14 @@ export default function Screen4Page() {
   // Playback volume, driven by the physical rotary knob (and the slider below).
   const [volume, setVolume] = useState<number>(DEFAULT_VOLUME);
 
-  const [displayChunkIndex, setDisplayChunkIndex] = useState(0);
-  const [textPhase, setTextPhase] = useState<"enter" | "exit">("enter");
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [trackOffset, setTrackOffset] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const displayChunks = useMemo(
-    () => segments.flatMap((segment) => chunkText(segment.text)),
-    [segments]
-  );
-  const safeDisplayChunkIndex = displayChunks.length
-    ? displayChunkIndex % displayChunks.length
-    : 0;
-  const displayText = displayChunks[safeDisplayChunkIndex] ?? "";
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const lineRefs = useRef<(HTMLParagraphElement | null)[]>([]);
+  const rafRef = useRef<number | null>(null);
+  const activeIndexRef = useRef(-1);
 
   // ---- Physical rotary knob -> volume ---------------------------------------
   useNexmosphere({
@@ -170,6 +181,54 @@ export default function Screen4Page() {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume, selectedUrl]);
 
+  const syncTranscript = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || !segments.length) return;
+
+    const currentTime = audio.currentTime;
+    const nextActiveIndex = findActiveTranscriptIndex(
+      segments,
+      currentTime,
+      activeIndexRef.current
+    );
+
+    if (nextActiveIndex !== activeIndexRef.current) {
+      activeIndexRef.current = nextActiveIndex;
+      setActiveIndex(nextActiveIndex);
+
+      if (DEBUG_TRANSCRIPT_SYNC && nextActiveIndex >= 0) {
+        const activeSegment = segments[nextActiveIndex];
+        console.log({
+          audioTime: currentTime,
+          activeIndex: nextActiveIndex,
+          activeText: activeSegment.text,
+          startTime: getSegmentStart(activeSegment),
+          endTime: getSegmentEnd(activeSegment),
+        });
+      }
+    }
+  }, [segments]);
+
+  const stopTranscriptFrame = useCallback(() => {
+    if (rafRef.current !== null) {
+      window.cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
+
+  const startTranscriptFrame = useCallback(() => {
+    stopTranscriptFrame();
+
+    const tick = () => {
+      syncTranscript();
+      if (!audioRef.current?.paused) {
+        rafRef.current = window.requestAnimationFrame(tick);
+      }
+    };
+
+    rafRef.current = window.requestAnimationFrame(tick);
+  }, [stopTranscriptFrame, syncTranscript]);
+
   // Autoplay handler when audio changes
   useEffect(() => {
     if (audioRef.current && selectedUrl) {
@@ -182,8 +241,9 @@ export default function Screen4Page() {
     if (!selectedUrl) return;
     const resetTimer = window.setTimeout(() => {
       setIsPlaying(false);
-      setDisplayChunkIndex(0);
-      setTextPhase("enter");
+      setActiveIndex(-1);
+      setTrackOffset(0);
+      activeIndexRef.current = -1;
     }, 0);
 
     if (audioRef.current) {
@@ -194,43 +254,36 @@ export default function Screen4Page() {
     return () => window.clearTimeout(resetTimer);
   }, [selectedUrl]);
 
-  // ---- Manage animated text updates ----------------------------------------
+  // ---- Keep the active transcript line locked to the viewport center --------
   useEffect(() => {
     const resetTimer = window.setTimeout(() => {
-      setDisplayChunkIndex(0);
-      setTextPhase("enter");
+      activeIndexRef.current = -1;
+      setActiveIndex(-1);
+      setTrackOffset(0);
+      lineRefs.current = [];
+      syncTranscript();
     }, 0);
 
-    if (!displayChunks.length) {
-      return () => window.clearTimeout(resetTimer);
-    }
-
-    return () => {
-      window.clearTimeout(resetTimer);
-    };
-  }, [displayChunks.length]);
+    return () => window.clearTimeout(resetTimer);
+  }, [segments.length, syncTranscript]);
 
   useEffect(() => {
-    if (!displayChunks.length || !displayText) {
-      return;
-    }
+    if (activeIndex < 0) return;
 
-    const readDuration = getReadingDuration(displayText);
+    const frame = window.requestAnimationFrame(() => {
+      const viewport = viewportRef.current;
+      const activeLine = lineRefs.current[activeIndex];
+      if (!viewport || !activeLine) return;
 
-    const readTimer = window.setTimeout(() => {
-      setTextPhase("exit");
-    }, readDuration);
+      const viewportCenter = viewport.clientHeight / 2;
+      const lineCenter = activeLine.offsetTop + activeLine.offsetHeight / 2;
+      setTrackOffset(viewportCenter - lineCenter);
+    });
 
-    const nextTimer = window.setTimeout(() => {
-      setDisplayChunkIndex((prev) => (prev + 1) % displayChunks.length);
-      setTextPhase("enter");
-    }, readDuration + EXIT_ANIMATION_MS);
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeIndex, segments.length]);
 
-    return () => {
-      window.clearTimeout(readTimer);
-      window.clearTimeout(nextTimer);
-    };
-  }, [displayChunkIndex, displayChunks.length, displayText]);
+  useEffect(() => () => stopTranscriptFrame(), [stopTranscriptFrame]);
 
   // ---- Controls -------------------------------------------------------------
   const togglePlay = () => {
@@ -258,26 +311,69 @@ export default function Screen4Page() {
           <WaitingForBroadcast />
         ) : !segments.length ? (
           <TeleprompterSkeleton />
-        ) : displayText ? (
-          <div
-            className="relative mx-auto flex min-h-[42vh] w-full items-center justify-center overflow-hidden px-2 sm:px-6"
-            aria-live="polite"
-          >
-            <p
-              key={displayChunkIndex}
-              className={`max-w-5xl text-balance font-extrabold leading-[1.08] text-white [overflow-wrap:break-word] text-4xl sm:text-6xl md:text-7xl lg:text-8xl motion-reduce:transition-opacity motion-reduce:transform-none transition-all duration-500 ease-out ${
-                textPhase === "enter"
-                  ? "translate-y-0 scale-100 opacity-100 blur-0"
-                  : "-translate-y-8 scale-[0.98] opacity-0 blur-sm"
-              }`}
-            >
-              {displayText}
-            </p>
-          </div>
         ) : (
-          <p className="text-2xl text-slate-600 animate-pulse font-medium">
-            Listening...
-          </p>
+          <div
+            ref={viewportRef}
+            className="relative mx-auto h-[68vh] min-h-[460px] w-full overflow-hidden px-2 py-20 sm:px-6 sm:py-24"
+            aria-live="polite"
+            style={{
+              maskImage:
+                "linear-gradient(to bottom, transparent 0%, black 16%, black 84%, transparent 100%)",
+            }}
+          >
+            <div
+              className="absolute left-0 top-0 w-full py-[34vh] transition-transform duration-500 will-change-transform motion-reduce:transition-none"
+              style={{
+                transform: `translateY(${trackOffset}px)`,
+                transitionTimingFunction: TRANSCRIPT_CENTER_EASING,
+              }}
+            >
+              {segments.map((segment, segmentIndex) => {
+                const indexDistance =
+                  activeIndex < 0 ? segmentIndex : segmentIndex - activeIndex;
+                const absoluteDistance = Math.abs(indexDistance);
+                const isActive = indexDistance === 0;
+                const isPast = indexDistance < 0;
+                const isVisible = indexDistance >= -3 && indexDistance <= 4;
+                const opacity = isActive
+                  ? 1
+                  : !isVisible
+                  ? 0
+                  : isPast
+                  ? Math.max(0.12, 0.45 - absoluteDistance * 0.12)
+                  : Math.max(0.22, 0.62 - absoluteDistance * 0.1);
+                const scale = isActive
+                  ? 1
+                  : isPast
+                  ? Math.max(0.9, 0.98 - absoluteDistance * 0.025)
+                  : Math.max(0.92, 0.99 - absoluteDistance * 0.02);
+
+                return (
+                  <p
+                    key={`${getSegmentStart(segment)}-${segmentIndex}`}
+                    ref={(node) => {
+                      lineRefs.current[segmentIndex] = node;
+                    }}
+                    aria-current={isActive ? "true" : undefined}
+                    className={`mx-auto max-w-5xl text-center leading-[1.12] transition-all duration-500 [overflow-wrap:break-word] motion-reduce:transition-none ${
+                      isActive
+                        ? "py-5 text-4xl font-extrabold text-white sm:text-6xl md:text-7xl"
+                        : "py-2 text-xl font-semibold text-slate-400 sm:text-2xl md:text-3xl"
+                    }`}
+                    style={{
+                      opacity,
+                      transform: `translateY(${
+                        isActive ? 0 : isPast ? -absoluteDistance * 8 : absoluteDistance * 10
+                      }px) scale(${scale})`,
+                      transitionTimingFunction: TRANSCRIPT_CENTER_EASING,
+                    }}
+                  >
+                    {segment.text}
+                  </p>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 
@@ -286,10 +382,25 @@ export default function Screen4Page() {
         src={selectedUrl || undefined}
         loop
         autoPlay
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={() => {
+        onTimeUpdate={syncTranscript}
+        onSeeking={syncTranscript}
+        onSeeked={syncTranscript}
+        onLoadedMetadata={syncTranscript}
+        onPlay={() => {
+          setIsPlaying(true);
+          syncTranscript();
+          startTranscriptFrame();
+        }}
+        onPause={() => {
           setIsPlaying(false);
+          syncTranscript();
+          stopTranscriptFrame();
+        }}
+        onEnded={() => {
+          activeIndexRef.current = -1;
+          setActiveIndex(-1);
+          setTrackOffset(0);
+          syncTranscript();
         }}
       />
     </div>
