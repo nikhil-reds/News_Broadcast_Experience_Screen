@@ -71,7 +71,9 @@ export default function RecordingLooper({
   const [soundBlocked, setSoundBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const query = recordingSourceQuery(compositeBackgroundId ? { camera: 1 } : source);
+  // The composite is rendered from the same edited highlight filename as the
+  // source video; do not fall back to camera 01 when a background is enabled.
+  const query = recordingSourceQuery(source);
 
   const publication = useScreenPublication<{ videoUrl: string; filename: string }>(screenId ?? null);
   useEffect(() => {
@@ -148,7 +150,7 @@ export default function RecordingLooper({
   // Match Screen 5's English source: the latest saved original recording,
   // excluding the 16 kHz derivative made for transcription.
   useEffect(() => {
-    if (!originalAudio) return;
+    if (!originalAudio && !englishSubtitles) return;
     let cancelled = false;
 
     const fetchOriginalAudio = async () => {
@@ -171,7 +173,7 @@ export default function RecordingLooper({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [originalAudio]);
+  }, [englishSubtitles, originalAudio]);
 
   // Screen 8's subtitle endpoint maps English transcript cues to the edited
   // reel timeline, so captions follow the video cuts instead of the source

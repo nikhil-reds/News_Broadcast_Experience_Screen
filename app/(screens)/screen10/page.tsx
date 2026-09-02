@@ -10,11 +10,6 @@ interface AdCampaign {
   code: string;
 }
 
-interface AudioFileItem {
-  filename: string;
-  url: string;
-}
-
 /**
  * Screen 10 mirrors Screen 09's rotation exactly (same campaigns, same
  * clock) so the two HDMI outputs never show conflicting sponsors — it just
@@ -35,11 +30,10 @@ export default function Screen10Page() {
   const [campaigns, setCampaigns] = useState<AdCampaign[]>(FALLBACK_CAMPAIGNS);
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [reelUrl, setReelUrl] = useState<string | null>(null);
-  const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null);
   const [soundBlocked, setSoundBlocked] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Fixed Screen 7-style green-screen composite — the same source as Screen 09.
+  // Use the Screen 7-style composite built from the edited highlight reel.
   useEffect(() => {
     let cancelled = false;
     const fetchLatestReel = async () => {
@@ -47,8 +41,10 @@ export default function Screen10Page() {
         const res = await fetch("/api/save-recording?kind=highlight");
         if (!res.ok) return;
         const data = await res.json();
-        const list: { filename: string }[] = data.recordings || [];
-        if (list.length > 0 && !cancelled) setReelUrl(composedOutputUrl("newsroom-blue", list[0].filename));
+        const list: { filename: string; url: string }[] = data.recordings || [];
+        if (list.length > 0 && !cancelled) {
+          setReelUrl(composedOutputUrl("newsroom-blue", list[0].filename));
+        }
       } catch {
         // Keep whatever reel is already on screen.
       }
@@ -61,33 +57,8 @@ export default function Screen10Page() {
     };
   }, []);
 
-  useEffect(() => {
-    const fetchOriginalAudio = async () => {
-      try {
-        const res = await fetch("/api/save-audio");
-        if (!res.ok) return;
-        const data = await res.json();
-        const original = (data.audioFiles as AudioFileItem[] | undefined)?.find(
-          (file) => file.filename !== "master-audio-16k.wav"
-        );
-        if (original) setOriginalAudioUrl(original.url);
-      } catch {
-        // The video remains playable while the original audio source retries on reload.
-      }
-    };
-    fetchOriginalAudio();
-  }, []);
-
-  useEffect(() => {
-    if (!originalAudioUrl || !audioRef.current) return;
-    audioRef.current
-      .play()
-      .then(() => setSoundBlocked(false))
-      .catch(() => setSoundBlocked(true));
-  }, [originalAudioUrl]);
-
   const enableAudio = () => {
-    audioRef.current
+    videoRef.current
       ?.play()
       .then(() => setSoundBlocked(false))
       .catch(() => setSoundBlocked(true));
@@ -148,11 +119,17 @@ export default function Screen10Page() {
             {reelUrl ? (
               <video
                 key={reelUrl}
+                ref={videoRef}
                 src={reelUrl}
                 autoPlay
                 loop
-                muted
                 playsInline
+                onLoadedData={() => {
+                  videoRef.current
+                    ?.play()
+                    .then(() => setSoundBlocked(false))
+                    .catch(() => setSoundBlocked(true));
+                }}
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -168,8 +145,6 @@ export default function Screen10Page() {
                 </div>
               </div>
             )}
-            <audio ref={audioRef} src={originalAudioUrl || undefined} autoPlay loop />
-
             {/* Top Video Status Overlays */}
             <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-10">
               <div className="flex items-center gap-2 bg-slate-950/60 backdrop-blur-sm px-2.5 py-1 rounded-md border border-slate-800 text-[10px] font-mono text-slate-300">
@@ -186,7 +161,7 @@ export default function Screen10Page() {
             </div>
             {soundBlocked && (
               <div className="absolute bottom-6 right-6 z-20 rounded-lg border border-slate-700 bg-slate-950/85 px-3 py-2 text-xs font-mono text-slate-200">
-                🔊 Click video to enable original audio
+                🔊 Click video to enable synchronized audio
               </div>
             )}
       </section>

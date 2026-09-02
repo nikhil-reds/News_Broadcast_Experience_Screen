@@ -41,6 +41,7 @@ export default function Screen8Page() {
 
   const [reelUrl, setReelUrl] = useState<string | null>(null);
   const [reelFilename, setReelFilename] = useState<string | null>(null);
+  const [backgroundId, setBackgroundId] = useState("newsroom-blue");
 
   const [language, setLanguage] = useState<string>("English");
   const [cues, setCues] = useState<TimedCue[]>([]);
@@ -50,7 +51,6 @@ export default function Screen8Page() {
   const [videoTime, setVideoTime] = useState<number>(0);
   const [soundBlocked, setSoundBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const attemptedRef = useRef<Set<string>>(new Set());
 
   const filenameFromUrl = (url: string) => url.split("/").pop() || "";
@@ -70,7 +70,24 @@ export default function Screen8Page() {
     }
   }, []);
 
-  // ---- Data loading: fixed green-screen composite from edited reel ----------
+  // ---- Follow Screen 7's selected background -------------------------------
+  useEffect(() => {
+    let cancelled = false;
+    const fetchBackground = async () => {
+      const session = await fetchCurrentSession();
+      if (!cancelled && session?.selectedBackgroundId) {
+        setBackgroundId(session.selectedBackgroundId);
+      }
+    };
+    fetchBackground();
+    const interval = setInterval(fetchBackground, REEL_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // ---- Data loading: use Screen 7's composite of the edited highlight reel -
   useEffect(() => {
     let cancelled = false;
     const fetchLatestReel = async () => {
@@ -80,7 +97,7 @@ export default function Screen8Page() {
         const data = await res.json();
         const list: RecordingItem[] = data.recordings || [];
         if (list.length > 0 && !cancelled) {
-          setReelUrl(composedOutputUrl("newsroom-blue", list[0].filename));
+          setReelUrl(composedOutputUrl(backgroundId, list[0].filename));
           setReelFilename(list[0].filename);
         }
       } catch {
@@ -93,7 +110,7 @@ export default function Screen8Page() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, []);
+  }, [backgroundId]);
 
   // ---- Transcription via Docker Whisper ------------------------------------
   const runTranscription = useCallback(async (url: string) => {
@@ -163,17 +180,7 @@ export default function Screen8Page() {
     })();
   }, [selectedUrl, checkTranscriptExists, runTranscription]);
 
-  // Screen 5's English source is this selected original audio. Keep the
-  // highlight reel muted and use the original track as the audible source.
-  useEffect(() => {
-    if (!selectedUrl || !audioRef.current) return;
-    audioRef.current
-      .play()
-      .then(() => setSoundBlocked(false))
-      .catch(() => setSoundBlocked(true));
-  }, [selectedUrl]);
-
-  // ---- Subtitle cues: composite footage uses the original camera timeline. --
+  // ---- Subtitle cues: map the base English transcript to edited reel time. --
   useEffect(() => {
     if (!selectedUrl || !reelFilename || !hasTranscript) return;
     let cancelled = false;
@@ -182,12 +189,13 @@ export default function Screen8Page() {
       setCuesError(null);
       try {
         const res = await fetch(
-          `/api/transcript/${language.toLowerCase()}?sourceAudio=${encodeURIComponent(selectedUrl)}`
+          `/api/subtitle-cues?reelFilename=${encodeURIComponent(reelFilename)}` +
+            `&sourceAudio=${encodeURIComponent(selectedUrl)}&language=${encodeURIComponent(language)}`
         );
         const data = await res.json();
         if (cancelled) return;
-        if (res.ok && Array.isArray(data.transcript?.segments)) {
-          setCues(data.transcript.segments);
+        if (res.ok && Array.isArray(data.cues)) {
+          setCues(data.cues);
         } else {
           setCues([]);
           setCuesError(data.error || "Failed to load subtitle cues");
@@ -223,7 +231,7 @@ export default function Screen8Page() {
   const activeCue = cues.find((c) => videoTime >= c.start && videoTime <= c.end) ?? null;
 
   const enableAudio = () => {
-    audioRef.current
+    videoRef.current
       ?.play()
       .then(() => setSoundBlocked(false))
       .catch(() => setSoundBlocked(true));
@@ -280,12 +288,15 @@ export default function Screen8Page() {
               src={reelUrl}
               autoPlay
               loop
-              muted
               controls
               playsInline
               onTimeUpdate={() => videoRef.current && setVideoTime(videoRef.current.currentTime)}
-              onPlay={enableAudio}
-              onPause={() => audioRef.current?.pause()}
+              onLoadedData={() => {
+                videoRef.current
+                  ?.play()
+                  .then(() => setSoundBlocked(false))
+                  .catch(() => setSoundBlocked(true));
+              }}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -293,11 +304,9 @@ export default function Screen8Page() {
               No highlight reel yet — record all 3 cameras to generate one.
             </div>
           )}
-          <audio ref={audioRef} src={selectedUrl || undefined} autoPlay loop />
-
           {soundBlocked && (
             <div className="absolute right-4 top-4 rounded-lg border border-slate-700 bg-slate-950/85 px-3 py-2 text-xs font-mono text-slate-200">
-              🔊 Click video to enable original audio
+              🔊 Click video to enable synchronized audio
             </div>
           )}
 

@@ -13,7 +13,7 @@ export default function Screen11HighlightPlayer() {
         <section className="min-h-0 overflow-hidden bg-black">
           <RecordingLooper
             source={{ highlight: true }}
-            originalAudio
+            muted={false}
             englishSubtitles
             compositeBackgroundId="newsroom-blue"
             containerClassName="h-full w-full bg-black"

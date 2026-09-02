@@ -25,11 +25,10 @@ const REEL_POLL_MS = 3000;
 export default function Screen9Page() {
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [reelUrl, setReelUrl] = useState<string | null>(null);
-  const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null);
   const [soundBlocked, setSoundBlocked] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Fixed Screen 7-style green-screen composite, bannered here for broadcast.
+  // Use the Screen 7-style composite built from the edited highlight reel.
   useEffect(() => {
     let cancelled = false;
     const fetchLatestReel = async () => {
@@ -37,8 +36,10 @@ export default function Screen9Page() {
         const res = await fetch("/api/save-recording?kind=highlight");
         if (!res.ok) return;
         const data = await res.json();
-        const list: { filename: string }[] = data.recordings || [];
-        if (list.length > 0 && !cancelled) setReelUrl(composedOutputUrl("newsroom-blue", list[0].filename));
+        const list: { filename: string; url: string }[] = data.recordings || [];
+        if (list.length > 0 && !cancelled) {
+          setReelUrl(composedOutputUrl("newsroom-blue", list[0].filename));
+        }
       } catch {
         // Keep whatever reel is already on screen.
       }
@@ -51,33 +52,8 @@ export default function Screen9Page() {
     };
   }, []);
 
-  useEffect(() => {
-    const fetchOriginalAudio = async () => {
-      try {
-        const res = await fetch("/api/save-audio");
-        if (!res.ok) return;
-        const data = await res.json();
-        const original = (data.audioFiles as {filename: string, url: string}[] | undefined)?.find(
-          (file) => file.filename !== "master-audio-16k.wav"
-        );
-        if (original) setOriginalAudioUrl(original.url);
-      } catch {
-        // The video remains playable while the original audio source retries on reload.
-      }
-    };
-    fetchOriginalAudio();
-  }, []);
-
-  useEffect(() => {
-    if (!originalAudioUrl || !audioRef.current) return;
-    audioRef.current
-      .play()
-      .then(() => setSoundBlocked(false))
-      .catch(() => setSoundBlocked(true));
-  }, [originalAudioUrl]);
-
   const enableAudio = () => {
-    audioRef.current
+    videoRef.current
       ?.play()
       .then(() => setSoundBlocked(false))
       .catch(() => setSoundBlocked(true));
@@ -124,11 +100,17 @@ export default function Screen9Page() {
         {reelUrl ? (
           <video
             key={reelUrl}
+            ref={videoRef}
             src={reelUrl}
             autoPlay
             loop
-            muted
             playsInline
+            onLoadedData={() => {
+              videoRef.current
+                ?.play()
+                .then(() => setSoundBlocked(false))
+                .catch(() => setSoundBlocked(true));
+            }}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -140,8 +122,6 @@ export default function Screen9Page() {
             </div>
           </div>
         )}
-        <audio ref={audioRef} src={originalAudioUrl || undefined} autoPlay loop />
-
         <div className="pointer-events-none absolute left-4 right-4 top-4 z-10 flex items-center justify-between">
           <div className="flex items-center gap-2 rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-1 font-mono text-[10px] text-slate-300 backdrop-blur-sm">
             <span className={`h-1.5 w-1.5 rounded-full ${reelUrl ? "bg-indigo-500 animate-ping" : "bg-slate-600"}`} />
@@ -150,7 +130,7 @@ export default function Screen9Page() {
         </div>
         {soundBlocked && (
           <div className="absolute bottom-6 right-6 z-20 rounded-lg border border-slate-700 bg-slate-950/85 px-3 py-2 text-xs font-mono text-slate-200">
-            🔊 Click video to enable original audio
+            🔊 Click video to enable synchronized audio
           </div>
         )}
       </section>
@@ -158,4 +138,3 @@ export default function Screen9Page() {
     </div>
   );
 }
-
