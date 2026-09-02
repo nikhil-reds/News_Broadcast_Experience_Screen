@@ -39,7 +39,12 @@ def load_model(model: str, model_path: str | None, device: torch.device):
         loaded = torch.jit.load(model_path, map_location=device)
     else:
         model_name = "resnet50" if model == "resnet50" else "mobilenetv3"
-        loaded = torch.hub.load("PeterL1n/RobustVideoMatting", model_name, pretrained=True)
+        loaded = torch.hub.load(
+            "PeterL1n/RobustVideoMatting",
+            model_name,
+            pretrained=True,
+            trust_repo=True,
+        )
     return loaded.to(device).eval()
 
 
@@ -56,9 +61,13 @@ def main():
     args = parser.parse_args()
 
     started = time.time()
+    print(f"[RVM] starting model={args.model} device={args.device} downsample={args.downsample_ratio}", flush=True)
+    phase_started = time.time()
     device = choose_device(args.device)
     model = load_model(args.model, args.model_path, device)
+    print(f"[RVM] model initialization: {round((time.time() - phase_started) * 1000)} ms device={device}", flush=True)
 
+    phase_started = time.time()
     cap = cv2.VideoCapture(args.input)
     if not cap.isOpened():
         raise RuntimeError(f"Could not open input video {args.input}")
@@ -67,6 +76,11 @@ def main():
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    print(
+        f"[RVM] input decode: {round((time.time() - phase_started) * 1000)} ms "
+        f"width={width} height={height} fps={fps:.3f} frames={total_frames}",
+        flush=True,
+    )
 
     Path(args.foreground).parent.mkdir(parents=True, exist_ok=True)
     Path(args.alpha).parent.mkdir(parents=True, exist_ok=True)
@@ -82,6 +96,7 @@ def main():
     alpha_min = 1.0
     alpha_max = 0.0
 
+    inference_started = time.time()
     try:
         with torch.inference_mode():
             while True:
@@ -113,6 +128,12 @@ def main():
         foreground_writer.release()
         alpha_writer.release()
 
+    print(
+        f"[RVM] inference/output encode: {round((time.time() - inference_started) * 1000)} ms "
+        f"frames={frames_written}",
+        flush=True,
+    )
+
     if frames_written == 0:
         raise RuntimeError("RVM wrote zero frames")
 
@@ -137,7 +158,10 @@ def main():
     if metadata["alphaMean"] >= 0.999:
         raise RuntimeError("RVM alpha appears fully opaque")
 
+    metadata_started = time.time()
     Path(args.metadata).write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    print(f"[RVM] metadata write: {round((time.time() - metadata_started) * 1000)} ms", flush=True)
+    print(f"[RVM] total: {round((time.time() - started) * 1000)} ms", flush=True)
     print(json.dumps(metadata), flush=True)
 
 
