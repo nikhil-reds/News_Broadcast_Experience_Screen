@@ -16,7 +16,8 @@ interface AudioFileItem {
 }
 
 const POLL_MS = 3000;
-const CHUNK_DISPLAY_SECONDS = 1;
+// Give each 10-word chunk a comfortable reading pace (~200 words per minute).
+const CHUNK_DISPLAY_SECONDS = 3;
 const WORDS_PER_CHUNK = 10;
 const CHUNK_TRANSITION_MS = 260;
 const TRANSCRIPT_CHUNK_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
