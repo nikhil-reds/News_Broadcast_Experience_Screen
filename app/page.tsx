@@ -186,26 +186,7 @@ export default function HomePage() {
 
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* ESP32 panel telemetry */}
-          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800">
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${esp32Status?.connected ? "bg-emerald-400 animate-pulse" : "bg-slate-600"
-                }`}
-            />
-            <div className="leading-tight">
-              <p className="text-[11px] font-semibold text-slate-200">
-                ESP32 {esp32Status?.connected ? "Live" : "Offline"}
-                {esp32Status?.path ? ` · ${esp32Status.path}` : ""}
-              </p>
-              <p className="text-[10px] font-mono text-slate-500">
-                {lastEsp32Frame
-                  ? `${lastEsp32Frame.raw} received`
-                  : "1 start · 0 stop"}
-              </p>
-            </div>
-          </div>
-        </div>
+
       </header>
 
       {/* Main Studio Grid */}
