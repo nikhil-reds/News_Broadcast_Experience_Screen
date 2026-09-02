@@ -22,9 +22,19 @@ const ADS = [
 const ROTATE_MS = 10000;
 const REEL_POLL_MS = 3000;
 
+interface TimedCue {
+  start: number;
+  end: number;
+  text: string;
+}
+
 export default function Screen9Page() {
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [reelUrl, setReelUrl] = useState<string | null>(null);
+  const [reelFilename, setReelFilename] = useState<string | null>(null);
+  const [englishAudioUrl, setEnglishAudioUrl] = useState<string | null>(null);
+  const [cues, setCues] = useState<TimedCue[]>([]);
+  const [videoTime, setVideoTime] = useState(0);
   const [soundBlocked, setSoundBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -39,6 +49,7 @@ export default function Screen9Page() {
         const list: { filename: string; url: string }[] = data.recordings || [];
         if (list.length > 0 && !cancelled) {
           setReelUrl(composedOutputUrl("newsroom-blue", list[0].filename));
+          setReelFilename(list[0].filename);
         }
       } catch {
         // Keep whatever reel is already on screen.
@@ -51,6 +62,41 @@ export default function Screen9Page() {
       clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/save-audio")
+      .then((res) => (res.ok ? res.json() : { audioFiles: [] }))
+      .then((data) => {
+        const original = (data.audioFiles as { filename: string; url: string }[] | undefined)?.find(
+          (file) => file.filename !== "master-audio-16k.wav"
+        );
+        if (!cancelled) setEnglishAudioUrl(original?.url ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!reelFilename || !englishAudioUrl) return;
+    let cancelled = false;
+    fetch(
+      `/api/subtitle-cues?reelFilename=${encodeURIComponent(reelFilename)}` +
+        `&sourceAudio=${encodeURIComponent(englishAudioUrl)}&language=English`
+    )
+      .then((res) => (res.ok ? res.json() : { cues: [] }))
+      .then((data) => {
+        if (!cancelled) setCues(Array.isArray(data.cues) ? data.cues : []);
+      })
+      .catch(() => {
+        if (!cancelled) setCues([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [englishAudioUrl, reelFilename]);
 
   const enableAudio = () => {
     videoRef.current
@@ -105,6 +151,7 @@ export default function Screen9Page() {
             autoPlay
             loop
             playsInline
+            onTimeUpdate={() => setVideoTime(videoRef.current?.currentTime ?? 0)}
             onLoadedData={() => {
               videoRef.current
                 ?.play()
@@ -121,7 +168,14 @@ export default function Screen9Page() {
               <div className="h-10 w-3/4 rounded-xl bg-slate-800/55" />
             </div>
           </div>
-        )}
+          )}
+          {cues.find((cue) => videoTime >= cue.start && videoTime <= cue.end) && (
+            <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex justify-center">
+              <p className="max-w-[90%] rounded-lg bg-black/70 px-4 py-2 text-center text-xl font-extrabold leading-snug text-white [text-shadow:0_2px_4px_rgba(0,0,0,0.8)]">
+                {cues.find((cue) => videoTime >= cue.start && videoTime <= cue.end)?.text}
+              </p>
+            </div>
+          )}
         <div className="pointer-events-none absolute left-4 right-4 top-4 z-10 flex items-center justify-between">
           <div className="flex items-center gap-2 rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-1 font-mono text-[10px] text-slate-300 backdrop-blur-sm">
             <span className={`h-1.5 w-1.5 rounded-full ${reelUrl ? "bg-indigo-500 animate-ping" : "bg-slate-600"}`} />
