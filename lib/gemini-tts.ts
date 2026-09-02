@@ -16,6 +16,8 @@ const GEMINI_API_BASE = (
 export const GEMINI_TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-2.5-flash-preview-tts";
 /** One of Gemini's prebuilt voices; see ai.google.dev/gemini-api/docs/speech-generation. */
 const GEMINI_TTS_VOICE = process.env.GEMINI_TTS_VOICE || "Kore";
+const GEMINI_TTS_MALE_VOICE = process.env.GEMINI_TTS_MALE_VOICE || "Charon";
+const GEMINI_TTS_FEMALE_VOICE = process.env.GEMINI_TTS_FEMALE_VOICE || "Kore";
 
 function apiKey(): string {
   const key = process.env.GEMINI_API_KEY;
@@ -65,7 +67,13 @@ function sampleRateFromMimeType(mimeType: string): number {
  * string (German/Hindi/French/Spanish) and it comes back speaking that
  * language in the configured preset voice. Returns a playable WAV buffer.
  */
-export async function synthesizeGeminiSpeech(text: string): Promise<Buffer> {
+export function fallbackVoiceForGender(gender?: string | null): string {
+  if (gender === "male") return GEMINI_TTS_MALE_VOICE;
+  if (gender === "female") return GEMINI_TTS_FEMALE_VOICE;
+  return GEMINI_TTS_VOICE;
+}
+
+export async function synthesizeGeminiSpeech(text: string, voiceName = GEMINI_TTS_VOICE): Promise<Buffer> {
   const controller = new AbortController();
   // Same generous timeout as the other model clients in this repo.
   const timeoutId = setTimeout(() => controller.abort(), 300000);
@@ -81,7 +89,7 @@ export async function synthesizeGeminiSpeech(text: string): Promise<Buffer> {
           generationConfig: {
             responseModalities: ["AUDIO"],
             speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: GEMINI_TTS_VOICE } },
+              voiceConfig: { prebuiltVoiceConfig: { voiceName } },
             },
           },
         }),

@@ -8,7 +8,7 @@ import {
 import { recordingSourceQuery } from "@/lib/camera-recordings";
 import { fetchCurrentSession, patchSession } from "@/lib/current-session";
 
-type ComposeStatus = "waiting" | "active" | "delayed" | "paused" | "completed" | "failed";
+type ComposeStatus = "waiting" | "active" | "delayed" | "paused" | "completed" | "fallback-ready" | "failed";
 
 interface ComposeResponse {
   status?: ComposeStatus;
@@ -16,6 +16,8 @@ interface ComposeResponse {
   url?: string;
   cached?: boolean;
   error?: string;
+  fallback?: string | null;
+  fallbackReason?: string | null;
 }
 
 interface RecordingItem {
@@ -26,15 +28,15 @@ interface RecordingItem {
 const POLL_INTERVAL_MS = 700;
 /** Give up (and say so) rather than polling a dead worker forever. */
 const COMPOSE_TIMEOUT_MS = 3 * 60 * 1000;
-/** How often to check camera 1 for a newer take. */
+/** How often to check for a newer edited highlight reel. */
 const SOURCE_POLL_MS = 3000;
 
-const CAMERA_1_QUERY = recordingSourceQuery({ camera: 1 });
+const EDITED_REEL_QUERY = recordingSourceQuery({ highlight: true });
 
 /**
  * One render in progress, keyed by `${backgroundId}::${sourceFilename}` — a
- * new camera-1 take is a different pair even for the same background, so it
- * never collides with (or gets mistaken for) a render of the previous take.
+ * new edited reel is a different pair even for the same background, so it
+ * never collides with (or gets mistaken for) a render of the previous reel.
  */
 interface InFlightCompose {
   /** Set on unmount / settle so a late fetch resolution can't touch state. */
@@ -58,6 +60,7 @@ export default function Screen7Page() {
   const [readyIds, setReadyIds] = useState<Set<string>>(new Set()); // composite keys, already rendered this session
   const [warmingIds, setWarmingIds] = useState<Set<string>>(new Set()); // composite keys, rendering quietly
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   // Composited backgrounds now carry real audio (see composeGreenScreenBackground
   // in lib/ffmpeg.ts) — unmuted autoplay can be silently blocked by the browser
@@ -69,7 +72,7 @@ export default function Screen7Page() {
   const elapsedTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAt = useRef<number>(0);
   const selectedIdRef = useRef<string | null>(null);
-  // Caps handleVideoError's auto-retry per (background, take) so a
+  // Caps handleVideoError's auto-retry per (background, edited reel) so a
   // persistently broken render fails loud instead of flickering forever.
   const videoRetryCount = useRef<Map<string, number>>(new Map());
   const MAX_VIDEO_RETRIES = 2;
@@ -92,12 +95,12 @@ export default function Screen7Page() {
     selectedIdRef.current = selectedId;
   }, [selectedId]);
 
-  // Camera 1's latest take — the thing this whole screen composites against.
+  // Latest edited highlight reel — the base video this whole screen composites against.
   useEffect(() => {
     let cancelled = false;
     const fetchLatestSource = async () => {
       try {
-        const res = await fetch(`/api/save-recording?${CAMERA_1_QUERY}`);
+        const res = await fetch(`/api/save-recording?${EDITED_REEL_QUERY}`);
         if (!res.ok) return;
         const data = await res.json();
         const list: RecordingItem[] = data.recordings || [];
@@ -187,7 +190,7 @@ export default function Screen7Page() {
   };
 
   const showComposed = (backgroundId: string, url: string) => {
-    // Cache-buster: the URL is stable per (background, take) but this guards
+    // Cache-buster: the URL is stable per (background, edited reel) but this guards
     // against `key={videoSrc}` not remounting if a caller ever reuses one.
     setVideoSrc(`${url}?t=${Date.now()}`);
     setSelectedId(backgroundId);
@@ -228,7 +231,12 @@ export default function Screen7Page() {
 
         if (!ownsCompose(key, entry)) return;
 
-        if (data.status === "completed" && data.url) {
+        if ((data.status === "completed" || data.status === "fallback-ready") && data.url) {
+          setFallbackMessage(
+            data.status === "fallback-ready"
+              ? `RVM matte failed; showing chromakey fallback${data.fallbackReason ? ` (${data.fallbackReason})` : ""}.`
+              : null
+          );
           if (entry.autoShow && (selectedIdRef.current === null || selectedIdRef.current === backgroundId)) {
             showComposed(backgroundId, data.url);
           }
@@ -261,12 +269,12 @@ export default function Screen7Page() {
   };
 
   /**
-   * Renders (or reuses) one (background, take) pair. `silent` suppresses the
+   * Renders (or reuses) one (background, edited reel) pair. `silent` suppresses the
    * big loader/error banner (used for pre-warming); `autoShow` swaps the
    * result into the video the moment it's ready even while silent — used
    * both for the very first background to finish (nobody's picked one yet)
    * and for a silent refresh of the *currently selected* background after a
-   * new camera-1 take lands, so the screen updates on its own.
+   * new edited reel lands, so the screen updates on its own.
    */
   const ensureComposed = (
     backgroundId: string,
@@ -277,7 +285,7 @@ export default function Screen7Page() {
     const existing = inFlight.current.get(key);
     if (existing) {
       // Already rendering — attach instead of firing a second request: there
-      // is exactly one ffmpeg pass per (background, take) pair either way.
+      // is exactly one compose pass per (background, edited reel) pair either way.
       if (!opts.silent) existing.silent = false;
       if (opts.autoShow) existing.autoShow = true;
       return;
@@ -309,7 +317,12 @@ export default function Screen7Page() {
           return;
         }
 
-        if (data.status === "completed" && data.url) {
+        if ((data.status === "completed" || data.status === "fallback-ready") && data.url) {
+          setFallbackMessage(
+            data.status === "fallback-ready"
+              ? `RVM matte failed; showing chromakey fallback${data.fallbackReason ? ` (${data.fallbackReason})` : ""}.`
+              : null
+          );
           if (entry.autoShow && (selectedIdRef.current === null || selectedIdRef.current === backgroundId)) {
             showComposed(backgroundId, data.url);
           }
@@ -333,10 +346,10 @@ export default function Screen7Page() {
     })();
   };
 
-  // Whenever camera 1's take changes (including the first time it's known):
+  // Whenever the edited reel changes (including the first time it's known):
   // pre-warm every background against it, and if one is already selected,
-  // auto-show it again the moment its refresh against the new take is ready
-  // — so the screen always keeps showing an edited feed, never a stale or
+  // auto-show it again the moment its refresh against the new reel is ready
+  // — so the screen always keeps showing the latest edited feed, never a stale or
   // blank one, without the operator re-clicking anything.
   useEffect(() => {
     if (!sourceFilename) return;
@@ -351,10 +364,11 @@ export default function Screen7Page() {
     if (!sourceFilename) return;
     if (backgroundId === selectedId || backgroundId === pendingId) return;
     setErrorMessage(null);
+    setFallbackMessage(null);
 
     const key = keyFor(backgroundId, sourceFilename);
     if (readyIds.has(key)) {
-      // Already rendered against the current take — swap instantly.
+      // Already rendered against the current edited reel — swap instantly.
       setVideoSrc(`${composedOutputUrl(backgroundId, sourceFilename)}?t=${Date.now()}`);
       setSelectedId(backgroundId);
       selectedIdRef.current = backgroundId;
@@ -368,13 +382,13 @@ export default function Screen7Page() {
   };
 
   /**
-   * The "ready" dot means the client saw this (background, take) render
+   * The "ready" dot means the client saw this (background, edited reel) render
    * successfully at some point in this session — it does NOT mean the
    * object is still in MinIO right now (e.g. it was cleared, or a worker
    * crash left a short/corrupt file). A missing or unplayable src otherwise
    * fails silently as a black rectangle with zero feedback, so: un-mark it
    * as ready and kick off a fresh render instead of leaving the operator
-   * staring at black — never fall back to an uncomposited take, there isn't
+   * staring at black — never fall back to an uncomposited reel, there isn't
    * one to fall back to anymore.
    */
   const handleVideoError = () => {
@@ -445,7 +459,7 @@ export default function Screen7Page() {
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm font-mono">
-                {sourceFilename ? "Compositing first background…" : "Waiting for camera 1 to record a take…"}
+                {sourceFilename ? "Preparing first edited-background composite…" : "Waiting for edited video…"}
               </div>
             )}
 
@@ -468,11 +482,16 @@ export default function Screen7Page() {
             )}
           </div>
 
-          {errorMessage && (
-            <div className="absolute left-6 top-6 z-20 rounded-xl border border-rose-500/30 bg-rose-950/85 p-3.5 text-xs text-rose-300 backdrop-blur-md">
-              {errorMessage}
-            </div>
-          )}
+        {errorMessage && (
+          <div className="absolute left-6 top-6 z-20 rounded-xl border border-rose-500/30 bg-rose-950/85 p-3.5 text-xs text-rose-300 backdrop-blur-md">
+            {errorMessage}
+          </div>
+        )}
+        {fallbackMessage && !errorMessage && (
+          <div className="absolute left-6 top-6 z-20 rounded-xl border border-amber-500/30 bg-amber-950/85 p-3.5 text-xs text-amber-200 backdrop-blur-md">
+            {fallbackMessage}
+          </div>
+        )}
         </section>
 
         {/* Background picker */}

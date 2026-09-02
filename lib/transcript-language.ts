@@ -3,6 +3,7 @@ import { TRANSCRIPTS_BUCKET, uploadObject } from "@/lib/minio";
 import { TRANSLATION_MODEL, translateSegmentTexts } from "@/lib/translation";
 import { generateSrt, type TranscriptSegment } from "@/lib/transcribe";
 import { enqueueAudioConversion } from "@/lib/queue";
+import { ensureSpeakerProfile } from "@/lib/speaker-profile";
 
 export interface LanguageOpts {
   language: string;
@@ -27,6 +28,10 @@ export interface TranscriptLanguageResult {
 function filenameFromSourceAudio(sourceAudio: string): string {
   const last = sourceAudio.split("/").pop() || "";
   return decodeURIComponent(last);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown error";
 }
 
 /**
@@ -95,9 +100,18 @@ export async function persistTranslation(params: {
   // this was called by a background worker or the on-demand cache-fill path.
   if (flatText.trim()) {
     try {
-      await enqueueAudioConversion(langCode, translation.id, filename, flatText, generationId);
-    } catch (err: any) {
-      console.error(`Failed to enqueue audio conversion for "${filename}" (${language}): ${err.message}`);
+      const profile = await ensureSpeakerProfile(filename).catch((err: unknown) => {
+        console.error(`Failed to resolve speaker profile for "${filename}": ${errorMessage(err)}`);
+        return null;
+      });
+      await enqueueAudioConversion(langCode, translation.id, filename, flatText, generationId, {
+        sourceAudioFilename: filename,
+        speakerGender: profile?.gender ?? "unknown",
+        referenceAudioBucket: profile?.referenceBucket,
+        referenceAudioObjectKey: profile?.referenceObjectKey,
+      });
+    } catch (err: unknown) {
+      console.error(`Failed to enqueue audio conversion for "${filename}" (${language}): ${errorMessage(err)}`);
     }
   }
 
@@ -201,6 +215,7 @@ export async function getTranscriptForLanguage(
     filename,
     segments: row.segments,
     translatedTexts,
+    generationId: row.generationId,
   });
 
   const segments: TranscriptSegment[] = row.segments.map((s, i) => ({

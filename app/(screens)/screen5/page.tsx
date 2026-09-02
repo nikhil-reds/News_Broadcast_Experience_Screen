@@ -7,7 +7,7 @@ import { useNexmosphere } from "@/lib/use-nexmosphere";
  * Screen 05 — Audio Language Change.
  *
  * The Nexmosphere rotary knob walks the language ring; the screen swaps the
- * <audio> source to that language's Gemini TTS take (English plays the
+ * <audio> source to that language's matched voice take (English plays the
  * original recording). Turning the knob only moves the highlight — the source
  * switch is committed once the knob settles, so spinning past three languages
  * reloads the player once rather than three times.
@@ -34,6 +34,9 @@ interface AudioLanguageEntry {
   ready: boolean;
   translated: boolean;
   original: boolean;
+  speakerGender?: string;
+  voiceMode?: string;
+  fallback?: boolean;
 }
 
 const FLAGS: Record<string, string> = {
@@ -62,7 +65,7 @@ const FALLBACK_LANGUAGES: AudioLanguageEntry[] = [
 
 /** Knob settling time before the audio source is actually swapped. */
 const COMMIT_DELAY_MS = 400;
-/** How often to re-check whether a queued Gemini TTS take has landed. */
+/** How often to re-check whether a queued translated TTS take has landed. */
 const POLL_MS = 3000;
 const TRANSCRIPT_CENTER_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 
@@ -196,7 +199,15 @@ export default function Screen5Page() {
     if (active.ready) {
       const readyTimer = window.setTimeout(() => {
         setIsPreparing(false);
-        setStatus(`Playing the ${active.language} audio track`);
+        const voice =
+          active.original
+            ? "original English voice"
+            : active.voiceMode === "cloned"
+            ? "matched cloned voice"
+            : active.speakerGender && active.speakerGender !== "unknown"
+            ? `${active.speakerGender} fallback voice`
+            : "default fallback voice";
+        setStatus(`Playing the ${active.language} audio track · ${voice}`);
       }, 0);
       return () => window.clearTimeout(readyTimer);
     }
@@ -206,7 +217,7 @@ export default function Screen5Page() {
 
     (async () => {
       setIsPreparing(true);
-      setStatus(`Preparing ${active.language} audio — translating and synthesizing…`);
+      setStatus(`Preparing ${active.language} audio — matching original speaker voice…`);
       try {
         const res = await fetch("/api/audio-language", {
           method: "POST",
@@ -235,7 +246,13 @@ export default function Screen5Page() {
         if (cancelled) return;
         if (entry?.ready) {
           setIsPreparing(false);
-          setStatus(`${active.language} audio ready`);
+          const voice =
+            entry.voiceMode === "cloned"
+              ? "matched cloned voice"
+              : entry.speakerGender && entry.speakerGender !== "unknown"
+              ? `${entry.speakerGender} fallback voice`
+              : "default fallback voice";
+          setStatus(`${active.language} audio ready · ${voice}`);
           return;
         }
         timer = setTimeout(poll, POLL_MS);
@@ -390,6 +407,11 @@ export default function Screen5Page() {
                   className="w-2 h-2 rounded-full bg-slate-500"
                   title="Audio not synthesized yet"
                 />
+              )}
+              {l.ready && !l.original && l.voiceMode && (
+                <span className="text-[10px] uppercase tracking-wide text-amber-100/80">
+                  {l.voiceMode === "cloned" ? "matched" : l.speakerGender || "fallback"}
+                </span>
               )}
             </button>
           );

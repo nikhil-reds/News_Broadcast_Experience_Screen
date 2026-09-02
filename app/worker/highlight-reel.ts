@@ -18,7 +18,7 @@
 import "dotenv/config";
 import { Worker, type Job } from "bullmq";
 import { redisConnection } from "@/lib/redis";
-import { HIGHLIGHT_QUEUE, type HighlightRenderJob } from "@/lib/queue";
+import { enqueueAllBackgroundsForSource, HIGHLIGHT_QUEUE, type HighlightRenderJob } from "@/lib/queue";
 import { renderHighlightReel, FFMPEG_HIGHLIGHT_TIMEOUT_MS } from "@/lib/highlight-reel";
 import { markTaskProcessing, markTaskCompleted, markTaskFailed } from "@/lib/generation";
 import { startHeartbeat } from "@/lib/generation-heartbeat";
@@ -68,6 +68,10 @@ const worker = new Worker<HighlightRenderJob>(
         `${result.segments.length} segment(s), ${result.durationSeconds}s → ${result.url}`
     );
     await markTaskCompleted(generationId, "highlight-reel");
+    enqueueAllBackgroundsForSource(result.filename, generationId).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[${WORKER_NAME}] failed to pre-warm Screen 7 backgrounds for "${result.filename}": ${message}`);
+    });
 
     return {
       filename: result.filename,

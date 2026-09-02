@@ -24,9 +24,32 @@ model AudioFile {
   updatedAt   DateTime     @updatedAt
 
   transcripts Transcript[]
+  speakerProfile SpeakerProfile?
 
   @@index([sessionId])
   @@map("audio_files")
+}
+
+/// Voice profile derived from the original English master audio. The TTS
+/// pipeline uses its reference sample for cross-lingual cloning, and its
+/// gender/confidence as a fallback preset selector when cloning is unavailable.
+model SpeakerProfile {
+  id                  String    @id @default(uuid())
+  audioFile           AudioFile @relation(fields: [audioFileId], references: [id], onDelete: Cascade)
+  audioFileId         String    @unique
+  generationId        String?
+  gender              String    @default("unknown") // "male" | "female" | "unknown"
+  confidence          Float     @default(0)
+  pitchHz             Float?
+  referenceBucket     String    @default("speaker-reference")
+  referenceObjectKey  String
+  referenceUrl        String
+  analysisEngine      String    @default("ffmpeg-autocorrelation-v1")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([generationId])
+  @@map("speaker_profiles")
 }
 
 /// Stores camera/studio video recordings (stored in MinIO `videos` bucket)
@@ -218,6 +241,8 @@ model TranslationAudio {
   url           String
   size          Int
   engine        String                @default("CosyVoice2-0.5B")
+  voiceMode     String                @default("default-preset") // "cloned" | "gender-preset" | "default-preset"
+  speakerGender String                @default("unknown")
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
 

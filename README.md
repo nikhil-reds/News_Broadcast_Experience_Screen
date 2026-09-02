@@ -1,5 +1,7 @@
 # Multi-Camera Interactive Video System
 
+Full project documentation is available at [docs/news-broadcast-system-documentation.md](docs/news-broadcast-system-documentation.md).
+
 ## Step-by-Step Implementation Plan
 
 ## 1. Project Objective

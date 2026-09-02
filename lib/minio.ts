@@ -21,7 +21,21 @@ export const AUDIO_BUCKET = process.env.MINIO_BUCKET_AUDIO || "audio";
 export const VIDEO_BUCKET = process.env.MINIO_BUCKET_VIDEO || "videos";
 export const TRANSCRIPTS_BUCKET = process.env.MINIO_BUCKET_TRANSCRIPTS || "transcripts";
 export const TTS_AUDIO_BUCKET = process.env.MINIO_BUCKET_TTS_AUDIO || "tts-audio";
-export const ALLOWED_BUCKETS = new Set([AUDIO_BUCKET, VIDEO_BUCKET, TRANSCRIPTS_BUCKET, TTS_AUDIO_BUCKET]);
+export const SPEAKER_REFERENCE_BUCKET =
+  process.env.MINIO_BUCKET_SPEAKER_REFERENCE || "speaker-reference";
+export const ALLOWED_BUCKETS = new Set([
+  AUDIO_BUCKET,
+  VIDEO_BUCKET,
+  TRANSCRIPTS_BUCKET,
+  TTS_AUDIO_BUCKET,
+  SPEAKER_REFERENCE_BUCKET,
+]);
+
+function minioErrorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code)
+    : undefined;
+}
 
 /** Create the bucket if it does not exist yet. */
 export async function ensureBucket(bucket: string): Promise<void> {
@@ -30,8 +44,9 @@ export async function ensureBucket(bucket: string): Promise<void> {
     if (!exists) {
       await minioClient.makeBucket(bucket);
     }
-  } catch (err: any) {
-    if (err.code === "BucketAlreadyOwnedByYou" || err.code === "BucketAlreadyExists") {
+  } catch (err: unknown) {
+    const code = minioErrorCode(err);
+    if (code === "BucketAlreadyOwnedByYou" || code === "BucketAlreadyExists") {
       return;
     }
     throw err;
@@ -95,8 +110,9 @@ export async function objectExists(bucket: string, key: string): Promise<boolean
 export async function deleteObject(bucket: string, key: string): Promise<void> {
   try {
     await minioClient.removeObject(bucket, key);
-  } catch (err: any) {
-    if (err?.code === "NoSuchKey" || err?.code === "NotFound") return;
+  } catch (err: unknown) {
+    const code = minioErrorCode(err);
+    if (code === "NoSuchKey" || code === "NotFound") return;
     throw err;
   }
 }

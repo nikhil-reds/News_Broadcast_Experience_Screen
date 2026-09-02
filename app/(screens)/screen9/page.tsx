@@ -34,7 +34,7 @@ export default function Screen9Page() {
     let cancelled = false;
     const fetchLatestReel = async () => {
       try {
-        const res = await fetch("/api/save-recording?camera=1");
+        const res = await fetch("/api/save-recording?kind=highlight");
         if (!res.ok) return;
         const data = await res.json();
         const list: { filename: string }[] = data.recordings || [];

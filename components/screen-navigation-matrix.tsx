@@ -200,7 +200,10 @@ export default function ScreenNavigationMatrix({
   const remainingScreens = SCREENS.filter(s => s.category !== "Screen Control Room Multi-View");
 
   return (
-    <section className="w-full bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl space-y-6">
+    <section 
+      className="w-full p-6 rounded-2xl border border-slate-800/80 shadow-2xl space-y-6"
+      style={{ backgroundColor: '#0F2B9D' }}
+    >
       <div className="flex items-center justify-between border-b border-slate-800 pb-4">
         <div>
           <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">

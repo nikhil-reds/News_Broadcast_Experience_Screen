@@ -29,10 +29,17 @@ export interface AudioLanguageEntry {
   translated: boolean;
   /** True for the original recording, which needs no processing. */
   original: boolean;
+  speakerGender?: string;
+  voiceMode?: string;
+  fallback?: boolean;
 }
 
 function filenameFromSourceAudio(sourceAudio: string): string {
   return decodeURIComponent(sourceAudio.split("/").pop() || "");
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown error";
 }
 
 async function buildCatalogue(sourceAudio: string): Promise<{
@@ -56,13 +63,18 @@ async function buildCatalogue(sourceAudio: string): Promise<{
 
   const languages = AUDIO_LANGUAGES.map(({ language, langCode }) => {
     const translation = transcript?.translations.find((t) => t.language === language);
+    const audio = translation?.audio;
+    const isVoiceV2 = Boolean(audio?.objectKey.includes(".voice-v2."));
     return {
       language,
       langCode,
-      url: translation?.audio?.url ?? null,
-      ready: Boolean(translation?.audio?.url),
+      url: isVoiceV2 ? audio?.url ?? null : null,
+      ready: isVoiceV2 && Boolean(audio?.url),
       translated: Boolean(translation),
       original: false,
+      speakerGender: audio?.speakerGender,
+      voiceMode: audio?.voiceMode,
+      fallback: audio?.voiceMode ? audio.voiceMode !== "cloned" : undefined,
     };
   });
 
@@ -78,10 +90,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const catalogue = await buildCatalogue(sourceAudio);
-    return NextResponse.json({ sourceAudio, ...catalogue });
-  } catch (error: any) {
     return NextResponse.json(
-      { error: "Failed to list audio languages", details: error.message },
+      { sourceAudio, ...catalogue },
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { error: "Failed to list audio languages", details: errorMessage(error) },
       { status: 500 }
     );
   }
@@ -143,9 +158,13 @@ export async function POST(req: NextRequest) {
         include: { audio: true },
       });
       translation = refreshed ?? undefined;
-    } else if (!translation.audio && translation.text.trim()) {
+    } else if (
+      translation.text.trim() &&
+      (!translation.audio || !translation.audio.objectKey.includes(".voice-v2."))
+    ) {
       // Translated earlier, but the speech never landed (worker down at the
-      // time, or the job was dropped) — hand it to the TTS worker again.
+      // time, the job was dropped, or it was produced by the old preset-only
+      // voice path) — hand it to the TTS worker again.
       await enqueueAudioConversion(
         target.langCode,
         translation.id,
@@ -156,10 +175,13 @@ export async function POST(req: NextRequest) {
     }
 
     const catalogue = await buildCatalogue(sourceAudio);
-    return NextResponse.json({ sourceAudio, requested: language, ...catalogue });
-  } catch (error: any) {
     return NextResponse.json(
-      { error: `Failed to prepare ${language} audio`, details: error.message },
+      { sourceAudio, requested: language, ...catalogue },
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { error: `Failed to prepare ${language} audio`, details: errorMessage(error) },
       { status: 500 }
     );
   }

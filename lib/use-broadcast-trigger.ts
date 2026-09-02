@@ -5,6 +5,7 @@ import {
   BROADCAST_TRIGGER_CHANNEL,
   BROADCAST_TRIGGER_STORAGE_KEY,
 } from "@/lib/broadcast-trigger";
+import { subscribeSharedEventSource } from "@/lib/shared-event-source";
 
 function readActive() {
   if (typeof window === "undefined") return false;
@@ -57,27 +58,26 @@ export function useBroadcastTrigger() {
   }, []);
 
   useEffect(() => {
-    const source = new EventSource("/api/esp32/events");
-
-    source.addEventListener("status", (event) => {
-      try {
-        const status = JSON.parse((event as MessageEvent).data);
-        if (typeof status.screenActive === "boolean") setSharedActive(status.screenActive);
-      } catch (err) {
-        console.error("Bad ESP32 status payload:", err);
-      }
+    return subscribeSharedEventSource("/api/esp32/events", {
+      events: {
+        status: (event) => {
+          try {
+            const status = JSON.parse(event.data);
+            if (typeof status.screenActive === "boolean") setSharedActive(status.screenActive);
+          } catch (err) {
+            console.error("Bad ESP32 status payload:", err);
+          }
+        },
+        frame: (event) => {
+          try {
+            const frame = JSON.parse(event.data);
+            if (typeof frame.screenActive === "boolean") setSharedActive(frame.screenActive);
+          } catch (err) {
+            console.error("Bad ESP32 frame payload:", err);
+          }
+        },
+      },
     });
-
-    source.addEventListener("frame", (event) => {
-      try {
-        const frame = JSON.parse((event as MessageEvent).data);
-        if (typeof frame.screenActive === "boolean") setSharedActive(frame.screenActive);
-      } catch (err) {
-        console.error("Bad ESP32 frame payload:", err);
-      }
-    });
-
-    return () => source.close();
   }, [setSharedActive]);
 
   return {

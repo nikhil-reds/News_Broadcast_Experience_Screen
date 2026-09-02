@@ -8,6 +8,7 @@ import {
 import { enqueueTranslations } from "@/lib/queue";
 import { markTaskProcessing, markTaskCompleted } from "@/lib/generation";
 import { withHeartbeat } from "@/lib/generation-heartbeat";
+import { ensureSpeakerProfile } from "@/lib/speaker-profile";
 
 /**
  * Bounds the Whisper HTTP call so a hung Docker container sits for a bounded
@@ -40,6 +41,21 @@ export interface TranscribeResult {
   transcriptId: string;
   createdAt: string;
   translationsQueued: boolean;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown error";
+}
+
+interface WhisperSegmentPayload {
+  start?: number | string;
+  end?: number | string;
+  text?: string;
+}
+
+interface WhisperPayload {
+  duration?: number | string;
+  segments?: WhisperSegmentPayload[];
 }
 
 function formatSrtTime(seconds: number): string {
@@ -89,11 +105,11 @@ export async function runWhisper(
       });
 
       if (!res.ok) continue;
-      const data = await res.json();
+      const data = (await res.json()) as WhisperPayload;
       const duration = data.duration ? Number(Number(data.duration).toFixed(2)) : 0;
 
       if (Array.isArray(data.segments) && data.segments.length > 0) {
-        const segments: TranscriptSegment[] = data.segments.map((s: any, idx: number) => ({
+        const segments: TranscriptSegment[] = data.segments.map((s, idx) => ({
           id: idx,
           start: Number(Number(s.start || 0).toFixed(2)),
           end: Number(Number(s.end || 0).toFixed(2)),
@@ -103,8 +119,8 @@ export async function runWhisper(
       }
       // Whisper reachable but no speech detected.
       if (data && "segments" in data) return { segments: [], duration };
-    } catch (err: any) {
-      if (err.name === "AbortError") {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
         // A hung Whisper call must throw (not silently fall through to the
         // next fallback URL) so BullMQ's attempts/backoff actually retries —
         // see app/worker/watchdog.ts for the stuck-job detector this pairs with.
@@ -112,7 +128,7 @@ export async function runWhisper(
           `Whisper transcription timed out after ${Math.round(WHISPER_TIMEOUT_MS / 60000)} minutes`
         );
       }
-      console.log(`Whisper endpoint ${whisperUrl} unavailable: ${err.message}`);
+      console.log(`Whisper endpoint ${whisperUrl} unavailable: ${errorMessage(err)}`);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -172,6 +188,11 @@ export async function transcribeAndStore(filename: string): Promise<TranscribeRe
     update: { duration: duration || null, url: sourceAudio },
   });
 
+  const speakerProfile = await ensureSpeakerProfile(filename).catch((err: unknown) => {
+    console.error(`Failed to analyze speaker profile for "${filename}": ${errorMessage(err)}`);
+    return null;
+  });
+
   await prisma.transcript.deleteMany({ where: { audioFileId: audio.id } });
   const saved = await prisma.transcript.create({
     data: {
@@ -189,6 +210,7 @@ export async function transcribeAndStore(filename: string): Promise<TranscribeRe
           start: s.start,
           end: s.end,
           text: s.text,
+          speaker: speakerProfile?.gender ?? undefined,
         })),
       },
     },
@@ -204,8 +226,8 @@ export async function transcribeAndStore(filename: string): Promise<TranscribeRe
     try {
       await enqueueTranslations(filename, segments, saved.id, generationId);
       translationsQueued = true;
-    } catch (err: any) {
-      console.error(`Failed to enqueue translations for "${filename}": ${err.message}`);
+    } catch (err: unknown) {
+      console.error(`Failed to enqueue translations for "${filename}": ${errorMessage(err)}`);
     }
   }
 

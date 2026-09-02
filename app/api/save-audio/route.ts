@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { AUDIO_BUCKET, uploadObject } from "@/lib/minio";
 import { enqueueTranscription } from "@/lib/queue";
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown error";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -52,8 +56,8 @@ export async function POST(req: NextRequest) {
     try {
       await enqueueTranscription(filename, sessionId);
       queued = true;
-    } catch (queueErr: any) {
-      console.error("Failed to enqueue transcription job:", queueErr.message);
+    } catch (queueErr: unknown) {
+      console.error("Failed to enqueue transcription job:", errorMessage(queueErr));
     }
 
     return NextResponse.json({
@@ -66,10 +70,10 @@ export async function POST(req: NextRequest) {
       queuedForTranscription: queued,
       createdAt: record.createdAt.toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error saving audio:", error);
     return NextResponse.json(
-      { error: "Failed to save audio recording", details: error.message },
+      { error: "Failed to save audio recording", details: errorMessage(error) },
       { status: 500 }
     );
   }
@@ -93,8 +97,8 @@ export async function GET(req: NextRequest) {
       createdAt: r.createdAt.toISOString(),
     }));
 
-    return NextResponse.json({ audioFiles });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ audioFiles }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
   }
 }

@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { AUDIO_BUCKET, VIDEO_BUCKET, TRANSCRIPTS_BUCKET, deleteObject } from "@/lib/minio";
-import { GREEN_SCREEN_BACKGROUNDS, composedFilename } from "@/lib/green-screen";
-import { cameraIdFromFilename } from "@/lib/camera-recordings";
+import {
+  GREEN_SCREEN_BACKGROUNDS,
+  composedFilename,
+  composedMetadataFilename,
+  matteAlphaFilename,
+  matteForegroundFilename,
+  matteMetadataFilename,
+} from "@/lib/green-screen";
 import { SCREEN_REQUIREMENTS, VARIANT_SCREENS, computeScreenBaseStatus, logTask } from "@/lib/generation";
 
 /**
@@ -81,18 +87,22 @@ export async function cleanupSupersededGenerations(): Promise<{ deleted: string[
 
 async function deleteGenerationAssets(generationId: string): Promise<void> {
   const recordings = await prisma.videoRecording.findMany({ where: { sessionId: generationId } });
-  const cam1 = recordings.find((r) => cameraIdFromFilename(r.filename) === 1);
+  const highlight = recordings.find((r) => r.filename.startsWith("highlight-"));
 
   for (const rec of recordings) {
     await deleteObject(rec.bucket, rec.objectKey).catch(() => {});
   }
 
-  // Green-screen composites aren't tracked in any DB table (pure MinIO cache
-  // keyed by background+source, see lib/green-screen.ts) — derive their keys
-  // from camera 1's take rather than querying for them.
-  if (cam1) {
+  // Green-screen matte/composite artifacts aren't tracked in any DB table
+  // (pure MinIO cache keyed by edited reel, see lib/green-screen.ts), so
+  // derive their keys from the generation's highlight reel.
+  if (highlight) {
+    await deleteObject(VIDEO_BUCKET, matteForegroundFilename(highlight.filename)).catch(() => {});
+    await deleteObject(VIDEO_BUCKET, matteAlphaFilename(highlight.filename)).catch(() => {});
+    await deleteObject(VIDEO_BUCKET, matteMetadataFilename(highlight.filename)).catch(() => {});
     for (const bg of GREEN_SCREEN_BACKGROUNDS) {
-      await deleteObject(VIDEO_BUCKET, composedFilename(bg.id, cam1.filename)).catch(() => {});
+      await deleteObject(VIDEO_BUCKET, composedFilename(bg.id, highlight.filename)).catch(() => {});
+      await deleteObject(VIDEO_BUCKET, composedMetadataFilename(bg.id, highlight.filename)).catch(() => {});
     }
   }
 

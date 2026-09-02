@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { greenScreenQueue } from "@/lib/queue";
-import { composedFilename, composedOutputUrl } from "@/lib/green-screen";
-import { VIDEO_BUCKET, objectExists } from "@/lib/minio";
+import { composedFilename, composedMetadataFilename, composedOutputUrl } from "@/lib/green-screen";
+import { VIDEO_BUCKET, getObjectBuffer, objectExists } from "@/lib/minio";
 
 /**
  * Polled by Screen 07 while a background composite is rendering.
@@ -45,7 +45,13 @@ export async function GET(
       // BullMQ trims completed jobs after `removeOnComplete`; if the record is
       // gone but the object is in MinIO, the job still finished successfully.
       if (await objectExists(VIDEO_BUCKET, outputFilename)) {
-        return NextResponse.json({ status: "completed", url: outputUrl });
+        const metadata = await readCompositeMetadata(backgroundId, sourceFilename);
+        return NextResponse.json({
+          status: metadata?.fallback ? "fallback-ready" : "completed",
+          url: outputUrl,
+          fallback: metadata?.fallback ?? null,
+          fallbackReason: metadata?.fallbackReason ?? null,
+        });
       }
       return NextResponse.json(
         { status: "failed", error: "That compose job is no longer being tracked." },
@@ -56,7 +62,7 @@ export async function GET(
     const state = await job.getState();
 
     if (state === "completed") {
-      const result = job.returnvalue as { url?: string } | undefined;
+      const result = job.returnvalue as { url?: string; fallback?: string | null; fallbackReason?: string | null } | undefined;
 
       if (!(await objectExists(VIDEO_BUCKET, outputFilename))) {
         return NextResponse.json({
@@ -67,7 +73,16 @@ export async function GET(
         });
       }
 
-      return NextResponse.json({ status: "completed", url: result?.url ?? outputUrl });
+      const metadata = await readCompositeMetadata(backgroundId, sourceFilename);
+      const fallback = result?.fallback ?? metadata?.fallback ?? null;
+      const fallbackReason = result?.fallbackReason ?? metadata?.fallbackReason ?? null;
+
+      return NextResponse.json({
+        status: fallback ? "fallback-ready" : "completed",
+        url: result?.url ?? outputUrl,
+        fallback,
+        fallbackReason,
+      });
     }
 
     if (state === "failed") {
@@ -88,5 +103,14 @@ export async function GET(
       },
       { status: 500 }
     );
+  }
+}
+
+async function readCompositeMetadata(backgroundId: string, sourceFilename: string) {
+  try {
+    const buf = await getObjectBuffer(VIDEO_BUCKET, composedMetadataFilename(backgroundId, sourceFilename));
+    return JSON.parse(buf.toString("utf-8")) as { fallback?: string | null; fallbackReason?: string | null };
+  } catch {
+    return null;
   }
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 const POLL_MS = 3000;
 const REQUEST_TIMEOUT_MS = 8000;
+const STORAGE_PREFIX = "screen-publication:";
 
 export type PublicationStatus = "current" | "preparing" | "failed" | "waiting-for-reel";
 
@@ -29,6 +30,29 @@ const IDLE_STATE: ScreenPublicationState<never> = {
   assets: null,
 };
 
+function storageKey(screenId: number) {
+  return `${STORAGE_PREFIX}${screenId}`;
+}
+
+function readCachedPublication<TAssets>(screenId: number): ScreenPublicationState<TAssets> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = window.localStorage.getItem(storageKey(screenId));
+    if (!cached) return null;
+    return { ...JSON.parse(cached), isLoading: false };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedPublication<TAssets>(screenId: number, state: ScreenPublicationState<TAssets>) {
+  try {
+    window.localStorage.setItem(storageKey(screenId), JSON.stringify({ ...state, isLoading: false }));
+  } catch {
+    // Storage may be unavailable in private modes; polling still works.
+  }
+}
+
 /**
  * The one hook every screen should use instead of hand-rolled "poll the
  * newest X" logic. Polls GET /api/screens/[screenId]/publication every 3s.
@@ -48,16 +72,39 @@ export function useScreenPublication<TAssets = Record<string, unknown>>(
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
+    const cached = readCachedPublication<TAssets>(screenId);
+    if (cached) {
+      window.setTimeout(() => {
+        if (!cancelled) setState(cached);
+      }, 0);
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== storageKey(screenId) || !event.newValue) return;
+      try {
+        const cachedState = JSON.parse(event.newValue) as ScreenPublicationState<TAssets>;
+        setState({ ...cachedState, isLoading: false });
+      } catch {
+        // Ignore malformed external writes.
+      }
+    };
+    window.addEventListener("storage", onStorage);
+
     const tick = async () => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       try {
         const res = await fetch(`/api/screens/${screenId}/publication`, {
           signal: controller.signal,
+          cache: "no-store",
         });
         if (res.ok) {
           const data = await res.json();
-          if (!cancelled) setState({ ...data, isLoading: false });
+          if (!cancelled) {
+            const nextState = { ...data, isLoading: false } as ScreenPublicationState<TAssets>;
+            setState(nextState);
+            writeCachedPublication(screenId, nextState);
+          }
         } else if (!cancelled) {
           setState((previous) => ({ ...previous, isLoading: false }));
         }
@@ -75,6 +122,7 @@ export function useScreenPublication<TAssets = Record<string, unknown>>(
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      window.removeEventListener("storage", onStorage);
     };
   }, [screenId]);
 

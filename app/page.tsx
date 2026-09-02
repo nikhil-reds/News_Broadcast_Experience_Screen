@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import ScreenNavigationMatrix from "@/components/screen-navigation-matrix";
 import { useCameraRecorder, type CameraRecorder } from "@/lib/use-camera-recorder";
+import { subscribeSharedEventSource } from "@/lib/shared-event-source";
 
 interface Esp32Frame {
   raw: string;
@@ -135,44 +136,40 @@ export default function HomePage() {
     esp32TriggersRef.current = { start: startAllRecording, end: endAllRecording };
   });
 
-  // Physical panel -> recording. EventSource handles its own reconnects, so this
-  // mounts once and stays up for the life of the page.
+  // Physical panel -> recording. The shared SSE helper keeps only one browser
+  // tab connected to the server stream and fans events out to the others.
   useEffect(() => {
-    const source = new EventSource("/api/esp32/events");
+    return subscribeSharedEventSource("/api/esp32/events", {
+      events: {
+        status: (e) => {
+          try {
+            setEsp32Status(JSON.parse(e.data));
+          } catch (err) {
+            console.error("Bad ESP32 status payload:", err);
+          }
+        },
+        frame: (e) => {
+          let frame: Esp32Frame;
+          try {
+            frame = JSON.parse(e.data);
+          } catch (err) {
+            console.error("Bad ESP32 frame payload:", err);
+            return;
+          }
 
-    source.addEventListener("status", (e) => {
-      try {
-        setEsp32Status(JSON.parse((e as MessageEvent).data));
-      } catch (err) {
-        console.error("Bad ESP32 status payload:", err);
-      }
+          setLastEsp32Frame(frame);
+          setEsp32Status((prev) => (prev ? { ...prev, connected: true } : prev));
+
+          const raw = frame.raw.trim().toUpperCase();
+          if (ESP32_START_FRAMES.has(raw)) {
+            esp32TriggersRef.current.start();
+          } else if (ESP32_END_FRAMES.has(raw)) {
+            esp32TriggersRef.current.end();
+          }
+        },
+      },
+      onError: () => setEsp32Status((prev) => (prev ? { ...prev, connected: false } : prev)),
     });
-
-    source.addEventListener("frame", (e) => {
-      let frame: Esp32Frame;
-      try {
-        frame = JSON.parse((e as MessageEvent).data);
-      } catch (err) {
-        console.error("Bad ESP32 frame payload:", err);
-        return;
-      }
-
-      setLastEsp32Frame(frame);
-      setEsp32Status((prev) => (prev ? { ...prev, connected: true } : prev));
-
-      const raw = frame.raw.trim().toUpperCase();
-      if (ESP32_START_FRAMES.has(raw)) {
-        esp32TriggersRef.current.start();
-      } else if (ESP32_END_FRAMES.has(raw)) {
-        esp32TriggersRef.current.end();
-      }
-    });
-
-    source.onerror = () => {
-      setEsp32Status((prev) => (prev ? { ...prev, connected: false } : prev));
-    };
-
-    return () => source.close();
   }, []);
 
   return (

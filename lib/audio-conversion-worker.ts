@@ -1,11 +1,13 @@
 import { Worker, type Job } from "bullmq";
 import { redisConnection } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
-import { TTS_AUDIO_BUCKET, uploadObject } from "@/lib/minio";
-import { synthesizeGeminiSpeech } from "@/lib/gemini-tts";
+import { TTS_AUDIO_BUCKET, getObjectBuffer, uploadObject } from "@/lib/minio";
+import { fallbackVoiceForGender, synthesizeGeminiSpeech } from "@/lib/gemini-tts";
+import { synthesizeCrossLingual } from "@/lib/cosyvoice";
 import type { AudioConversionJob } from "@/lib/queue";
 import { markTaskProcessing, markTaskCompleted, markTaskFailed } from "@/lib/generation";
 import { withHeartbeat } from "@/lib/generation-heartbeat";
+import { ensureSpeakerProfile, type SpeakerGender } from "@/lib/speaker-profile";
 
 export interface AudioConversionWorkerOptions {
   /** Queue name, e.g. "german-audio". */
@@ -39,13 +41,15 @@ function withTimeout<T>(fn: () => Promise<T>, timeoutMs: number, timeoutMessage:
   }).finally(() => clearTimeout(timeoutId));
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown error";
+}
+
 /**
  * Shared factory for the per-language TTS workers. Each consumes jobs from
  * its own queue — one already-persisted translation per job — synthesizes
- * the translated text via Gemini's TTS model (no voice cloning; Gemini
- * speaks with its own preset voice and picks up the target language from the
- * text itself), saves the result as `<filename>.<langCode>.wav` in the MinIO
- * `tts-audio` bucket, and upserts a TranslationAudio row.
+ * the translated text with the original English speaker reference when
+ * available. Gemini remains the fallback only when voice cloning cannot run.
  */
 export function startAudioConversionWorker(
   opts: AudioConversionWorkerOptions
@@ -59,17 +63,53 @@ export function startAudioConversionWorker(
       await markTaskProcessing(generationId, `tts-${opts.langCode}`, job.id);
       console.log(`[${workerName}] job ${job.id} → synthesizing "${filename}" (${opts.language})`);
 
+      const profile =
+        job.data.referenceAudioObjectKey && job.data.referenceAudioBucket
+          ? {
+              gender: (job.data.speakerGender ?? "unknown") as SpeakerGender,
+              referenceBucket: job.data.referenceAudioBucket,
+              referenceObjectKey: job.data.referenceAudioObjectKey,
+            }
+          : await ensureSpeakerProfile(job.data.sourceAudioFilename || filename).catch((err: unknown) => {
+              console.warn(
+                `[${workerName}] speaker profile unavailable for "${filename}"; ` +
+                  `using preset fallback: ${errorMessage(err)}`
+              );
+              return null;
+            });
+
+      let voiceMode: "cloned" | "gender-preset" | "default-preset" = "cloned";
+      const speakerGender = profile?.gender ?? job.data.speakerGender ?? "unknown";
+
       const synthesizedWav = await withHeartbeat(
         { generationId, taskType: `tts-${opts.langCode}`, jobId: job.id },
         () =>
           withTimeout(
-            () => synthesizeGeminiSpeech(text),
+            async () => {
+              try {
+                if (!profile) {
+                  throw new Error("No speaker reference profile available");
+                }
+                const promptWav = await getObjectBuffer(
+                  profile.referenceBucket,
+                  profile.referenceObjectKey
+                );
+                return await synthesizeCrossLingual(text, promptWav);
+              } catch (err: unknown) {
+                voiceMode = speakerGender === "unknown" ? "default-preset" : "gender-preset";
+                console.warn(
+                  `[${workerName}] voice clone failed for "${filename}" (${opts.language}); ` +
+                    `falling back to ${voiceMode}: ${errorMessage(err)}`
+                );
+                return synthesizeGeminiSpeech(text, fallbackVoiceForGender(speakerGender));
+              }
+            },
             TTS_TIMEOUT_MS,
-            `CosyVoice speech synthesis timed out after ${Math.round(TTS_TIMEOUT_MS / 60000)} minutes`
+            `Speech synthesis timed out after ${Math.round(TTS_TIMEOUT_MS / 60000)} minutes`
           )
       );
 
-      const objectKey = `${filename}.${langCode}.wav`;
+      const objectKey = `${filename}.${langCode}.voice-v2.wav`;
       await uploadObject(TTS_AUDIO_BUCKET, objectKey, synthesizedWav, "audio/wav");
       const url = `/api/asset/${TTS_AUDIO_BUCKET}/${encodeURIComponent(objectKey)}`;
 
@@ -84,8 +124,19 @@ export function startAudioConversionWorker(
           objectKey,
           url,
           size: synthesizedWav.length,
+          engine: voiceMode === "cloned" ? "CosyVoice2-0.5B" : "Gemini TTS",
+          voiceMode,
+          speakerGender,
         },
-        update: { generationId, objectKey, url, size: synthesizedWav.length },
+        update: {
+          generationId,
+          objectKey,
+          url,
+          size: synthesizedWav.length,
+          engine: voiceMode === "cloned" ? "CosyVoice2-0.5B" : "Gemini TTS",
+          voiceMode,
+          speakerGender,
+        },
       });
 
       await markTaskCompleted(generationId, `tts-${opts.langCode}`);

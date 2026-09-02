@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { redisConnection } from "@/lib/redis";
 import { upsertTaskPending } from "@/lib/generation";
+import { GREEN_SCREEN_MATTING_VERSION } from "@/lib/green-screen";
 
 /** Queue name shared by the producer (API) and the worker. */
 export const TRANSCRIPTION_QUEUE = "audio-transcription";
@@ -284,6 +285,10 @@ export interface AudioConversionJob {
   filename: string;
   langCode: string;
   text: string;
+  sourceAudioFilename?: string;
+  speakerGender?: "male" | "female" | "unknown";
+  referenceAudioBucket?: string;
+  referenceAudioObjectKey?: string;
   generationId?: string | null;
 }
 
@@ -293,6 +298,8 @@ export const AUDIO_LANGUAGES = [
   { queue: "french-audio", language: "French", langCode: "fr" },
   { queue: "spanish-audio", language: "Spanish", langCode: "es" },
 ] as const;
+
+export const AUDIO_CONVERSION_JOB_VERSION = "voice-v2";
 
 const globalForAudioQueues = globalThis as unknown as {
   __audioConversionQueues?: Map<string, Queue<AudioConversionJob>>;
@@ -330,12 +337,18 @@ export async function enqueueAudioConversion(
   translationId: string,
   filename: string,
   text: string,
-  generationId?: string | null
+  generationId?: string | null,
+  voice?: {
+    sourceAudioFilename?: string;
+    speakerGender?: "male" | "female" | "unknown";
+    referenceAudioBucket?: string;
+    referenceAudioObjectKey?: string;
+  }
 ) {
   const entry = AUDIO_LANGUAGES.find((l) => l.langCode === langCode);
   if (!entry) throw new Error(`No audio-conversion queue for langCode "${langCode}"`);
   const q = audioConversionQueues.get(entry.queue)!;
-  const jobId = `audio-${langCode}-${filename}`;
+  const jobId = `audio-${AUDIO_CONVERSION_JOB_VERSION}-${langCode}-${filename}`;
   const existing = await q.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
@@ -348,28 +361,29 @@ export async function enqueueAudioConversion(
     translationId,
     filename,
     text,
+    ...voice,
     generationId,
   });
   return q.add(
     "synthesize",
-    { translationId, filename, langCode, text, generationId },
+    { translationId, filename, langCode, text, generationId, ...voice },
     { jobId }
   );
 }
 
 // ---------------------------------------------------------------------------
 // Green-screen queue: Screen 07's live background swap. One job per
-// (background id, source take) pair — the ffmpeg chromakey composite is
-// cached in MinIO per pair, so a given camera-1 take only ever pays for one
-// render per background (see lib/green-screen.ts).
+// (background id, edited reel) pair. The expensive video-matting result is
+// cached once per reel, and each final background MP4 is cached separately
+// (see lib/green-screen.ts).
 // ---------------------------------------------------------------------------
 
 export const GREEN_SCREEN_QUEUE = "green-screen-compose";
 
-/** Job payload: which background to composite camera 1's latest take onto. */
+/** Job payload: which background to composite the latest edited reel onto. */
 export interface GreenScreenJob {
   backgroundId: string;
-  /** Camera 1 recording filename (MinIO `videos` bucket) to chromakey. */
+  /** Edited/highlight reel filename (MinIO `videos` bucket) to matte/composite. */
   sourceFilename: string;
   generationId?: string | null;
 }
@@ -403,10 +417,10 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 /**
- * Enqueue (or reuse) the compose job for one (background, source) pair. The
+ * Enqueue (or reuse) the compose job for one (background, edited reel) pair. The
  * jobId is derived from both, so clicking the same swatch twice against the
- * same camera-1 take re-attaches to the same job instead of starting a second
- * ffmpeg pass — and a *new* take (different sourceFilename) naturally gets
+ * same edited reel re-attaches to the same job instead of starting a second
+ * compose pass — and a *new* reel (different sourceFilename) naturally gets
  * its own jobId rather than colliding with the old one.
  *
  * A jobId is a *permanent* dedup key in BullMQ, though — not just a
@@ -449,20 +463,17 @@ export async function enqueueGreenScreenCompose(
 
 /**
  * Same derivation the poll route needs to reconstruct a jobId from its two
- * parts. Kept in lockstep with composedFilename's "v2" prefix bump (see that
- * function's comment in lib/green-screen.ts) — a mismatch here would let an
- * old, already-"completed" v1 jobId short-circuit a v2 request and hand back
- * a filename that was never actually rendered under this scheme.
+ * parts. Kept in lockstep with the RVM cache version so old chromakey jobs
+ * cannot satisfy the edited-reel matting path.
  */
 export function greenScreenJobId(backgroundId: string, sourceFilename: string): string {
-  return `greenscreen-v2-${backgroundId}-${sourceFilename}`;
+  return `greenscreen-${GREEN_SCREEN_MATTING_VERSION}-${backgroundId}-${sourceFilename}`;
 }
 
 /**
- * Enqueue background composition jobs for all available backgrounds.
- * Triggered automatically after video export completes.
- * All 5 backgrounds are queued in parallel so they render concurrently,
- * eliminating latency when the user clicks on a background swatch.
+ * Enqueue background composition jobs for all available backgrounds. With the
+ * RVM path, the first job to run creates/reuses the reel matte and the rest
+ * only perform cheaper FFmpeg composites.
  */
 export async function enqueueAllBackgroundsForSource(sourceFilename: string, generationId?: string | null) {
   const { GREEN_SCREEN_BACKGROUNDS } = await import("@/lib/green-screen");
@@ -548,7 +559,17 @@ export async function enqueueVideoExport(job: VideoExportJob) {
 // GenerationTask.jobId and inspect job.getState().
 // ---------------------------------------------------------------------------
 
-export function getQueueForTaskType(taskType: string): Queue<any> | undefined {
+export function getQueueForTaskType(
+  taskType: string
+):
+  | Queue<TranscriptionJob>
+  | Queue<HighlightPairJob>
+  | Queue<HighlightRenderJob>
+  | Queue<TranslationJob>
+  | Queue<AudioConversionJob>
+  | Queue<GreenScreenJob>
+  | Queue<VideoExportJob>
+  | undefined {
   if (taskType === "transcription") return transcriptionQueue;
   if (taskType === "highlight-analysis") return highlightAnalysisQueue;
   if (taskType === "highlight-reel") return highlightQueue;

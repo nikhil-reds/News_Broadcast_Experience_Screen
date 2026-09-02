@@ -29,6 +29,46 @@ const TARGET_HEIGHT = 720;
 const TARGET_FPS = 30;
 const TARGET_SAMPLE_RATE = 48000;
 
+function readNumberEnv(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
+function readColorEnv(name: string, fallback: string): string {
+  const raw = process.env[name];
+  return raw && /^0x[0-9a-fA-F]{6}$/.test(raw) ? raw : fallback;
+}
+
+const GREEN_SCREEN_KEY_COLOR = readColorEnv("GREEN_SCREEN_KEY_COLOR", "0x46C832");
+const GREEN_SCREEN_KEY_SIMILARITY = readNumberEnv("GREEN_SCREEN_KEY_SIMILARITY", 0.24, 0.01, 1);
+const GREEN_SCREEN_KEY_BLEND = readNumberEnv("GREEN_SCREEN_KEY_BLEND", 0.08, 0, 1);
+const GREEN_SCREEN_DESPILL_MIX = readNumberEnv("GREEN_SCREEN_DESPILL_MIX", 0.65, 0, 1);
+const GREEN_SCREEN_MATTE_BLUR = readNumberEnv("GREEN_SCREEN_MATTE_BLUR", 2, 0, 10);
+const GREEN_SCREEN_MATTE_ERODE = Math.round(readNumberEnv("GREEN_SCREEN_MATTE_ERODE", 1, 0, 4));
+
+function greenScreenForegroundFilter(inputLabel: string, width: number, height: number, prefix: string, outputLabel: string): string {
+  const matteFilters = ["alphaextract"];
+  for (let i = 0; i < GREEN_SCREEN_MATTE_ERODE; i += 1) {
+    matteFilters.push("erosion");
+  }
+  if (GREEN_SCREEN_MATTE_BLUR > 0) {
+    matteFilters.push(`boxblur=${GREEN_SCREEN_MATTE_BLUR}:1`);
+  }
+
+  return (
+    `[${inputLabel}]scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
+    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=rgba,` +
+    `colorkey=${GREEN_SCREEN_KEY_COLOR}:${GREEN_SCREEN_KEY_SIMILARITY}:${GREEN_SCREEN_KEY_BLEND},` +
+    `split[${prefix}keyed][${prefix}matteBase];` +
+    `[${prefix}matteBase]${matteFilters.join(",")}[${prefix}matte];` +
+    `[${prefix}keyed]despill=type=green:mix=${GREEN_SCREEN_DESPILL_MIX}:expand=0,format=rgba[${prefix}color];` +
+    `[${prefix}color][${prefix}matte]alphamerge[${outputLabel}]`
+  );
+}
+
 /**
  * `timeoutMs`, when given, kills the child with SIGKILL if it hasn't exited
  * by then and rejects instead of hanging forever — added after a live
@@ -109,6 +149,50 @@ function run(
   });
 }
 
+function runBuffer(bin: string, args: string[], cwd?: string, timeoutMs?: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, { cwd, windowsHide: true });
+    const chunks: Buffer[] = [];
+    let stderr = "";
+    let timedOut = false;
+    let timer: NodeJS.Timeout | undefined;
+
+    if (timeoutMs) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGKILL");
+      }, timeoutMs);
+    }
+
+    child.stdout.on("data", (d: Buffer) => chunks.push(d));
+    child.stderr.on("data", (d) => (stderr += d.toString()));
+
+    child.on("error", (err: NodeJS.ErrnoException) => {
+      if (timer) clearTimeout(timer);
+      if (err.code === "ENOENT") {
+        reject(
+          new Error(
+            `"${bin}" not found. Install ffmpeg (it ships ffprobe too) and put it on ` +
+              `PATH, or set FFMPEG_PATH / FFPROBE_PATH in .env.`
+          )
+        );
+        return;
+      }
+      reject(err);
+    });
+
+    child.on("close", (code) => {
+      if (timer) clearTimeout(timer);
+      if (timedOut) {
+        reject(new Error(`${bin} timed out after ${Math.round(timeoutMs! / 60000)} minutes and was killed`));
+        return;
+      }
+      if (code === 0) resolve(Buffer.concat(chunks));
+      else reject(new Error(`${bin} exited ${code}: ${stderr.trim().slice(-800)}`));
+    });
+  });
+}
+
 export async function probeDurationSeconds(file: string): Promise<number> {
   const out = await run(FFPROBE_BIN, [
     "-v", "error",
@@ -132,6 +216,50 @@ export async function hasAudioStream(file: string): Promise<boolean> {
     file,
   ]);
   return out.trim().length > 0;
+}
+
+export async function extractAudioReferenceWav(opts: {
+  input: string;
+  output: string;
+  start?: number;
+  duration?: number;
+  sampleRate?: number;
+}): Promise<void> {
+  const { input, output, start = 0, duration = 12, sampleRate = 24000 } = opts;
+  await run(FFMPEG_BIN, [
+    "-y",
+    "-hide_banner",
+    "-loglevel", "error",
+    "-ss", start.toFixed(3),
+    "-t", duration.toFixed(3),
+    "-i", input,
+    "-vn",
+    "-ac", "1",
+    "-ar", String(sampleRate),
+    "-c:a", "pcm_s16le",
+    output,
+  ]);
+}
+
+export async function decodeMonoPcm16(opts: {
+  input: string;
+  start?: number;
+  duration?: number;
+  sampleRate?: number;
+}): Promise<Buffer> {
+  const { input, start = 0, duration = 30, sampleRate = 16000 } = opts;
+  return runBuffer(FFMPEG_BIN, [
+    "-hide_banner",
+    "-loglevel", "error",
+    "-ss", start.toFixed(3),
+    "-t", duration.toFixed(3),
+    "-i", input,
+    "-vn",
+    "-ac", "1",
+    "-ar", String(sampleRate),
+    "-f", "s16le",
+    "-",
+  ]);
 }
 
 export interface MediaStreamDurations {
@@ -322,9 +450,8 @@ export async function composeGreenScreenBackground(opts: {
   const filter =
     `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,` +
     `crop=${width}:${height},setsar=1,format=yuv420p[bg];` +
-    `[1:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
-    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,` +
-    `chromakey=0x46C832:0.12:0.04,despill=type=green:mix=0.5:expand=0[fg];` +
+    greenScreenForegroundFilter("1:v", width, height, "ck", "fg") +
+    `;` +
     `[bg][fg]overlay=shortest=1:format=auto[outv]`;
 
   await run(FFMPEG_BIN, [
@@ -341,13 +468,67 @@ export async function composeGreenScreenBackground(opts: {
     "-i", input,
     "-filter_complex", filter,
     "-map", "[outv]",
-    // `input` (camera 1's take) usually carries real audio — captureAudio is
-    // on for camera 1 (see lib/use-camera-recorder.ts) — but the `?` keeps
-    // this from failing on an older/video-only take that predates that, or
-    // one where mic capture fell back to video-only. Previously no audio
-    // stream was mapped at all, so every composited background came out
-    // silent regardless of what the source had.
+    // The edited reel should carry synchronized audio; the `?` keeps this
+    // from failing if an older/video-only asset is selected.
     "-map", "1:a?",
+    "-c:v", "libx264",
+    "-preset", "ultrafast",
+    "-crf", "23",
+    "-threads", String(FFMPEG_THREADS),
+    "-pix_fmt", "yuv420p",
+    "-c:a", "aac",
+    "-b:a", "192k",
+    "-shortest",
+    "-movflags", "+faststart",
+    output,
+  ], undefined, timeoutMs, onHeartbeat);
+}
+
+export async function composeMattedForegroundBackground(opts: {
+  foregroundVideo: string;
+  alphaVideo: string;
+  backgroundImage: string;
+  sourceAudio: string;
+  output: string;
+  width?: number;
+  height?: number;
+  timeoutMs?: number;
+  onHeartbeat?: (pid: number) => void;
+}): Promise<void> {
+  const {
+    foregroundVideo,
+    alphaVideo,
+    backgroundImage,
+    sourceAudio,
+    output,
+    width = 960,
+    height = 540,
+    timeoutMs,
+    onHeartbeat,
+  } = opts;
+
+  const filter =
+    `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,` +
+    `crop=${width}:${height},setsar=1,format=yuv420p[bg];` +
+    `[1:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
+    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=rgba[fg];` +
+    `[2:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
+    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=gray[alpha];` +
+    `[fg][alpha]alphamerge[matted];` +
+    `[bg][matted]overlay=shortest=1:format=auto[outv]`;
+
+  await run(FFMPEG_BIN, [
+    "-y",
+    "-hide_banner",
+    "-loglevel", "error",
+    "-loop", "1",
+    "-i", backgroundImage,
+    "-i", foregroundVideo,
+    "-i", alphaVideo,
+    "-i", sourceAudio,
+    "-filter_complex", filter,
+    "-map", "[outv]",
+    "-map", "3:a?",
     "-c:v", "libx264",
     "-preset", "ultrafast",
     "-crf", "23",
@@ -370,10 +551,8 @@ export interface SubtitleOverlay {
 
 /**
  * Scale/crop the highlight reel to `width`x`height` — or, if `backgroundImage`
- * is given, chromakey the reel onto that background at `width`x`height`
- * directly instead of a plain scale/crop (same chromakey/despill recipe as
- * composeGreenScreenBackground above, just targeting the export's own
- * dimensions rather than Screen 07's fixed 960x540 preview size) — then burn
+ * is given, apply the shared chromakey fallback recipe onto that background
+ * at `width`x`height` directly instead of a plain scale/crop — then burn
  * each subtitle PNG in over its time window, and optionally stamp a logo in
  * the corner for the whole duration. Used by the Screen 11/12 portrait/
  * landscape export pipeline.
@@ -432,11 +611,7 @@ export async function composeFinalExport(opts: {
       `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,` +
         `crop=${width}:${height},setsar=1,format=yuv420p[bg]`
     );
-    filterParts.push(
-      `[${mainIndex}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
-        `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,` +
-        `chromakey=0x46C832:0.12:0.04,despill=type=green:mix=0.5:expand=0[fg]`
-    );
+    filterParts.push(greenScreenForegroundFilter(`${mainIndex}:v`, width, height, "export", "fg"));
     filterParts.push(`[bg][fg]overlay=shortest=1:format=auto[base]`);
     lastLabel = "base";
   } else {

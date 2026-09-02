@@ -1,7 +1,7 @@
 /**
- * Screen 07 — live green-screen background swap, composited against camera
- * 1's latest take (not a fixed stock clip — a new recording invalidates the
- * cache for every background, see `composedFilename`).
+ * Screen 07 — live green-screen background swap, composited against the
+ * latest edited highlight reel. A new reel invalidates both the expensive
+ * local video-matting cache and the cheap per-background composites.
  *
  * Client-safe: the list of selectable backgrounds and the URL/filename
  * convention for composited output. No node:* imports here on purpose — this
@@ -10,10 +10,9 @@
  * static background images (server/worker only) live in
  * lib/green-screen-paths.ts.
  *
- * Output is cached per (background id, source filename) in the MinIO
- * `videos` bucket — the same source recording composited against the same
- * background always resolves instantly from that cache; a *new* camera 1
- * take gets its own key and pays for one fresh ffmpeg pass per background.
+ * RVM output is cached once per edited reel, then final MP4s are cached per
+ * (background id, edited reel) in the MinIO `videos` bucket. This keeps
+ * background switching fast without rerunning AI inference.
  */
 
 export interface GreenScreenBackground {
@@ -65,27 +64,39 @@ export function findBackground(id: string): GreenScreenBackground | undefined {
   return GREEN_SCREEN_BACKGROUNDS.find((b) => b.id === id);
 }
 
+export const GREEN_SCREEN_MATTING_VERSION = process.env.GREEN_SCREEN_MATTING_VERSION || "rvm-v1";
+
+function sourceStamp(sourceFilename: string): string {
+  return sourceFilename.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+export function matteForegroundFilename(sourceFilename: string): string {
+  return `rvm/${GREEN_SCREEN_MATTING_VERSION}/${sourceStamp(sourceFilename)}/foreground.mkv`;
+}
+
+export function matteAlphaFilename(sourceFilename: string): string {
+  return `rvm/${GREEN_SCREEN_MATTING_VERSION}/${sourceStamp(sourceFilename)}/alpha.mkv`;
+}
+
+export function matteMetadataFilename(sourceFilename: string): string {
+  return `rvm/${GREEN_SCREEN_MATTING_VERSION}/${sourceStamp(sourceFilename)}/metadata.json`;
+}
+
 /**
  * MinIO object key (and, via a matching prefix, the BullMQ job id / Redis
  * dedup key — see greenScreenJobId in lib/queue.ts) for one (background,
- * source take) combination. Stripping the extension off `sourceFilename`
- * keeps this readable in worker logs; it doesn't need to be reversible since
- * callers always have both parts already.
- *
- * The "v2" bump is deliberate: composeGreenScreenBackground (lib/ffmpeg.ts)
- * used to map no audio stream at all, so every composite made under the old
- * `greenscreen-` key is silent. Changing the key here means those stale,
- * audio-less renders are simply never looked up again — new requests get a
- * fresh key that's never been rendered, so there's no risk of a Redis job
- * marked "completed" under the old scheme pointing at a filename this scheme
- * never produced.
+ * edited reel) combination. The matting version is part of the path so
+ * changing RVM model/settings avoids stale composites automatically.
  */
 export function composedFilename(backgroundId: string, sourceFilename: string): string {
-  const stamp = sourceFilename.replace(/\.[^.]+$/, "");
-  return `greenscreen-v2-${backgroundId}-${stamp}.mp4`;
+  return `composites/${GREEN_SCREEN_MATTING_VERSION}/${sourceStamp(sourceFilename)}/${backgroundId}.mp4`;
 }
 
-/** Public URL for one composited (background, source take) combination. */
+export function composedMetadataFilename(backgroundId: string, sourceFilename: string): string {
+  return `composites/${GREEN_SCREEN_MATTING_VERSION}/${sourceStamp(sourceFilename)}/${backgroundId}.json`;
+}
+
+/** Public URL for one composited (background, edited reel) combination. */
 export function composedOutputUrl(backgroundId: string, sourceFilename: string): string {
   return `/api/asset/videos/${encodeURIComponent(composedFilename(backgroundId, sourceFilename))}`;
 }

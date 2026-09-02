@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enqueueGreenScreenCompose } from "@/lib/queue";
-import { composedFilename, composedOutputUrl, findBackground } from "@/lib/green-screen";
-import { VIDEO_BUCKET, objectExists } from "@/lib/minio";
+import { composedFilename, composedMetadataFilename, composedOutputUrl, findBackground } from "@/lib/green-screen";
+import { VIDEO_BUCKET, getObjectBuffer, objectExists } from "@/lib/minio";
 import { setPendingVariant } from "@/lib/generation";
 
 /** Screen 07 is the only screen this route ever serves. */
@@ -37,10 +37,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (await objectExists(VIDEO_BUCKET, composedFilename(backgroundId, sourceFilename))) {
+      const metadata = await readCompositeMetadata(backgroundId, sourceFilename);
       return NextResponse.json({
-        status: "completed",
+        status: metadata?.fallback ? "fallback-ready" : "completed",
         cached: true,
         url: composedOutputUrl(backgroundId, sourceFilename),
+        fallback: metadata?.fallback ?? null,
+        fallbackReason: metadata?.fallbackReason ?? null,
       });
     }
 
@@ -69,5 +72,14 @@ export async function POST(req: NextRequest) {
       },
       { status: 500 }
     );
+  }
+}
+
+async function readCompositeMetadata(backgroundId: string, sourceFilename: string) {
+  try {
+    const buf = await getObjectBuffer(VIDEO_BUCKET, composedMetadataFilename(backgroundId, sourceFilename));
+    return JSON.parse(buf.toString("utf-8")) as { fallback?: string | null; fallbackReason?: string | null };
+  } catch {
+    return null;
   }
 }

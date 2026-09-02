@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { subscribeSharedEventSource } from "@/lib/shared-event-source";
 
 interface MediaEvent {
   raw: string;
@@ -138,32 +139,28 @@ export default function SensorPage() {
   }, [handleEsp32Payload, record]);
 
   useEffect(() => {
-    const source = new EventSource("/api/esp32/events");
-
-    source.addEventListener("status", (event) => {
-      try {
-        setEsp32Status(JSON.parse((event as MessageEvent).data));
-      } catch (err) {
-        console.error("Bad ESP32 status payload:", err);
-      }
+    return subscribeSharedEventSource("/api/esp32/events", {
+      events: {
+        status: (event) => {
+          try {
+            setEsp32Status(JSON.parse(event.data));
+          } catch (err) {
+            console.error("Bad ESP32 status payload:", err);
+          }
+        },
+        frame: (event) => {
+          try {
+            const frame = JSON.parse(event.data) as MediaEvent;
+            const handled = handleEsp32Payload(frame.raw);
+            if (!handled) record(frame.command, frame.value, frame.raw);
+            setEsp32Status((previous) => previous ? { ...previous, connected: true } : previous);
+          } catch (err) {
+            console.error("Bad ESP32 frame payload:", err);
+          }
+        },
+      },
+      onError: () => setEsp32Status((previous) => previous ? { ...previous, connected: false } : previous),
     });
-
-    source.addEventListener("frame", (event) => {
-      try {
-        const frame = JSON.parse((event as MessageEvent).data) as MediaEvent;
-        const handled = handleEsp32Payload(frame.raw);
-        if (!handled) record(frame.command, frame.value, frame.raw);
-        setEsp32Status((previous) => previous ? { ...previous, connected: true } : previous);
-      } catch (err) {
-        console.error("Bad ESP32 frame payload:", err);
-      }
-    });
-
-    source.onerror = () => {
-      setEsp32Status((previous) => previous ? { ...previous, connected: false } : previous);
-    };
-
-    return () => source.close();
   }, [handleEsp32Payload, record]);
 
   return (

@@ -17,21 +17,29 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ scr
   }
 
   if (VARIANT_SCREENS.has(screenId)) {
-    return NextResponse.json(await buildVariantResponse(screenId));
+    return noStoreJson(await buildVariantResponse(screenId));
   }
 
   if (SCREEN_REQUIREMENTS[screenId]) {
-    return NextResponse.json(await buildBaseResponse(screenId));
+    return noStoreJson(await buildBaseResponse(screenId));
   }
 
   // Screens 1/2/3 (raw camera loops) have no derived pipeline to gate on.
-  return NextResponse.json({
+  return noStoreJson({
     status: "current",
     generationId: null,
     seq: null,
     progress: null,
     failureReason: null,
     assets: null,
+  });
+}
+
+function noStoreJson(body: unknown) {
+  return NextResponse.json(body, {
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+    },
   });
 }
 

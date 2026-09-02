@@ -146,7 +146,7 @@ export default function MultiDevicePreviewPage() {
     let cancelled = false;
     const loadComposite = async () => {
       try {
-        const res = await fetch("/api/save-recording?camera=1");
+        const res = await fetch("/api/save-recording?kind=highlight");
         if (!res.ok) return;
         const data = await res.json();
         const latest = data.recordings?.[0] as { filename?: string } | undefined;

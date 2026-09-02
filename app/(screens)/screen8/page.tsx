@@ -70,12 +70,12 @@ export default function Screen8Page() {
     }
   }, []);
 
-  // ---- Data loading: fixed green-screen composite from camera 1 ------------
+  // ---- Data loading: fixed green-screen composite from edited reel ----------
   useEffect(() => {
     let cancelled = false;
     const fetchLatestReel = async () => {
       try {
-        const res = await fetch("/api/save-recording?camera=1");
+        const res = await fetch("/api/save-recording?kind=highlight");
         if (!res.ok) return;
         const data = await res.json();
         const list: RecordingItem[] = data.recordings || [];

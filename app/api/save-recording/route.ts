@@ -4,11 +4,13 @@ import { VIDEO_BUCKET, uploadObject } from "@/lib/minio";
 import {
   CAMERA_FILENAME_PREFIX,
   HIGHLIGHT_FILENAME_PREFIX,
-  cameraIdFromFilename,
   parseCameraId,
 } from "@/lib/camera-recordings";
 import { enqueueHighlightIfSessionComplete } from "@/lib/highlight-pairing";
-import { enqueueAllBackgroundsForSource } from "@/lib/queue";
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown error";
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,20 +65,8 @@ export async function POST(req: NextRequest) {
       if (!pair.queued) {
         console.log(`No highlight job for "${filename}": ${pair.reason}`);
       }
-    } catch (queueErr: any) {
-      console.error("Failed to enqueue highlight-reel job:", queueErr.message);
-    }
-
-    // Screen 07 composites its 5 backgrounds against camera 1's own take (not
-    // the reel — see components CAMERA_1_QUERY in that screen), so this is
-    // the moment to pre-warm them: right when that take actually exists, not
-    // after the (much later, much less frequent) video-export step. All 5
-    // render in the background while the operator reviews footage on Screens
-    // 01-06, so by the time they reach Screen 07 the swap is usually instant.
-    if (cameraIdFromFilename(filename) === 1) {
-      enqueueAllBackgroundsForSource(filename, sessionId).catch((err) => {
-        console.error(`Failed to pre-warm backgrounds for "${filename}":`, err.message);
-      });
+    } catch (queueErr: unknown) {
+      console.error("Failed to enqueue highlight-reel job:", errorMessage(queueErr));
     }
 
     return NextResponse.json({
@@ -89,10 +79,10 @@ export async function POST(req: NextRequest) {
       createdAt: record.createdAt.toISOString(),
       highlightQueued,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error saving recording:", error);
     return NextResponse.json(
-      { error: "Failed to save recording", details: error.message },
+      { error: "Failed to save recording", details: errorMessage(error) },
       { status: 500 }
     );
   }
@@ -132,8 +122,8 @@ export async function GET(req: NextRequest) {
       createdAt: r.createdAt.toISOString(),
     }));
 
-    return NextResponse.json({ recordings });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ recordings }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
   }
 }

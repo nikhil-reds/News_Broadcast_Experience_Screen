@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createRotaryDecoder, type RotaryFrame } from "@/lib/nexmosphere-rotary";
+import { subscribeSharedEventSource } from "@/lib/shared-event-source";
 
 export interface NexmosphereFrame extends RotaryFrame {
   at: string;
@@ -47,40 +48,36 @@ export function useNexmosphere(handlers: NexmosphereHandlers): NexmosphereConnec
 
   useEffect(() => {
     const decoder = createRotaryDecoder();
-    const source = new EventSource("/api/nexmosphere/events");
+    return subscribeSharedEventSource("/api/nexmosphere/events", {
+      events: {
+        status: (e) => {
+          try {
+            setStatus(JSON.parse(e.data));
+          } catch (err) {
+            console.error("Bad Nexmosphere status payload:", err);
+          }
+        },
+        frame: (e) => {
+          let frame: NexmosphereFrame;
+          try {
+            frame = JSON.parse(e.data);
+          } catch (err) {
+            console.error("Bad Nexmosphere frame payload:", err);
+            return;
+          }
 
-    source.addEventListener("status", (e) => {
-      try {
-        setStatus(JSON.parse((e as MessageEvent).data));
-      } catch (err) {
-        console.error("Bad Nexmosphere status payload:", err);
-      }
+          setLastFrame(frame);
+          setStatus((prev) => (prev ? { ...prev, connected: true } : prev));
+          handlersRef.current.onFrame?.(frame);
+
+          const reading = decoder.read(frame);
+          if (reading && reading.delta !== 0) {
+            handlersRef.current.onRotate?.(reading.delta, frame);
+          }
+        },
+      },
+      onError: () => setStatus((prev) => (prev ? { ...prev, connected: false } : prev)),
     });
-
-    source.addEventListener("frame", (e) => {
-      let frame: NexmosphereFrame;
-      try {
-        frame = JSON.parse((e as MessageEvent).data);
-      } catch (err) {
-        console.error("Bad Nexmosphere frame payload:", err);
-        return;
-      }
-
-      setLastFrame(frame);
-      setStatus((prev) => (prev ? { ...prev, connected: true } : prev));
-      handlersRef.current.onFrame?.(frame);
-
-      const reading = decoder.read(frame);
-      if (reading && reading.delta !== 0) {
-        handlersRef.current.onRotate?.(reading.delta, frame);
-      }
-    });
-
-    source.onerror = () => {
-      setStatus((prev) => (prev ? { ...prev, connected: false } : prev));
-    };
-
-    return () => source.close();
   }, []);
 
   return { status, lastFrame };
