@@ -1,16 +1,18 @@
 "use client";
 
 import RecordingLooper from "@/components/recording-looper";
-import { useAdRotation } from "@/lib/use-ad-rotation";
 
-/** Screen 11: portrait highlight reel with the Screen 10-style bottom campaign rail. */
+const BOTTOM_AD_IMAGE = "/ads/best/juice.png";
+
+/** Screen 11: portrait highlight reel with the Screen 10-style juice ad rail. */
 export default function Screen11HighlightPlayer() {
-  const { activeAd } = useAdRotation();
-
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-slate-950 font-sans text-slate-100">
-      <div className="grid h-[844px] w-[390px] grid-rows-[90%_10%] overflow-hidden rounded-3xl bg-black shadow-2xl shadow-black/40">
-        <section className="min-h-0 overflow-hidden bg-black">
+      <div
+        className="grid h-[844px] w-[390px] grid-rows-[70%_30%] overflow-hidden rounded-3xl bg-black shadow-2xl shadow-black/40"
+        style={{ gridTemplateRows: "70% 30%" }}
+      >
+        <section className="h-full min-h-0 overflow-hidden bg-black">
           <RecordingLooper
             source={{ highlight: true }}
             muted={false}
@@ -20,19 +22,16 @@ export default function Screen11HighlightPlayer() {
           />
         </section>
 
-        {activeAd && (
-          <aside className="flex min-h-0 items-center gap-2 border-t border-indigo-500/25 bg-slate-900 px-3 py-2">
-            <span className="shrink-0 rounded border border-indigo-400/30 bg-indigo-500/15 px-1.5 py-1 text-[7px] font-mono font-extrabold tracking-wider text-indigo-200">
-              AD
-            </span>
-            <div className="min-w-0">
-              <h1 className="truncate font-mono text-xs font-extrabold tracking-wide text-indigo-200">
-                {activeAd.sponsor}
-              </h1>
-              <p className="mt-0.5 line-clamp-2 text-[9px] leading-tight text-slate-300">{activeAd.text}</p>
-            </div>
-          </aside>
-        )}
+        <aside className="relative min-h-0 overflow-hidden border-t border-white/20 bg-white">
+          {/* Crop the full 16:9 creative to its bottom advertising artwork. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={BOTTOM_AD_IMAGE}
+            alt="Real Fruit Power advertisement"
+            className="absolute inset-0 h-full w-full"
+            style={{ objectFit: "contain", objectPosition: "center bottom" }}
+          />
+        </aside>
       </div>
     </div>
   );

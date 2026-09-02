@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { composedOutputUrl } from "@/lib/green-screen";
 
 const REEL_POLL_MS = 3000;
-const BOTTOM_AD_IMAGE = "/ads/best/juice.png";
+// Version the asset so an updated creative is fetched instead of a cached image.
+const BOTTOM_AD_IMAGE = "/ads/best/juice.png?v=20260903032055";
 
 interface TimedCue {
   start: number;
@@ -91,7 +92,7 @@ export default function Screen10Page() {
   return (
     <div
       className="grid h-screen w-screen overflow-hidden bg-slate-950 font-sans text-slate-100"
-      style={{ gridTemplateRows: "70% 30%" }}
+      style={{ gridTemplateRows: "80% 20%" }}
     >
       <section className="relative min-h-0 overflow-hidden bg-slate-900 group" onClick={enableAudio}>
             {/* Ambient Scanlines */}
@@ -171,7 +172,7 @@ export default function Screen10Page() {
           src={BOTTOM_AD_IMAGE}
           alt="Real Fruit Power advertisement"
           className="absolute inset-0 h-full w-full"
-          style={{ objectFit: "cover", objectPosition: "bottom" }}
+          style={{ objectFit: "contain", objectPosition: "center bottom" }}
         />
       </aside>
     </div>
