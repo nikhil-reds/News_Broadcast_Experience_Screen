@@ -41,6 +41,7 @@ type Listener = (event: NexmosphereEvent) => void;
 
 interface Hub {
   port: SerialPort | null;
+  opening: boolean;
   listeners: Set<Listener>;
   status: NexmosphereStatus;
   reconnectTimer: NodeJS.Timeout | null;
@@ -61,6 +62,7 @@ function getHub(): Hub {
   if (!globalForNexmosphere.__nexmosphereHub) {
     globalForNexmosphere.__nexmosphereHub = {
       port: null,
+      opening: false,
       listeners: new Set(),
       reconnectTimer: null,
       status: {
@@ -126,7 +128,8 @@ function dispatchLine(hub: Hub, line: string): NexmosphereEvent | null {
 }
 
 function openPort(hub: Hub) {
-  if (hub.port?.isOpen) return;
+  if (hub.opening || hub.port?.isOpen) return;
+  hub.opening = true;
 
   const port = new SerialPort({
     path: PORT_PATH,
@@ -136,9 +139,11 @@ function openPort(hub: Hub) {
   hub.port = port;
 
   port.open((err) => {
+    hub.opening = false;
     if (err) {
       hub.status.connected = false;
       hub.status.lastError = err.message;
+      hub.port = null;
       console.error(`[nexmosphere] cannot open ${PORT_PATH}: ${err.message}`);
       scheduleReconnect(hub);
       return;
@@ -153,13 +158,16 @@ function openPort(hub: Hub) {
   parser.on("data", (line: string) => dispatchLine(hub, line));
 
   port.on("error", (err) => {
+    hub.opening = false;
     hub.status.connected = false;
     hub.status.lastError = err.message;
     console.error(`[nexmosphere] port error: ${err.message}`);
   });
 
   port.on("close", () => {
+    hub.opening = false;
     hub.status.connected = false;
+    hub.port = null;
     console.warn("[nexmosphere] port closed — will retry");
     scheduleReconnect(hub);
   });
