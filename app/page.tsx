@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import Image from "next/image";
 import ScreenNavigationMatrix from "@/components/screen-navigation-matrix";
 import { useCameraRecorder, type CameraRecorder } from "@/lib/use-camera-recorder";
 
@@ -179,17 +180,10 @@ export default function HomePage() {
       {/* Studio Header */}
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-6 py-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-indigo-600 to-amber-500 flex items-center justify-center shadow-lg shadow-rose-950">
-            🎙️
+          <div className="flex items-center justify-center">
+            <Image src="/amagi-logo-white.svg" alt="Amagi Logo" width={100} height={28} className="object-contain" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-              Amagi Intelligence
-            </h1>
-            <p className="text-xs text-slate-400">
-              Run your media operations on the agentic industry cloud
-            </p>
-          </div>
+
         </div>
 
         <div className="flex items-center gap-3">
