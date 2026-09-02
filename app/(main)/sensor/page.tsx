@@ -9,6 +9,13 @@ interface MediaEvent {
   at: string;
 }
 
+interface Esp32Status {
+  connected: boolean;
+  path: string;
+  baudRate: number;
+  lastError: string | null;
+}
+
 type Esp32Command =
   | { command: "BUTTON"; value: "PRESSED" | "RELEASED" }
   | { command: "CLICK"; value: "PLAY_PAUSE" }
@@ -18,6 +25,9 @@ function parseEsp32Payload(payload: unknown): Esp32Command | null {
   if (typeof payload !== "string") return null;
 
   const message = payload.replace(/^BLE SEND:\s*/i, "").trim();
+  if (message === "11") return { command: "BUTTON", value: "PRESSED" };
+  if (message === "22") return { command: "BUTTON", value: "RELEASED" };
+
   const match = /^(BUTTON|CLICK|ROTARY)\[(\d+)\]$/i.exec(message);
   if (!match) return null;
 
@@ -41,6 +51,7 @@ function parseEsp32Payload(payload: unknown): Esp32Command | null {
 
 export default function SensorPage() {
   const [events, setEvents] = useState<MediaEvent[]>([]);
+  const [esp32Status, setEsp32Status] = useState<Esp32Status | null>(null);
   const [mediaPlaying, setMediaPlaying] = useState(false);
   const [mediaVolume, setMediaVolume] = useState(50);
   const [buttonPressed, setButtonPressed] = useState(false);
@@ -57,14 +68,14 @@ export default function SensorPage() {
 
   const handleEsp32Payload = useCallback((payload: unknown) => {
     const event = parseEsp32Payload(payload);
-    if (!event) return;
+    if (!event) return false;
 
     const raw = typeof payload === "string" ? payload.trim() : "ESP32 payload";
 
     if (event.command === "BUTTON") {
       setButtonPressed(event.value === "PRESSED");
       record("BUTTON", event.value, raw);
-      return;
+      return true;
     }
 
     if (event.command === "CLICK") {
@@ -73,11 +84,12 @@ export default function SensorPage() {
         record("CLICK", next ? "PLAYING" : "PAUSED", raw);
         return next;
       });
-      return;
+      return true;
     }
 
     setMediaVolume(event.value);
     record("ROTARY", `${event.value}%`, raw);
+    return true;
   }, [record]);
 
   useEffect(() => {
@@ -125,6 +137,35 @@ export default function SensorPage() {
     };
   }, [handleEsp32Payload, record]);
 
+  useEffect(() => {
+    const source = new EventSource("/api/esp32/events");
+
+    source.addEventListener("status", (event) => {
+      try {
+        setEsp32Status(JSON.parse((event as MessageEvent).data));
+      } catch (err) {
+        console.error("Bad ESP32 status payload:", err);
+      }
+    });
+
+    source.addEventListener("frame", (event) => {
+      try {
+        const frame = JSON.parse((event as MessageEvent).data) as MediaEvent;
+        const handled = handleEsp32Payload(frame.raw);
+        if (!handled) record(frame.command, frame.value, frame.raw);
+        setEsp32Status((previous) => previous ? { ...previous, connected: true } : previous);
+      } catch (err) {
+        console.error("Bad ESP32 frame payload:", err);
+      }
+    });
+
+    source.onerror = () => {
+      setEsp32Status((previous) => previous ? { ...previous, connected: false } : previous);
+    };
+
+    return () => source.close();
+  }, [handleEsp32Payload, record]);
+
   return (
     <main className="min-h-screen bg-slate-950 px-5 py-10 font-sans text-slate-100 sm:px-8">
       <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -132,14 +173,18 @@ export default function SensorPage() {
           <div className="flex items-start justify-between gap-5 border-b border-slate-800 pb-6">
             <div>
               <div className="mb-2 flex items-center gap-2 font-mono text-[10px] font-bold tracking-[0.24em] text-cyan-300">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
-                BLUETOOTH HID
+                <span className={`h-2 w-2 rounded-full ${esp32Status?.connected ? "animate-pulse bg-emerald-400" : "bg-rose-400"}`} />
+                COM3 ESP32
               </div>
               <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">ESP32 Media Controller</h1>
-              <p className="mt-2 text-sm text-slate-400">Play/pause button and rotary volume monitor</p>
+              <p className="mt-2 text-sm text-slate-400">
+                {esp32Status
+                  ? `${esp32Status.path} @ ${esp32Status.baudRate}${esp32Status.lastError ? ` · ${esp32Status.lastError}` : ""}`
+                  : "Connecting to ESP32 serial stream..."}
+              </p>
             </div>
             <span className={`rounded-full border px-3 py-1.5 font-mono text-[10px] font-bold tracking-wider ${buttonPressed ? "border-amber-400/50 bg-amber-400/15 text-amber-200" : "border-cyan-500/30 bg-cyan-500/10 text-cyan-200"}`}>
-              {buttonPressed ? "BUTTON PRESSED" : "LISTENING"}
+              {buttonPressed ? "BUTTON PRESSED" : esp32Status?.connected ? "LISTENING" : "PORT OFFLINE"}
             </span>
           </div>
 

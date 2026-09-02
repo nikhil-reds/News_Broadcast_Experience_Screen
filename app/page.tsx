@@ -2,17 +2,16 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import ScreenNavigationMatrix from "@/components/screen-navigation-matrix";
-import { useCameraRecorder } from "@/lib/use-camera-recorder";
+import { useCameraRecorder, type CameraRecorder } from "@/lib/use-camera-recorder";
 
-interface NexmosphereFrame {
+interface Esp32Frame {
   raw: string;
-  address: string;
   command: string;
   value: string;
   at: string;
 }
 
-interface NexmosphereStatus {
+interface Esp32Status {
   connected: boolean;
   path: string;
   baudRate: number;
@@ -20,11 +19,11 @@ interface NexmosphereStatus {
 }
 
 /**
- * X-talk frames from the physical Nexmosphere panel. Button 1 arms the studio,
- * button 2 stops it and hands the takes to the save/transcribe pipeline.
+ * Serial messages from the ESP32 panel. Button 1 arms the studio; button 0
+ * stops it and hands the takes to the save/transcribe pipeline.
  */
-const NEX_START_FRAME = "X001A[17]";
-const NEX_END_FRAME = "X001A[3]";
+const ESP32_START_FRAMES = new Set(["1", "BUTTON[1]", "CLICK[1]", "START", "ON"]);
+const ESP32_END_FRAMES = new Set(["0", "BUTTON[0]", "STOP", "OFF"]);
 
 export default function HomePage() {
   // --- Camera States ---
@@ -35,10 +34,10 @@ export default function HomePage() {
   const camera3 = useCameraRecorder(3);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
 
-  // --- Nexmosphere Hardware Panel States ---
-  const [nexStatus, setNexStatus] = useState<NexmosphereStatus | null>(null);
-  const [lastNexFrame, setLastNexFrame] = useState<NexmosphereFrame | null>(null);
-  const nexTriggersRef = useRef<{ start: () => void; end: () => void }>({
+  // --- ESP32 Hardware Panel States ---
+  const [esp32Status, setEsp32Status] = useState<Esp32Status | null>(null);
+  const [lastEsp32Frame, setLastEsp32Frame] = useState<Esp32Frame | null>(null);
+  const esp32TriggersRef = useRef<{ start: () => void; end: () => void }>({
     start: () => { },
     end: () => { },
   });
@@ -63,7 +62,7 @@ export default function HomePage() {
       navigator.mediaDevices?.removeEventListener("devicechange", onDeviceChange);
   }, [refreshVideoDevices]);
 
-  const handleSelectDevice = (recorder: any) => async (deviceId: string) => {
+  const handleSelectDevice = (recorder: CameraRecorder) => async (deviceId: string) => {
     if (!deviceId) return;
     await recorder.startCamera(deviceId);
     refreshVideoDevices();
@@ -132,43 +131,44 @@ export default function HomePage() {
   // Keep the triggers pointing at the newest closures so the subscription below
   // can mount once without ever going stale.
   useEffect(() => {
-    nexTriggersRef.current = { start: startAllRecording, end: endAllRecording };
+    esp32TriggersRef.current = { start: startAllRecording, end: endAllRecording };
   });
 
   // Physical panel -> recording. EventSource handles its own reconnects, so this
   // mounts once and stays up for the life of the page.
   useEffect(() => {
-    const source = new EventSource("/api/nexmosphere/events");
+    const source = new EventSource("/api/esp32/events");
 
     source.addEventListener("status", (e) => {
       try {
-        setNexStatus(JSON.parse((e as MessageEvent).data));
+        setEsp32Status(JSON.parse((e as MessageEvent).data));
       } catch (err) {
-        console.error("Bad Nexmosphere status payload:", err);
+        console.error("Bad ESP32 status payload:", err);
       }
     });
 
     source.addEventListener("frame", (e) => {
-      let frame: NexmosphereFrame;
+      let frame: Esp32Frame;
       try {
         frame = JSON.parse((e as MessageEvent).data);
       } catch (err) {
-        console.error("Bad Nexmosphere frame payload:", err);
+        console.error("Bad ESP32 frame payload:", err);
         return;
       }
 
-      setLastNexFrame(frame);
-      setNexStatus((prev) => (prev ? { ...prev, connected: true } : prev));
+      setLastEsp32Frame(frame);
+      setEsp32Status((prev) => (prev ? { ...prev, connected: true } : prev));
 
-      if (frame.raw === NEX_START_FRAME) {
-        nexTriggersRef.current.start();
-      } else if (frame.raw === NEX_END_FRAME) {
-        nexTriggersRef.current.end();
+      const raw = frame.raw.trim().toUpperCase();
+      if (ESP32_START_FRAMES.has(raw)) {
+        esp32TriggersRef.current.start();
+      } else if (ESP32_END_FRAMES.has(raw)) {
+        esp32TriggersRef.current.end();
       }
     });
 
     source.onerror = () => {
-      setNexStatus((prev) => (prev ? { ...prev, connected: false } : prev));
+      setEsp32Status((prev) => (prev ? { ...prev, connected: false } : prev));
     };
 
     return () => source.close();
@@ -193,21 +193,21 @@ export default function HomePage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Nexmosphere panel telemetry */}
+          {/* ESP32 panel telemetry */}
           <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800">
             <span
-              className={`w-2 h-2 rounded-full shrink-0 ${nexStatus?.connected ? "bg-emerald-400 animate-pulse" : "bg-slate-600"
+              className={`w-2 h-2 rounded-full shrink-0 ${esp32Status?.connected ? "bg-emerald-400 animate-pulse" : "bg-slate-600"
                 }`}
             />
             <div className="leading-tight">
               <p className="text-[11px] font-semibold text-slate-200">
-                Panel {nexStatus?.connected ? "Live" : "Offline"}
-                {nexStatus?.path ? ` · ${nexStatus.path}` : ""}
+                ESP32 {esp32Status?.connected ? "Live" : "Offline"}
+                {esp32Status?.path ? ` · ${esp32Status.path}` : ""}
               </p>
               <p className="text-[10px] font-mono text-slate-500">
-                {lastNexFrame
-                  ? `${lastNexFrame.raw} received`
-                  : `${NEX_START_FRAME} start · ${NEX_END_FRAME} stop`}
+                {lastEsp32Frame
+                  ? `${lastEsp32Frame.raw} received`
+                  : "1 start · 0 stop"}
               </p>
             </div>
           </div>
