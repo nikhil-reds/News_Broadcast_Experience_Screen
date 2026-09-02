@@ -176,9 +176,12 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans">
       {/* Studio Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+      <header 
+        className="border-b border-slate-800 backdrop-blur-md px-6 py-4 flex items-center justify-between sticky top-0 z-50"
+        style={{ backgroundColor: '#050F64' }}
+      >
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center">
             <Image src="/amagi-logo-white.svg" alt="Amagi Logo" width={100} height={28} className="object-contain" />
