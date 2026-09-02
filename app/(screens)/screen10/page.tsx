@@ -1,30 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { composedOutputUrl } from "@/lib/green-screen";
 
-interface AdCampaign {
-  id?: string;
-  sponsor: string;
-  text: string;
-  code: string;
-}
-
-/**
- * Screen 10 mirrors Screen 09's rotation exactly (same campaigns, same
- * clock) so the two HDMI outputs never show conflicting sponsors — it just
- * renders the bottom-banner layout instead of Screen 09's left-side vertical
- * banner.
- */
-const FALLBACK_CAMPAIGNS: AdCampaign[] = [
-  { sponsor: "AMAGI CLOUDPORT", text: "Scale your broadcast channel playout and platform delivery dynamically in the cloud.", code: "AMAGI-PLAYOUT" },
-  { sponsor: "AMAGI THUNDERSTORM", text: "Supercharge your CTV & FAST monetization with advanced Server-Side Ad Insertion (SSAI).", code: "AMAGI-DYNAMIC-ADS" },
-  { sponsor: "AMAGI PLANNER", text: "Simplify scheduling, planning, and EPG management for broadcast and FAST networks.", code: "AMAGI-EPG-PLANNER" },
-];
-
-const ROTATE_MS = 5000;
-const REFETCH_MS = 30000;
 const REEL_POLL_MS = 3000;
+const BOTTOM_AD_IMAGE = "/ads/best/juice.png";
 
 interface TimedCue {
   start: number;
@@ -33,8 +13,6 @@ interface TimedCue {
 }
 
 export default function Screen10Page() {
-  const [campaigns, setCampaigns] = useState<AdCampaign[]>(FALLBACK_CAMPAIGNS);
-  const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [reelUrl, setReelUrl] = useState<string | null>(null);
   const [reelFilename, setReelFilename] = useState<string | null>(null);
   const [englishAudioUrl, setEnglishAudioUrl] = useState<string | null>(null);
@@ -110,47 +88,11 @@ export default function Screen10Page() {
       .catch(() => setSoundBlocked(true));
   };
 
-  const fetchCampaigns = useCallback(async () => {
-    try {
-      const res = await fetch("/api/ad-campaigns");
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data.campaigns) && data.campaigns.length > 0) {
-        setCampaigns(data.campaigns);
-      } else {
-        setCampaigns(FALLBACK_CAMPAIGNS);
-      }
-    } catch {
-      // Keep whatever campaigns are already on screen.
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCampaigns();
-    const refetchTimer = setInterval(fetchCampaigns, REFETCH_MS);
-    return () => clearInterval(refetchTimer);
-  }, [fetchCampaigns]);
-
-  useEffect(() => {
-    // Rotate active ad
-    const adTimer = setInterval(() => {
-      setCurrentAdIndex((prev) => (campaigns.length ? (prev + 1) % campaigns.length : 0));
-    }, ROTATE_MS);
-
-    return () => {
-      clearInterval(adTimer);
-    };
-  }, [campaigns]);
-
-  useEffect(() => {
-    if (currentAdIndex >= campaigns.length) setCurrentAdIndex(0);
-  }, [campaigns, currentAdIndex]);
-
-  const activeAd = campaigns[currentAdIndex] ?? campaigns[0];
-  if (!activeAd) return null;
-
   return (
-    <div className="grid h-screen w-screen grid-rows-[90%_10%] overflow-hidden bg-slate-950 font-sans text-slate-100">
+    <div
+      className="grid h-screen w-screen overflow-hidden bg-slate-950 font-sans text-slate-100"
+      style={{ gridTemplateRows: "70% 30%" }}
+    >
       <section className="relative min-h-0 overflow-hidden bg-slate-900 group" onClick={enableAudio}>
             {/* Ambient Scanlines */}
             <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0)_95%,rgba(0,0,0,0.15)_95%)] bg-[size:100%_4px] opacity-20 pointer-events-none z-10" />
@@ -220,22 +162,17 @@ export default function Screen10Page() {
             )}
       </section>
 
-      <aside className="flex min-h-0 items-center justify-between gap-8 border-t border-indigo-500/25 bg-slate-900 px-8 py-6 shadow-2xl shadow-black/30">
-        <div className="flex min-w-0 items-center gap-5">
-          <span className="shrink-0 rounded border border-indigo-400/30 bg-indigo-500/15 px-3 py-1.5 text-[10px] font-mono font-extrabold tracking-widest text-indigo-200">
-            ACTIVE CAMPAIGN
-          </span>
-          <div className="min-w-0">
-            <h1 className="truncate font-mono text-xl font-extrabold tracking-wide text-indigo-200">
-              {activeAd.sponsor}
-            </h1>
-            <p className="mt-1 truncate text-sm text-slate-300">{activeAd.text}</p>
-          </div>
-        </div>
-        <div className="shrink-0 border-l border-slate-700/80 pl-8 text-right">
-          <p className="text-[9px] font-mono uppercase tracking-wider text-slate-500">Campaign code</p>
-          <p className="mt-1 font-mono text-sm font-bold text-indigo-400">{activeAd.code}</p>
-        </div>
+      <aside className="relative min-h-0 overflow-hidden border-t border-white/20 bg-white">
+        {/* Native image keeps the public asset visible in the short responsive rail. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          role="img"
+          aria-label="Real Fruit Power advertisement"
+          src={BOTTOM_AD_IMAGE}
+          alt="Real Fruit Power advertisement"
+          className="absolute inset-0 h-full w-full"
+          style={{ objectFit: "cover", objectPosition: "bottom" }}
+        />
       </aside>
     </div>
   );

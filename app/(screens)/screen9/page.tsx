@@ -4,22 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { composedOutputUrl } from "@/lib/green-screen";
 import Image from "next/image";
 
-const ADS = [
-  {
-    id: "amul",
-    fullImage: "/ads/ads001.png"
-  },
-  {
-    id: "ads002",
-    fullImage: "/ads/ads002.png"
-  },
-  {
-    id: "ads003",
-    fullImage: "/ads/ads003.png"
-  }
-];
-
-const ROTATE_MS = 10000;
+const AD_IMAGE = "/ads/best/amul.png";
 const REEL_POLL_MS = 3000;
 
 interface TimedCue {
@@ -29,7 +14,6 @@ interface TimedCue {
 }
 
 export default function Screen9Page() {
-  const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [reelUrl, setReelUrl] = useState<string | null>(null);
   const [reelFilename, setReelFilename] = useState<string | null>(null);
   const [englishAudioUrl, setEnglishAudioUrl] = useState<string | null>(null);
@@ -105,35 +89,23 @@ export default function Screen9Page() {
       .catch(() => setSoundBlocked(true));
   };
 
-  useEffect(() => {
-    // Rotate the ad creative
-    const adTimer = setInterval(() => {
-      setCurrentAdIndex((prev) => (prev + 1) % ADS.length);
-    }, ROTATE_MS);
-
-    return () => clearInterval(adTimer);
-  }, []);
-
-  const activeAd = ADS[currentAdIndex];
-
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black font-sans text-slate-100">
-      
-      {/* LAYER 1: Full 16:9 Generated L-Band Image Background */}
+    <div className="relative min-h-screen w-full overflow-hidden bg-black font-sans text-slate-100">
+      {/* Responsive 16:9 Amul L-band. The white center stays available for video. */}
       <div className="absolute inset-0 z-0">
         <Image
-          src={activeAd.fullImage}
-          alt={`Ad Campaign ${activeAd.id}`}
+          src={AD_IMAGE}
+          alt="Amul advertisement"
           fill
-          className="object-cover transition-opacity duration-1000"
+          className="object-fill"
           priority
         />
       </div>
 
-      {/* LAYER 2: Live Video Window overlaying the "fake" generated program area */}
-      {/* Adjust w-[75%] h-[80%] right-0 top-0 to fit exactly over the generated program area */}
+      {/* Video is positioned proportionally inside the white program area. */}
       <section 
-        className="absolute top-0 right-0 w-[81%] h-[76%] z-10 overflow-hidden bg-black shadow-[-10px_10px_30px_rgba(0,0,0,0.5)] border-l border-b border-white/10" 
+        className="absolute z-10 overflow-hidden bg-black shadow-[-10px_10px_30px_rgba(0,0,0,0.5)] border-l border-b border-white/10"
+        style={{ top: "0%", right: "0%", bottom: "16.8%", left: "13.3%" }}
         onClick={enableAudio}
       >
         <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(rgba(18,24,38,0)_95%,rgba(0,0,0,0.15)_95%)] bg-[size:100%_4px] opacity-20" />
