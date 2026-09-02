@@ -20,12 +20,12 @@
     "worker:french-audio": "tsx app/worker/french-audio.ts",
     "worker:spanish-audio": "tsx app/worker/spanish-audio.ts",
     "worker:tts": "tsx app/worker/tts.ts",
-    "worker:green-screen": "tsx app/worker/green-screen-compose.ts",
+    "worker:green-screen": "node -r ./scripts/node-userinfo-shim.cjs ./node_modules/tsx/dist/cli.mjs app/worker/green-screen-compose.ts",
     "worker:video-export": "tsx app/worker/video-export.ts",
-    "worker:video": "tsx app/worker/video.ts",
+    "worker:video": "node -r ./scripts/node-userinfo-shim.cjs ./node_modules/tsx/dist/cli.mjs app/worker/video.ts",
     "worker:watchdog": "tsx app/worker/watchdog.ts",
     "worker:all": "node scripts/run-workers.mjs",
-    "worker:all-single-process": "tsx app/worker/all.ts"
+    "worker:all-single-process": "node -r ./scripts/node-userinfo-shim.cjs ./node_modules/tsx/dist/cli.mjs app/worker/all.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

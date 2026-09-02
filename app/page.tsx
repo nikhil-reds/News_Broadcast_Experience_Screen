@@ -130,6 +130,32 @@ export default function HomePage() {
     camera3.endRecording();
   };
 
+  // Keyboard fallback for the physical COM3 button. The first N starts the
+  // synchronized take; the next N ends it and lets the screens return to the
+  // latest available/demo playback flow.
+  useEffect(() => {
+    const onKeyboardButton = (event: KeyboardEvent) => {
+      if (event.repeat || event.key.toLowerCase() !== "n") return;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.matches("input, textarea, select, button, [contenteditable='true']")
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      if (camera1.isRecording || camera2.isRecording || camera3.isRecording) {
+        esp32TriggersRef.current.end();
+      } else {
+        esp32TriggersRef.current.start();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyboardButton);
+    return () => window.removeEventListener("keydown", onKeyboardButton);
+  }, [camera1.isRecording, camera2.isRecording, camera3.isRecording]);
+
   // Keep the triggers pointing at the newest closures so the subscription below
   // can mount once without ever going stale.
   useEffect(() => {

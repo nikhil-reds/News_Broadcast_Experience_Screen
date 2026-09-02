@@ -58,6 +58,9 @@ services:
       retries: 10
 
   cosyvoice:
+    # CosyVoice's PyTorch/CUDA base image is amd64-only. Run it through
+    # Docker Desktop's amd64 emulation on Apple Silicon hosts.
+    platform: linux/amd64
     build:
       context: ./public/nextjs-faster-whisper/cosyvoice-service
     ports:

@@ -25,6 +25,16 @@ interface RecordingItem {
   url: string;
 }
 
+interface BackgroundStatusResponse {
+  backgroundsStatus?: Array<{
+    backgroundId: string;
+    status?: string;
+    url?: string;
+    fallback?: string | null;
+    fallbackReason?: string | null;
+  }>;
+}
+
 const POLL_INTERVAL_MS = 700;
 /** Give up (and say so) rather than polling a dead worker forever. */
 const COMPOSE_TIMEOUT_MS = 3 * 60 * 1000;
@@ -47,6 +57,7 @@ interface InFlightCompose {
   /** Swap this into the video the moment it finishes, even if silent. */
   autoShow: boolean;
   startedAt: number;
+  intent: "prewarm" | "select";
 }
 
 const keyFor = (backgroundId: string, sourceFilename: string) => `${backgroundId}::${sourceFilename}`;
@@ -83,6 +94,10 @@ export default function Screen7Page() {
   useEffect(() => {
     fetchCurrentSession().then((session) => {
       sessionIdRef.current = session?.id ?? null;
+      if (session?.selectedBackgroundId) {
+        setSelectedId(session.selectedBackgroundId);
+        selectedIdRef.current = session.selectedBackgroundId;
+      }
     });
   }, []);
   const persistBackgroundSelection = (backgroundId: string) => {
@@ -132,6 +147,9 @@ export default function Screen7Page() {
   }, []);
 
   const startElapsedClock = () => {
+    // This function is only invoked from user/effect callbacks, never during
+    // render; the React purity rule cannot infer that through this closure.
+    // eslint-disable-next-line react-hooks/purity
     startedAt.current = Date.now();
     setElapsedSeconds(0);
     if (elapsedTimer.current) clearInterval(elapsedTimer.current);
@@ -279,7 +297,7 @@ export default function Screen7Page() {
   const ensureComposed = (
     backgroundId: string,
     sourceTake: string,
-    opts: { silent: boolean; autoShow: boolean }
+    opts: { silent: boolean; autoShow: boolean; intent: "prewarm" | "select" }
   ) => {
     const key = keyFor(backgroundId, sourceTake);
     const existing = inFlight.current.get(key);
@@ -288,6 +306,13 @@ export default function Screen7Page() {
       // is exactly one compose pass per (background, edited reel) pair either way.
       if (!opts.silent) existing.silent = false;
       if (opts.autoShow) existing.autoShow = true;
+      if (opts.intent === "select" && existing.intent !== "select") {
+        fetch("/api/green-screen/compose", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ backgroundId, sourceFilename: sourceTake, intent: "select" }),
+        }).catch(() => setErrorMessage("Could not register Screen 7 background selection."));
+      }
       return;
     }
 
@@ -296,6 +321,7 @@ export default function Screen7Page() {
       silent: opts.silent,
       autoShow: opts.autoShow,
       startedAt: Date.now(),
+      intent: opts.intent,
     };
     inFlight.current.set(key, entry);
     setWarmingIds((prev) => new Set(prev).add(key));
@@ -305,7 +331,7 @@ export default function Screen7Page() {
         const res = await fetch("/api/green-screen/compose", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ backgroundId, sourceFilename: sourceTake }),
+          body: JSON.stringify({ backgroundId, sourceFilename: sourceTake, intent: entry.intent }),
         });
         const data: ComposeResponse = await res.json().catch(() => ({}) as ComposeResponse);
 
@@ -353,10 +379,50 @@ export default function Screen7Page() {
   // blank one, without the operator re-clicking anything.
   useEffect(() => {
     if (!sourceFilename) return;
-    GREEN_SCREEN_BACKGROUNDS.forEach((bg) => {
-      const autoShow = selectedIdRef.current === null || selectedIdRef.current === bg.id;
-      ensureComposed(bg.id, sourceFilename, { silent: true, autoShow });
-    });
+    let cancelled = false;
+    const restoreAndWarm = async () => {
+      let status: BackgroundStatusResponse = {};
+      try {
+        const res = await fetch(`/api/green-screen/status?sourceFilename=${encodeURIComponent(sourceFilename)}`);
+        if (res.ok) status = await res.json();
+      } catch {
+        // The individual compose request below remains the recovery path.
+      }
+      if (cancelled) return;
+
+      const byId = new Map((status.backgroundsStatus ?? []).map((entry) => [entry.backgroundId, entry]));
+      const ready = new Set<string>();
+      const warming = new Set<string>();
+      const selected = selectedIdRef.current;
+      for (const bg of GREEN_SCREEN_BACKGROUNDS) {
+        const entry = byId.get(bg.id);
+        const key = keyFor(bg.id, sourceFilename);
+        if (entry?.status === "completed" || entry?.status === "fallback-ready") {
+          ready.add(key);
+          continue;
+        }
+        if (["waiting", "active", "delayed", "paused", "processing"].includes(entry?.status ?? "")) {
+          warming.add(key);
+          continue;
+        }
+        const autoShow = selected === null || selected === bg.id;
+        ensureComposed(bg.id, sourceFilename, { silent: true, autoShow, intent: "prewarm" });
+      }
+      setReadyIds(ready);
+      setWarmingIds(warming);
+      const restoredId = selected && ready.has(keyFor(selected, sourceFilename))
+        ? selected
+        : GREEN_SCREEN_BACKGROUNDS.find((bg) => ready.has(keyFor(bg.id, sourceFilename)))?.id ?? null;
+      if (restoredId) {
+        setSelectedId(restoredId);
+        selectedIdRef.current = restoredId;
+        setVideoSrc(`${composedOutputUrl(restoredId, sourceFilename)}?t=${Date.now()}`);
+      }
+    };
+    restoreAndWarm();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceFilename]);
 
@@ -369,16 +435,22 @@ export default function Screen7Page() {
     const key = keyFor(backgroundId, sourceFilename);
     if (readyIds.has(key)) {
       // Already rendered against the current edited reel — swap instantly.
+      // eslint-disable-next-line react-hooks/purity
       setVideoSrc(`${composedOutputUrl(backgroundId, sourceFilename)}?t=${Date.now()}`);
       setSelectedId(backgroundId);
       selectedIdRef.current = backgroundId;
       persistBackgroundSelection(backgroundId);
+      fetch("/api/green-screen/compose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ backgroundId, sourceFilename, intent: "select" }),
+      }).catch(() => setErrorMessage("Could not update Screen 7 publication state."));
       return;
     }
 
     setPendingId(backgroundId);
     startElapsedClock();
-    ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true });
+    ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true, intent: "select" });
   };
 
   /**
@@ -417,7 +489,7 @@ export default function Screen7Page() {
     setErrorMessage(`"${label}" failed to load — re-rendering it now…`);
     setPendingId(backgroundId);
     startElapsedClock();
-    ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true });
+    ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true, intent: "select" });
   };
 
   const isProcessing = pendingId !== null;

@@ -100,13 +100,16 @@ function runProcess(
   onHeartbeat?: (pid: number) => void
 ): Promise<void> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(bin, args, { cwd: process.cwd(), windowsHide: true });
+    const command = [bin, ...args].join(" ");
+    const child = spawn(bin, args, { cwd: process.cwd(), windowsHide: true, windowsVerbatimArguments: false });
     const startedAt = Date.now();
+    console.log(`[RVM] starting command=${command}`);
     if (onHeartbeat && child.pid) onHeartbeat(child.pid);
 
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let settled = false;
 
     const timeout = setTimeout(() => {
       timedOut = true;
@@ -126,7 +129,10 @@ function runProcess(
     child.stderr.on("data", (d) => (stderr += d.toString()));
 
     child.on("error", (err: NodeJS.ErrnoException) => {
+      if (settled) return;
+      settled = true;
       clearTimers();
+      console.error(`[RVM] process error elapsedMs=${Date.now() - startedAt} code=${err.code ?? "unknown"}: ${err.message}`);
       if (err.code === "ENOENT") {
         reject(new Error(`"${bin}" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed.`));
         return;
@@ -135,16 +141,22 @@ function runProcess(
     });
 
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
       clearTimers();
+      const elapsedMs = Date.now() - startedAt;
+      console.log(`[RVM] process exited code=${code ?? "signal"} elapsedMs=${elapsedMs}`);
+      if (stdout.trim()) console.log(`[RVM] stdout tail=${stdout.trim().slice(-1200)}`);
+      if (stderr.trim()) console.error(`[RVM] stderr tail=${stderr.trim().slice(-1200)}`);
       if (timedOut) {
-        reject(new Error(`RVM timed out after ${Math.round(timeoutMs / 1000)} seconds and was killed`));
+        reject(new Error(`RVM timed out after ${Math.round(timeoutMs / 1000)} seconds and was killed; command=${command}`));
         return;
       }
       if (code === 0) {
         resolvePromise();
         return;
       }
-      reject(new Error(`RVM exited ${code}: ${(stderr || stdout).trim().slice(-1200)}`));
+      reject(new Error(`RVM exited ${code}: ${(stderr || stdout).trim().slice(-1200)}; command=${command}`));
     });
   });
 }

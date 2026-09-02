@@ -10,6 +10,8 @@
 !.yarn/releases
 !.yarn/versions
 
+.venv
+
 # testing
 /coverage
 /.tmp/
@@ -33,6 +35,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.venv-rvm/
 
 # vercel
 .vercel

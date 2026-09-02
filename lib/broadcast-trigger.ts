@@ -1,5 +1,6 @@
 export const BROADCAST_TRIGGER_STORAGE_KEY = "news-broadcast-trigger-active";
 export const BROADCAST_TRIGGER_CHANNEL = "news-broadcast-trigger";
+export const BROADCAST_TRIGGER_KEYBOARD_OVERRIDE_KEY = "news-broadcast-trigger-keyboard-override";
 
 const SIMPLE_BUTTON_LINES = new Set(["1", "11", "BUTTON", "PRESS", "PRESSED", "CLICK", "START", "ON"]);
 
