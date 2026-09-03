@@ -7,10 +7,17 @@ const BOTTOM_AD_IMAGE = "/ads/best/juice.png";
 /** Screen 11: portrait highlight reel with the Screen 10-style juice ad rail. */
 export default function Screen11HighlightPlayer() {
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-slate-950 font-sans text-slate-100">
+    <div
+      className="flex w-full items-center justify-center overflow-hidden bg-slate-950 font-sans text-slate-100"
+      style={{ height: "100vh" }}
+    >
       <div
-        className="grid h-[844px] w-[390px] grid-rows-[90%_30%] overflow-hidden rounded-3xl bg-black shadow-2xl shadow-black/40"
-        style={{ gridTemplateRows: "70% 30%" }}
+        className="grid max-h-full max-w-full grid-rows-[70%_30%] overflow-hidden rounded-3xl bg-black shadow-2xl shadow-black/40"
+        style={{
+          width: "min(390px, 100vw)",
+          height: "100%",
+          gridTemplateRows: "70% 30%",
+        }}
       >
         <section className="h-full min-h-0 overflow-hidden bg-black">
           <RecordingLooper
