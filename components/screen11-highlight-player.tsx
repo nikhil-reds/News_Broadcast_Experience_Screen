@@ -9,7 +9,7 @@ export default function Screen11HighlightPlayer() {
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-slate-950 font-sans text-slate-100">
       <div
-        className="grid h-[844px] w-[390px] grid-rows-[70%_30%] overflow-hidden rounded-3xl bg-black shadow-2xl shadow-black/40"
+        className="grid h-[844px] w-[390px] grid-rows-[90%_30%] overflow-hidden rounded-3xl bg-black shadow-2xl shadow-black/40"
         style={{ gridTemplateRows: "70% 30%" }}
       >
         <section className="h-full min-h-0 overflow-hidden bg-black">
