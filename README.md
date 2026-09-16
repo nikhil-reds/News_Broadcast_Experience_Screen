@@ -2,6 +2,51 @@
 
 Full project documentation is available at [docs/news-broadcast-system-documentation.md](docs/news-broadcast-system-documentation.md).
 
+## Current Local Application Notes
+
+This repository is currently implemented as a Next.js application with API
+routes, Prisma/PostgreSQL metadata, MinIO object storage, Redis/BullMQ queues,
+and TypeScript worker processes.
+
+Common commands:
+
+```bash
+npm run dev
+npm run worker:all
+npm run worker:green-screen
+npm run worker:video
+npm run seed:demo-audio
+```
+
+The grouped worker launcher is `scripts/run-workers.mjs`. It starts these
+process groups:
+
+```text
+video         app/worker/video.ts
+audio         app/worker/audio-transcription.ts
+analysis      app/worker/highlight-analysis.ts
+translations  app/worker/translations.ts
+tts           app/worker/tts.ts
+watchdog      app/worker/watchdog.ts
+```
+
+On Windows, run workers with the `scripts/node-userinfo-shim.cjs` preload when
+`tsx` hits `uv_os_get_passwd`/ENOMEM. The npm worker scripts already preload it
+for the video-heavy workers; for manual `tsx` commands use:
+
+```powershell
+$env:NODE_OPTIONS='-r ./scripts/node-userinfo-shim.cjs'
+```
+
+Screen 07 background replacement now uses Robust Video Matting (RVM) first and
+falls back to FFmpeg chromakey only when RVM fails and
+`GREEN_SCREEN_FALLBACK_CHROMAKEY=true`.
+
+Use `npm run seed:demo-audio` when a recording session has video but no usable
+master audio. It uploads `public/demo/demo-audio.wav` to MinIO, attaches it to
+the latest generation, queues transcription, and requeues highlight analysis
+when the latest generation already has all three camera recordings.
+
 ## Step-by-Step Implementation Plan
 
 ## 1. Project Objective
@@ -83,7 +128,8 @@ For better scalability, use:
 
 * FFmpeg
 * FFprobe
-* OpenCV, if advanced background replacement is required
+* OpenCV for RVM video IO
+* Robust Video Matting for Screen 07 background removal
 
 ## AI Processing
 
@@ -91,6 +137,7 @@ For better scalability, use:
 * Local LLM through Ollama
 * Local translation models through Ollama or Hugging Face
 * Optional speaker diarisation using pyannote.audio
+* Gemini/Qwen/CosyVoice integrations where configured in `.env`
 
 ## Storage
 
@@ -509,54 +556,85 @@ The LLM should return structured JSON rather than directly running FFmpeg.
 
 ### Requirement
 
-Allow the user to select and apply a different video background.
+Allow the user to select and apply a different video background to the latest
+edited highlight reel.
 
 ### Background Options
 
 * Static image
-* Video loop
 * Brand background
-* Gradient background
 * Green-screen replacement
-* AI background removal
+* RVM AI background removal
 
 ### Implementation Methods
 
-#### Green-Screen Method
+#### RVM Matting Method
 
-This is the fastest and most reliable method.
-
-Use FFmpeg chroma key:
-
-```bash
-ffmpeg -i input.mp4 -i background.mp4 \
--filter_complex "[0:v]chromakey=0x00FF00:0.15:0.1[person];[1:v][person]overlay" \
-output.mp4
-```
-
-#### AI Segmentation Method
-
-Use a person-segmentation model to create an alpha mask.
-
-Possible pipeline:
+Screen 07 uses the `green-screen-compose` worker and tries RVM first:
 
 ```text
-Video frames
+Edited highlight reel
     │
     ▼
-Person segmentation
+RVM foreground + alpha matte
     │
     ▼
-Foreground mask
+Cached matte files in MinIO
     │
     ▼
-New background composition
+FFmpeg alpha composition over selected background
     │
     ▼
-FFmpeg export
+Composited MP4 for Screen 07
 ```
 
-The selected background should be stored in the session configuration.
+The expensive RVM matte is generated once per edited reel and cached under the
+current matting version. Every background for the same reel reuses that cached
+foreground/alpha matte, so the first background takes the RVM cost and the next
+backgrounds are only short FFmpeg composites.
+
+Current local RVM settings:
+
+```env
+GREEN_SCREEN_ENGINE=rvm
+GREEN_SCREEN_FALLBACK_CHROMAKEY=true
+GREEN_SCREEN_MATTING_VERSION=rvm-v1
+RVM_PYTHON=C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe
+RVM_SCRIPT=tools/rvm/matte_video.py
+RVM_MODEL=mobilenetv3
+RVM_DEVICE=cpu
+RVM_DOWNSAMPLE_RATIO=0.25
+RVM_TIMEOUT_MS=300000
+RVM_MATTE_WAIT_TIMEOUT_MS=360000
+RVM_MATTE_LOCK_TTL_MS=420000
+```
+
+The local RVM virtual environment was created with:
+
+```powershell
+& 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\ThirdParty\Python3\Win64\python.exe' -m venv .venv-rvm
+.\.venv-rvm\Scripts\python.exe -m pip install -r tools\rvm\requirements.txt
+.\.venv-rvm\Scripts\python.exe tools\rvm\download-model.py --model mobilenetv3
+```
+
+#### Chromakey Fallback
+
+If RVM fails or validation fails, the worker falls back to FFmpeg chromakey only
+when `GREEN_SCREEN_FALLBACK_CHROMAKEY=true`. The worker writes metadata next to
+each composite:
+
+```json
+{
+  "engine": "rvm",
+  "fallback": null,
+  "fallbackReason": null
+}
+```
+
+Fallback output instead records `engine: "chromakey"` and includes the reason.
+Use this metadata to confirm whether a Screen 07 output used true RVM matting.
+
+The selected background is stored in the session/screen publication state.
 
 ---
 
@@ -1094,7 +1172,7 @@ Validate this JSON before sending it to the FFmpeg worker.
 
 ## Stage 7: Visual Processing
 
-* Replace background
+* Replace background with RVM matte composition
 * Add subtitles
 * Add advertisement banners
 * Add logo or branding
@@ -1120,19 +1198,25 @@ final-portrait.mp4
 
 Heavy tasks must not run directly inside the Next.js request.
 
-Use separate queues:
+The implementation uses BullMQ queues plus `generation_tasks` rows for
+per-generation status, retry visibility, watchdog recovery, and timing.
+
+Current queues/groups:
 
 ```text
-media-ingestion
 audio-transcription
-translation
-audio-generation
-video-synchronisation
-video-editing
-background-processing
-subtitle-rendering
-advertisement-rendering
-final-export
+highlight-analysis
+highlight-reel
+german-transcript
+hindi-transcript
+french-transcript
+spanish-transcript
+german-audio
+hindi-audio
+french-audio
+spanish-audio
+green-screen-compose
+video-export
 ```
 
 Job status:
@@ -1156,7 +1240,8 @@ Example API response:
 }
 ```
 
-Use WebSocket events to update the UI in real time.
+Screen readiness is derived from `generation_tasks`; variant outputs for
+Screens 7, 11, and 12 are tracked in `screen_publications`.
 
 ---
 
@@ -1210,15 +1295,20 @@ services:
       - minio-data:/data
 ```
 
-The FFmpeg worker requires access to:
+The video workers require access to:
 
 ```text
-/data/raw
-/data/processed
-/data/final
-/data/backgrounds
-/data/advertisements
+FFMPEG_PATH
+FFPROBE_PATH
+MINIO_BUCKET_VIDEO
+public/backgrounds
+tools/rvm
+.venv-rvm
 ```
+
+For RVM background removal, `RVM_PYTHON` must point to a Python environment with
+`torch`, `torchvision`, `opencv-python`, and `numpy` installed. If this is not
+available, Screen 07 can only use the chromakey fallback.
 
 ---
 
@@ -1429,15 +1519,16 @@ The system automatically generates multiple edited versions from all three camer
 
 Build:
 
-* Background upload
 * Background selection
-* Green-screen replacement
-* Optional AI segmentation
+* RVM matte generation and validation
+* Cached foreground/alpha matte reuse
+* FFmpeg background composition
+* Chromakey fallback metadata
 * Screen 07 controls
 
 Deliverable:
 
-Users can change the video background and generate a new preview.
+Users can change the video background and generate a new RVM-based preview.
 
 ---
 
@@ -1513,7 +1604,7 @@ After the MVP works reliably, add:
 * Audio translation
 * Local text-to-speech
 * AI camera selection
-* Automatic background replacement
+* RVM background replacement
 * Three or four editing styles
 * Physical buttons
 * Advanced screen monitoring

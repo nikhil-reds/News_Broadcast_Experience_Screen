@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { fetchCurrentSession, patchSession } from "@/lib/current-session";
 import { composedOutputUrl } from "@/lib/green-screen";
+import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 
 interface TimedCue {
   start: number;
@@ -23,11 +24,11 @@ interface RecordingItem {
 }
 
 const LANGUAGES = [
-  { label: "English", flag: "🇬🇧" },
-  { label: "German", flag: "🇩🇪" },
-  { label: "Hindi", flag: "🇮🇳" },
-  { label: "French", flag: "🇫🇷" },
-  { label: "Spanish", flag: "🇪🇸" },
+  { label: "English", code: "en" },
+  { label: "German", code: "de" },
+  { label: "Hindi", code: "hi" },
+  { label: "French", code: "fr" },
+  { label: "Spanish", code: "es" },
 ];
 
 const REEL_POLL_MS = 5000;
@@ -41,16 +42,18 @@ export default function Screen8Page() {
 
   const [reelUrl, setReelUrl] = useState<string | null>(null);
   const [reelFilename, setReelFilename] = useState<string | null>(null);
+  const [backgroundId, setBackgroundId] = useState("newsroom-blue");
 
   const [language, setLanguage] = useState<string>("English");
+  const onRemoteSubtitle = useCallback((code: string) => { const item = LANGUAGES.find((entry) => entry.code === code); if (item) setLanguage(item.label); }, []);
+  const saveSubtitle = useRealtimeSelection("subtitle-language", onRemoteSubtitle);
+  const selectLanguage = useCallback((item: typeof LANGUAGES[number]) => { setLanguage(item.label); saveSubtitle(item.code); }, [saveSubtitle]);
   const [cues, setCues] = useState<TimedCue[]>([]);
   const [isLoadingCues, setIsLoadingCues] = useState<boolean>(false);
   const [cuesError, setCuesError] = useState<string | null>(null);
 
   const [videoTime, setVideoTime] = useState<number>(0);
-  const [soundBlocked, setSoundBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const attemptedRef = useRef<Set<string>>(new Set());
 
   const filenameFromUrl = (url: string) => url.split("/").pop() || "";
@@ -70,7 +73,24 @@ export default function Screen8Page() {
     }
   }, []);
 
-  // ---- Data loading: fixed green-screen composite from edited reel ----------
+  // ---- Follow Screen 7's selected background -------------------------------
+  useEffect(() => {
+    let cancelled = false;
+    const fetchBackground = async () => {
+      const session = await fetchCurrentSession();
+      if (!cancelled && session?.selectedBackgroundId) {
+        setBackgroundId(session.selectedBackgroundId);
+      }
+    };
+    fetchBackground();
+    const interval = setInterval(fetchBackground, REEL_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // ---- Data loading: use Screen 7's composite of the edited highlight reel -
   useEffect(() => {
     let cancelled = false;
     const fetchLatestReel = async () => {
@@ -80,7 +100,7 @@ export default function Screen8Page() {
         const data = await res.json();
         const list: RecordingItem[] = data.recordings || [];
         if (list.length > 0 && !cancelled) {
-          setReelUrl(composedOutputUrl("newsroom-blue", list[0].filename));
+          setReelUrl(composedOutputUrl(backgroundId, list[0].filename));
           setReelFilename(list[0].filename);
         }
       } catch {
@@ -93,7 +113,7 @@ export default function Screen8Page() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, []);
+  }, [backgroundId]);
 
   // ---- Transcription via Docker Whisper ------------------------------------
   const runTranscription = useCallback(async (url: string) => {
@@ -163,17 +183,7 @@ export default function Screen8Page() {
     })();
   }, [selectedUrl, checkTranscriptExists, runTranscription]);
 
-  // Screen 5's English source is this selected original audio. Keep the
-  // highlight reel muted and use the original track as the audible source.
-  useEffect(() => {
-    if (!selectedUrl || !audioRef.current) return;
-    audioRef.current
-      .play()
-      .then(() => setSoundBlocked(false))
-      .catch(() => setSoundBlocked(true));
-  }, [selectedUrl]);
-
-  // ---- Subtitle cues: composite footage uses the original camera timeline. --
+  // ---- Subtitle cues: map the base English transcript to edited reel time. --
   useEffect(() => {
     if (!selectedUrl || !reelFilename || !hasTranscript) return;
     let cancelled = false;
@@ -182,12 +192,13 @@ export default function Screen8Page() {
       setCuesError(null);
       try {
         const res = await fetch(
-          `/api/transcript/${language.toLowerCase()}?sourceAudio=${encodeURIComponent(selectedUrl)}`
+          `/api/subtitle-cues?reelFilename=${encodeURIComponent(reelFilename)}` +
+            `&sourceAudio=${encodeURIComponent(selectedUrl)}&language=${encodeURIComponent(language)}`
         );
         const data = await res.json();
         if (cancelled) return;
-        if (res.ok && Array.isArray(data.transcript?.segments)) {
-          setCues(data.transcript.segments);
+        if (res.ok && Array.isArray(data.cues)) {
+          setCues(data.cues);
         } else {
           setCues([]);
           setCuesError(data.error || "Failed to load subtitle cues");
@@ -222,44 +233,52 @@ export default function Screen8Page() {
 
   const activeCue = cues.find((c) => videoTime >= c.start && videoTime <= c.end) ?? null;
 
-  const enableAudio = () => {
-    audioRef.current
-      ?.play()
-      .then(() => setSoundBlocked(false))
-      .catch(() => setSoundBlocked(true));
-  };
-
   const isTranslating = isLoadingCues && language !== "English";
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Language selector buttons */}
-      <div className="flex flex-wrap items-center justify-center gap-2 px-6 py-4 border-b border-slate-900">
+    <div className="relative h-screen overflow-hidden bg-slate-950 font-sans text-slate-100">
+      {/* Language selector */}
+      <section
+        className="absolute top-1/2 z-20 -translate-y-1/2 rounded-2xl border border-slate-800/80 bg-slate-950/80 shadow-2xl backdrop-blur-md"
+        style={{
+          left: "clamp(1rem, 2.5vw, 2rem)",
+          width: "clamp(12rem, 22vw, 15rem)",
+          padding: "clamp(1.2rem, 2vw, 1.5rem)",
+        }}
+      >
+        <h1
+          className="mb-5 text-center font-bold uppercase tracking-[0.12em] text-cyan-100"
+          style={{ fontSize: "clamp(0.8rem, 1.4vw, 1rem)" }}
+        >
+          Subtitle Language Change
+        </h1>
+        <div className="flex flex-col" style={{ gap: "0.9rem" }}>
         {LANGUAGES.map((l) => {
           const active = language === l.label;
           const loading = isTranslating && active;
           return (
             <button
               key={l.label}
-              onClick={() => setLanguage(l.label)}
+              onClick={() => selectLanguage(l)}
               disabled={isLoadingCues && !active}
-              className={`text-sm px-4 py-2 rounded-full font-bold border transition flex items-center gap-2 ${
+              className={`flex w-full items-center justify-between rounded-xl border px-5 text-left font-bold transition ${
                 active
                   ? "bg-indigo-600 text-white border-indigo-400 shadow-lg shadow-indigo-950"
                   : "bg-slate-900 text-slate-300 border-slate-700 hover:border-indigo-500 hover:text-white"
               } ${isLoadingCues && !active ? "opacity-40 cursor-not-allowed" : ""}`}
+              style={{ minHeight: "3.6rem", fontSize: "clamp(1rem, 1.65vw, 1.15rem)" }}
             >
-              <span>{l.flag}</span>
               {l.label}
               {loading && <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />}
             </button>
           );
         })}
-      </div>
+        </div>
+      </section>
 
       {/* Status line */}
       {(status || cuesError) && (
-        <div className="px-6 py-2 text-center text-xs font-mono text-slate-400 border-b border-slate-900">
+        <div className="absolute inset-x-0 top-0 z-10 px-6 py-2 text-center text-xs font-mono text-slate-400">
           {(isTranscribing || isLoadingCues) && (
             <span className="inline-block w-2 h-2 mr-2 rounded-full bg-amber-400 animate-ping align-middle" />
           )}
@@ -268,11 +287,8 @@ export default function Screen8Page() {
       )}
 
       {/* Highlight reel with subtitle overlay */}
-      <main className="min-h-0 flex-1 overflow-hidden">
-        <div
-          className="relative h-full w-full bg-black overflow-hidden"
-          onClick={enableAudio}
-        >
+      <main className="h-full overflow-hidden">
+        <div className="relative h-full w-full overflow-hidden bg-black">
           {reelUrl ? (
             <video
               key={reelUrl}
@@ -281,11 +297,8 @@ export default function Screen8Page() {
               autoPlay
               loop
               muted
-              controls
               playsInline
               onTimeUpdate={() => videoRef.current && setVideoTime(videoRef.current.currentTime)}
-              onPlay={enableAudio}
-              onPause={() => audioRef.current?.pause()}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -293,14 +306,6 @@ export default function Screen8Page() {
               No highlight reel yet — record all 3 cameras to generate one.
             </div>
           )}
-          <audio ref={audioRef} src={selectedUrl || undefined} autoPlay loop />
-
-          {soundBlocked && (
-            <div className="absolute right-4 top-4 rounded-lg border border-slate-700 bg-slate-950/85 px-3 py-2 text-xs font-mono text-slate-200">
-              🔊 Click video to enable original audio
-            </div>
-          )}
-
           {/* Subtitle band, burned-in style but live CSS overlay */}
           {activeCue && (
             <div className="absolute bottom-16 left-4 right-4 flex justify-center pointer-events-none">

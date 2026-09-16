@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GREEN_SCREEN_BACKGROUNDS,
   composedOutputUrl,
 } from "@/lib/green-screen";
 import { recordingSourceQuery } from "@/lib/camera-recordings";
 import { fetchCurrentSession, patchSession } from "@/lib/current-session";
+import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 
 type ComposeStatus = "waiting" | "active" | "delayed" | "paused" | "completed" | "fallback-ready" | "failed";
 
@@ -23,6 +24,16 @@ interface ComposeResponse {
 interface RecordingItem {
   filename: string;
   url: string;
+}
+
+interface BackgroundStatusResponse {
+  backgroundsStatus?: Array<{
+    backgroundId: string;
+    status?: string;
+    url?: string;
+    fallback?: string | null;
+    fallbackReason?: string | null;
+  }>;
 }
 
 const POLL_INTERVAL_MS = 700;
@@ -47,6 +58,7 @@ interface InFlightCompose {
   /** Swap this into the video the moment it finishes, even if silent. */
   autoShow: boolean;
   startedAt: number;
+  intent: "prewarm" | "select";
 }
 
 const keyFor = (backgroundId: string, sourceFilename: string) => `${backgroundId}::${sourceFilename}`;
@@ -72,6 +84,14 @@ export default function Screen7Page() {
   const elapsedTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAt = useRef<number>(0);
   const selectedIdRef = useRef<string | null>(null);
+  const chooseBackgroundRef = useRef<(backgroundId: string) => void>(() => {});
+  const remoteBackgroundRef = useRef<string | null>(null);
+  const onRemoteBackground = useCallback((backgroundId: string) => {
+    if (!GREEN_SCREEN_BACKGROUNDS.some((background) => background.id === backgroundId)) return;
+    remoteBackgroundRef.current = backgroundId;
+    chooseBackgroundRef.current(backgroundId);
+  }, []);
+  const saveBackground = useRealtimeSelection("background", onRemoteBackground);
   // Caps handleVideoError's auto-retry per (background, edited reel) so a
   // persistently broken render fails loud instead of flickering forever.
   const videoRetryCount = useRef<Map<string, number>>(new Map());
@@ -83,12 +103,18 @@ export default function Screen7Page() {
   useEffect(() => {
     fetchCurrentSession().then((session) => {
       sessionIdRef.current = session?.id ?? null;
+      if (session?.selectedBackgroundId) {
+        setSelectedId(session.selectedBackgroundId);
+        selectedIdRef.current = session.selectedBackgroundId;
+      }
     });
   }, []);
   const persistBackgroundSelection = (backgroundId: string) => {
     if (sessionIdRef.current) {
       patchSession(sessionIdRef.current, { selectedBackgroundId: backgroundId });
     }
+    if (remoteBackgroundRef.current === backgroundId) remoteBackgroundRef.current = null;
+    else saveBackground(backgroundId);
   };
 
   useEffect(() => {
@@ -132,6 +158,9 @@ export default function Screen7Page() {
   }, []);
 
   const startElapsedClock = () => {
+    // This function is only invoked from user/effect callbacks, never during
+    // render; the React purity rule cannot infer that through this closure.
+    // eslint-disable-next-line react-hooks/purity
     startedAt.current = Date.now();
     setElapsedSeconds(0);
     if (elapsedTimer.current) clearInterval(elapsedTimer.current);
@@ -279,7 +308,7 @@ export default function Screen7Page() {
   const ensureComposed = (
     backgroundId: string,
     sourceTake: string,
-    opts: { silent: boolean; autoShow: boolean }
+    opts: { silent: boolean; autoShow: boolean; intent: "prewarm" | "select" }
   ) => {
     const key = keyFor(backgroundId, sourceTake);
     const existing = inFlight.current.get(key);
@@ -288,6 +317,13 @@ export default function Screen7Page() {
       // is exactly one compose pass per (background, edited reel) pair either way.
       if (!opts.silent) existing.silent = false;
       if (opts.autoShow) existing.autoShow = true;
+      if (opts.intent === "select" && existing.intent !== "select") {
+        fetch("/api/green-screen/compose", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ backgroundId, sourceFilename: sourceTake, intent: "select" }),
+        }).catch(() => setErrorMessage("Could not register Screen 7 background selection."));
+      }
       return;
     }
 
@@ -296,6 +332,7 @@ export default function Screen7Page() {
       silent: opts.silent,
       autoShow: opts.autoShow,
       startedAt: Date.now(),
+      intent: opts.intent,
     };
     inFlight.current.set(key, entry);
     setWarmingIds((prev) => new Set(prev).add(key));
@@ -305,7 +342,7 @@ export default function Screen7Page() {
         const res = await fetch("/api/green-screen/compose", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ backgroundId, sourceFilename: sourceTake }),
+          body: JSON.stringify({ backgroundId, sourceFilename: sourceTake, intent: entry.intent }),
         });
         const data: ComposeResponse = await res.json().catch(() => ({}) as ComposeResponse);
 
@@ -353,10 +390,50 @@ export default function Screen7Page() {
   // blank one, without the operator re-clicking anything.
   useEffect(() => {
     if (!sourceFilename) return;
-    GREEN_SCREEN_BACKGROUNDS.forEach((bg) => {
-      const autoShow = selectedIdRef.current === null || selectedIdRef.current === bg.id;
-      ensureComposed(bg.id, sourceFilename, { silent: true, autoShow });
-    });
+    let cancelled = false;
+    const restoreAndWarm = async () => {
+      let status: BackgroundStatusResponse = {};
+      try {
+        const res = await fetch(`/api/green-screen/status?sourceFilename=${encodeURIComponent(sourceFilename)}`);
+        if (res.ok) status = await res.json();
+      } catch {
+        // The individual compose request below remains the recovery path.
+      }
+      if (cancelled) return;
+
+      const byId = new Map((status.backgroundsStatus ?? []).map((entry) => [entry.backgroundId, entry]));
+      const ready = new Set<string>();
+      const warming = new Set<string>();
+      const selected = selectedIdRef.current;
+      for (const bg of GREEN_SCREEN_BACKGROUNDS) {
+        const entry = byId.get(bg.id);
+        const key = keyFor(bg.id, sourceFilename);
+        if (entry?.status === "completed" || entry?.status === "fallback-ready") {
+          ready.add(key);
+          continue;
+        }
+        if (["waiting", "active", "delayed", "paused", "processing"].includes(entry?.status ?? "")) {
+          warming.add(key);
+          continue;
+        }
+        const autoShow = selected === null || selected === bg.id;
+        ensureComposed(bg.id, sourceFilename, { silent: true, autoShow, intent: "prewarm" });
+      }
+      setReadyIds(ready);
+      setWarmingIds(warming);
+      const restoredId = selected && ready.has(keyFor(selected, sourceFilename))
+        ? selected
+        : GREEN_SCREEN_BACKGROUNDS.find((bg) => ready.has(keyFor(bg.id, sourceFilename)))?.id ?? null;
+      if (restoredId) {
+        setSelectedId(restoredId);
+        selectedIdRef.current = restoredId;
+        setVideoSrc(`${composedOutputUrl(restoredId, sourceFilename)}?t=${Date.now()}`);
+      }
+    };
+    restoreAndWarm();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceFilename]);
 
@@ -369,17 +446,26 @@ export default function Screen7Page() {
     const key = keyFor(backgroundId, sourceFilename);
     if (readyIds.has(key)) {
       // Already rendered against the current edited reel — swap instantly.
+      // eslint-disable-next-line react-hooks/purity
       setVideoSrc(`${composedOutputUrl(backgroundId, sourceFilename)}?t=${Date.now()}`);
       setSelectedId(backgroundId);
       selectedIdRef.current = backgroundId;
       persistBackgroundSelection(backgroundId);
+      fetch("/api/green-screen/compose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ backgroundId, sourceFilename, intent: "select" }),
+      }).catch(() => setErrorMessage("Could not update Screen 7 publication state."));
       return;
     }
 
     setPendingId(backgroundId);
     startElapsedClock();
-    ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true });
+    ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true, intent: "select" });
   };
+  useEffect(() => {
+    chooseBackgroundRef.current = chooseBackground;
+  });
 
   /**
    * The "ready" dot means the client saw this (background, edited reel) render
@@ -417,7 +503,7 @@ export default function Screen7Page() {
     setErrorMessage(`"${label}" failed to load — re-rendering it now…`);
     setPendingId(backgroundId);
     startElapsedClock();
-    ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true });
+    ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true, intent: "select" });
   };
 
   const isProcessing = pendingId !== null;
@@ -495,19 +581,19 @@ export default function Screen7Page() {
         </section>
 
         {/* Background picker */}
-        <section className="absolute inset-x-6 bottom-6 z-20 mx-auto max-w-4xl space-y-3 rounded-2xl border border-slate-800/80 bg-slate-950/80 p-4 shadow-2xl backdrop-blur-md">
-          <div className="flex items-center justify-center gap-2">
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">
+        <section className="absolute left-6 top-1/2 z-20 w-[clamp(10rem,18vw,15rem)] -translate-y-1/2 space-y-3 rounded-2xl border border-slate-800/80 bg-slate-950/80 p-3 shadow-2xl backdrop-blur-md">
+          <div className="flex flex-col items-center gap-1.5 text-center">
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Choose a Background
             </h3>
             {stillWarmingCount > 0 && (
-              <span className="text-[10px] font-mono text-amber-400/80 flex items-center gap-1">
+              <span className="text-[10px] font-mono text-amber-400/80 flex items-center gap-1 text-center">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                 pre-rendering {stillWarmingCount} in the background
               </span>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+          <div className="grid grid-cols-1 gap-2">
             {GREEN_SCREEN_BACKGROUNDS.map((bg) => {
               const key = sourceFilename ? keyFor(bg.id, sourceFilename) : null;
               const isActive = selectedId === bg.id;

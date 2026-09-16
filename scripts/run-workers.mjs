@@ -32,6 +32,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TSX_CLI = path.join(ROOT, "node_modules", "tsx", "dist", "cli.mjs");
+const USERINFO_SHIM = path.join(ROOT, "scripts", "node-userinfo-shim.cjs");
 
 const MAX_RESTARTS = 5;
 const RESTART_WINDOW_MS = 60_000;
@@ -143,7 +144,7 @@ const state = new Map();
 let shuttingDown = false;
 
 function start(group) {
-  const child = spawn(process.execPath, [TSX_CLI, path.join(ROOT, group.entry)], {
+  const child = spawn(process.execPath, ["-r", USERINFO_SHIM, TSX_CLI, path.join(ROOT, group.entry)], {
     cwd: ROOT,
     // stdin ignored: the workers are non-interactive, and inheriting it on
     // Windows makes Ctrl+C handling in the children unpredictable.

@@ -4,6 +4,12 @@ if (process.platform === "win32") {
   const fallbackUsername = process.env.USERNAME || process.env.USER || "codex";
   const originalUserInfo = os.userInfo;
 
+  if (!process.geteuid) {
+    process.geteuid = function geteuidShim() {
+      return fallbackUsername;
+    };
+  }
+
   os.userInfo = function userInfoShim(options) {
     try {
       return originalUserInfo.call(os, options);

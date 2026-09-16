@@ -1,213 +1,138 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { composedOutputUrl } from "@/lib/green-screen";
+import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
+import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 
-interface AdCampaign {
-  id?: string;
-  sponsor: string;
-  text: string;
-  code: string;
+const BRANDS = [
+  { name: "boAt", logo: "/logo/boat.svg" },
+  { name: "Samsung", logo: "/logo/samsung.svg" },
+  { name: "Apple", logo: "/logo/apple.svg" },
+  { name: "Sony", logo: "/logo/sony.svg" },
+] as const;
+
+function wrapIndex(index: number) {
+  return (index + BRANDS.length) % BRANDS.length;
 }
-
-interface AudioFileItem {
-  filename: string;
-  url: string;
-}
-
-/**
- * Screen 10 mirrors Screen 09's rotation exactly (same campaigns, same
- * clock) so the two HDMI outputs never show conflicting sponsors — it just
- * renders the bottom-banner layout instead of Screen 09's left-side vertical
- * banner.
- */
-const FALLBACK_CAMPAIGNS: AdCampaign[] = [
-  { sponsor: "AMAGI CLOUDPORT", text: "Scale your broadcast channel playout and platform delivery dynamically in the cloud.", code: "AMAGI-PLAYOUT" },
-  { sponsor: "AMAGI THUNDERSTORM", text: "Supercharge your CTV & FAST monetization with advanced Server-Side Ad Insertion (SSAI).", code: "AMAGI-DYNAMIC-ADS" },
-  { sponsor: "AMAGI PLANNER", text: "Simplify scheduling, planning, and EPG management for broadcast and FAST networks.", code: "AMAGI-EPG-PLANNER" },
-];
-
-const ROTATE_MS = 5000;
-const REFETCH_MS = 30000;
-const REEL_POLL_MS = 3000;
 
 export default function Screen10Page() {
-  const [campaigns, setCampaigns] = useState<AdCampaign[]>(FALLBACK_CAMPAIGNS);
-  const [currentAdIndex, setCurrentAdIndex] = useState(0);
-  const [reelUrl, setReelUrl] = useState<string | null>(null);
-  const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null);
-  const [soundBlocked, setSoundBlocked] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const onRemote = useCallback((value: string) => { const index = BRANDS.findIndex((brand) => brand.name.toLowerCase() === value); if (index >= 0) setActiveIndex(index); }, []);
+  const saveBrand = useRealtimeSelection("brand", onRemote);
+  const selectBrand = useCallback((index: number) => { setActiveIndex(index); saveBrand(BRANDS[index].name.toLowerCase()); }, [saveBrand]);
 
-  // Fixed Screen 7-style green-screen composite — the same source as Screen 09.
   useEffect(() => {
-    let cancelled = false;
-    const fetchLatestReel = async () => {
-      try {
-        const res = await fetch("/api/save-recording?kind=highlight");
-        if (!res.ok) return;
-        const data = await res.json();
-        const list: { filename: string }[] = data.recordings || [];
-        if (list.length > 0 && !cancelled) setReelUrl(composedOutputUrl("newsroom-blue", list[0].filename));
-      } catch {
-        // Keep whatever reel is already on screen.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        selectBrand(wrapIndex(activeIndex + 1));
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        selectBrand(wrapIndex(activeIndex - 1));
       }
     };
-    fetchLatestReel();
-    const interval = setInterval(fetchLatestReel, REEL_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
 
-  useEffect(() => {
-    const fetchOriginalAudio = async () => {
-      try {
-        const res = await fetch("/api/save-audio");
-        if (!res.ok) return;
-        const data = await res.json();
-        const original = (data.audioFiles as AudioFileItem[] | undefined)?.find(
-          (file) => file.filename !== "master-audio-16k.wav"
-        );
-        if (original) setOriginalAudioUrl(original.url);
-      } catch {
-        // The video remains playable while the original audio source retries on reload.
-      }
-    };
-    fetchOriginalAudio();
-  }, []);
-
-  useEffect(() => {
-    if (!originalAudioUrl || !audioRef.current) return;
-    audioRef.current
-      .play()
-      .then(() => setSoundBlocked(false))
-      .catch(() => setSoundBlocked(true));
-  }, [originalAudioUrl]);
-
-  const enableAudio = () => {
-    audioRef.current
-      ?.play()
-      .then(() => setSoundBlocked(false))
-      .catch(() => setSoundBlocked(true));
-  };
-
-  const fetchCampaigns = useCallback(async () => {
-    try {
-      const res = await fetch("/api/ad-campaigns");
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data.campaigns) && data.campaigns.length > 0) {
-        setCampaigns(data.campaigns);
-      } else {
-        setCampaigns(FALLBACK_CAMPAIGNS);
-      }
-    } catch {
-      // Keep whatever campaigns are already on screen.
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCampaigns();
-    const refetchTimer = setInterval(fetchCampaigns, REFETCH_MS);
-    return () => clearInterval(refetchTimer);
-  }, [fetchCampaigns]);
-
-  useEffect(() => {
-    // Rotate active ad
-    const adTimer = setInterval(() => {
-      setCurrentAdIndex((prev) => (campaigns.length ? (prev + 1) % campaigns.length : 0));
-    }, ROTATE_MS);
-
-    return () => {
-      clearInterval(adTimer);
-    };
-  }, [campaigns]);
-
-  useEffect(() => {
-    if (currentAdIndex >= campaigns.length) setCurrentAdIndex(0);
-  }, [campaigns, currentAdIndex]);
-
-  const activeAd = campaigns[currentAdIndex] ?? campaigns[0];
-  if (!activeAd) return null;
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeIndex, selectBrand]);
 
   return (
-    <div className="grid h-screen w-screen grid-rows-[90%_10%] overflow-hidden bg-slate-950 font-sans text-slate-100">
-      <section className="relative min-h-0 overflow-hidden bg-slate-900 group" onClick={enableAudio}>
-            {/* Ambient Scanlines */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0)_95%,rgba(0,0,0,0.15)_95%)] bg-[size:100%_4px] opacity-20 pointer-events-none z-10" />
+    <main
+      className="relative grid min-h-screen overflow-hidden px-6 font-sans text-white"
+      style={{
+        placeItems: "center",
+        background: "radial-gradient(circle at 50% 35%, #182b78 0%, #0b1745 36%, #020617 82%)",
+      }}
+    >
+      <p
+        className="absolute left-6 right-6 text-center font-semibold uppercase text-cyan-100"
+        style={{
+          top: "clamp(3.5rem, 8vh, 6rem)",
+          fontSize: "clamp(1.56rem, 4.42vmin, 2.6rem)",
+          letterSpacing: "0.14em",
+        }}
+      >
+        BRAND SELECTION
+      </p>
 
-            {/* Corner Bracket UI indicators */}
-            <div className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-slate-500/40 pointer-events-none z-10" />
-            <div className="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-slate-500/40 pointer-events-none z-10" />
-            <div className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-slate-500/40 pointer-events-none z-10" />
-            <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-slate-500/40 pointer-events-none z-10" />
+      <section className="relative z-10 w-full" style={{ width: "min(92vw, 75.6rem)" }} aria-label="Brand selection">
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: "clamp(1.4rem, 3.5vmin, 2.45rem)",
+          }}
+        >
+          {BRANDS.map((brand, index) => {
+            const isActive = index === activeIndex;
+            const isHovered = index === hoveredIndex;
+            const isEmphasized = isActive || isHovered;
 
-            {/* Video Feed — Screen 06's highlight reel once one exists */}
-            {reelUrl ? (
-              <video
-                key={reelUrl}
-                src={reelUrl}
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div
-                className="flex h-full w-full items-center justify-center bg-slate-950 p-10"
-                role="status"
-                aria-label="Loading composited video"
-              >
-                <div className="w-full max-w-3xl space-y-7 animate-pulse">
-                  <div className="h-8 w-36 rounded-full bg-slate-800/90" />
-                  <div className="h-48 rounded-2xl bg-slate-800/75" />
-                  <div className="h-10 w-3/4 rounded-xl bg-slate-800/55" />
-                </div>
-              </div>
-            )}
-            <audio ref={audioRef} src={originalAudioUrl || undefined} autoPlay loop />
-
-            {/* Top Video Status Overlays */}
-            <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-10">
-              <div className="flex items-center gap-2 bg-slate-950/60 backdrop-blur-sm px-2.5 py-1 rounded-md border border-slate-800 text-[10px] font-mono text-slate-300">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    reelUrl ? "bg-indigo-500 animate-ping" : "bg-slate-600"
-                  }`}
+            return (
+              <div key={brand.name} className="relative" style={{ aspectRatio: "1" }}>
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-2xl transition-all duration-300"
+                  style={{
+                    inset: isActive ? "-0.55rem" : "-0.35rem",
+                    opacity: isEmphasized ? (isActive ? 1 : 0.72) : 0,
+                    background: "linear-gradient(135deg, rgba(34,211,238,0.9), rgba(99,102,241,0.8), rgba(217,70,239,0.85))",
+                    boxShadow: isActive ? "0 14px 32px -14px rgba(34,211,238,0.8)" : "none",
+                  }}
                 />
-                {reelUrl ? "COMPOSITED FEED" : "AWAITING COMPOSITE"}
+                <button
+                  type="button"
+                  onClick={() => selectBrand(index)}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  aria-pressed={isActive}
+                  className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden rounded-2xl border text-center transition-all duration-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300"
+                  style={{
+                    padding: "1.05rem",
+                    gap: "clamp(1rem, 3.2vmin, 1.4rem)",
+                    background: isHovered && !isActive ? "#eef2ff" : "#ffffff",
+                    borderColor: isActive ? "#ffffff" : "#cbd5e1",
+                    color: "#0f172a",
+                    boxShadow: isActive ? "0 0 26px -16px rgba(255,255,255,0.95)" : isHovered ? "0 0 30px -16px rgba(129,140,248,0.95)" : "none",
+                    transform: isHovered && !isActive ? "translateY(-3px)" : "translateY(0)",
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 transition-opacity duration-300"
+                    style={{
+                      opacity: isHovered && !isActive ? 1 : 0,
+                      background:
+                        "radial-gradient(circle at 35% 20%, rgba(34,211,238,0.2), transparent 42%), radial-gradient(circle at 85% 85%, rgba(99,102,241,0.18), transparent 48%)",
+                    }}
+                  />
+                  <span
+                    className="relative z-10 flex w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50"
+                    style={{ height: "clamp(5.32rem, 11.9vmin, 8.4rem)", padding: "clamp(0.84rem, 1.68vmin, 1.26rem)" }}
+                  >
+                    <Image
+                      src={brand.logo}
+                      alt={`${brand.name} logo`}
+                      width={160}
+                      height={72}
+                      className="h-full w-full object-contain"
+                    />
+                  </span>
+                  <span className="relative font-bold text-slate-900" style={{ fontSize: "clamp(1.4rem, 3.71vmin, 1.89rem)" }}>
+                    {brand.name}
+                  </span>
+                </button>
               </div>
-              <div className="flex items-center gap-2 bg-slate-950/60 backdrop-blur-sm px-2.5 py-1 rounded-md border border-slate-800 text-[10px] font-mono text-slate-300">
-                1080p @ 60FPS
-              </div>
-            </div>
-            {soundBlocked && (
-              <div className="absolute bottom-6 right-6 z-20 rounded-lg border border-slate-700 bg-slate-950/85 px-3 py-2 text-xs font-mono text-slate-200">
-                🔊 Click video to enable original audio
-              </div>
-            )}
+            );
+          })}
+        </div>
+        <p className="sr-only" aria-live="polite">
+          {BRANDS[activeIndex].name} selected
+        </p>
       </section>
-
-      <aside className="flex min-h-0 items-center justify-between gap-8 border-t border-indigo-500/25 bg-slate-900 px-8 py-6 shadow-2xl shadow-black/30">
-        <div className="flex min-w-0 items-center gap-5">
-          <span className="shrink-0 rounded border border-indigo-400/30 bg-indigo-500/15 px-3 py-1.5 text-[10px] font-mono font-extrabold tracking-widest text-indigo-200">
-            ACTIVE CAMPAIGN
-          </span>
-          <div className="min-w-0">
-            <h1 className="truncate font-mono text-xl font-extrabold tracking-wide text-indigo-200">
-              {activeAd.sponsor}
-            </h1>
-            <p className="mt-1 truncate text-sm text-slate-300">{activeAd.text}</p>
-          </div>
-        </div>
-        <div className="shrink-0 border-l border-slate-700/80 pl-8 text-right">
-          <p className="text-[9px] font-mono uppercase tracking-wider text-slate-500">Campaign code</p>
-          <p className="mt-1 font-mono text-sm font-bold text-indigo-400">{activeAd.code}</p>
-        </div>
-      </aside>
-    </div>
+    </main>
   );
 }

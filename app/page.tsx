@@ -1,31 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useEffect, useCallback } from "react";
 import Image from "next/image";
 import ScreenNavigationMatrix from "@/components/screen-navigation-matrix";
-import { useCameraRecorder, type CameraRecorder } from "@/lib/use-camera-recorder";
-import { subscribeSharedEventSource } from "@/lib/shared-event-source";
-
-interface Esp32Frame {
-  raw: string;
-  command: string;
-  value: string;
-  at: string;
-}
-
-interface Esp32Status {
-  connected: boolean;
-  path: string;
-  baudRate: number;
-  lastError: string | null;
-}
-
-/**
- * Serial messages from the ESP32 panel. Button 1 arms the studio; button 0
- * stops it and hands the takes to the save/transcribe pipeline.
- */
-const ESP32_START_FRAMES = new Set(["1", "BUTTON[1]", "CLICK[1]", "START", "ON"]);
-const ESP32_END_FRAMES = new Set(["0", "BUTTON[0]", "STOP", "OFF"]);
+import { useCameraRecorder } from "@/lib/use-camera-recorder";
 
 export default function HomePage() {
   // --- Camera States ---
@@ -34,21 +12,10 @@ export default function HomePage() {
   const camera1 = useCameraRecorder(1, { captureAudio: true });
   const camera2 = useCameraRecorder(2);
   const camera3 = useCameraRecorder(3);
-  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
-
-  // --- ESP32 Hardware Panel States ---
-  const [esp32Status, setEsp32Status] = useState<Esp32Status | null>(null);
-  const [lastEsp32Frame, setLastEsp32Frame] = useState<Esp32Frame | null>(null);
-  const esp32TriggersRef = useRef<{ start: () => void; end: () => void }>({
-    start: () => { },
-    end: () => { },
-  });
-
   const refreshVideoDevices = useCallback(async () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const inputs = devices.filter((d) => d.kind === "videoinput" && d.deviceId);
-      setVideoDevices(inputs);
       return inputs;
     } catch (err) {
       console.error("Failed to enumerate video devices:", err);
@@ -63,12 +30,6 @@ export default function HomePage() {
     return () =>
       navigator.mediaDevices?.removeEventListener("devicechange", onDeviceChange);
   }, [refreshVideoDevices]);
-
-  const handleSelectDevice = (recorder: CameraRecorder) => async (deviceId: string) => {
-    if (!deviceId) return;
-    await recorder.startCamera(deviceId);
-    refreshVideoDevices();
-  };
 
   // Mount effects
   useEffect(() => {
@@ -109,67 +70,6 @@ export default function HomePage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ================= NEXMOSPHERE PANEL TRIGGERS =================
-  const startAllRecording = () => {
-    if (!camera1.isRecorderRunning()) {
-      camera1.startRecording();
-    }
-    if (!camera2.isRecorderRunning()) {
-      camera2.startRecording();
-    }
-    if (!camera3.isRecorderRunning()) {
-      camera3.startRecording();
-    }
-  };
-
-  const endAllRecording = () => {
-    camera1.endRecording();
-    camera2.endRecording();
-    camera3.endRecording();
-  };
-
-  // Keep the triggers pointing at the newest closures so the subscription below
-  // can mount once without ever going stale.
-  useEffect(() => {
-    esp32TriggersRef.current = { start: startAllRecording, end: endAllRecording };
-  });
-
-  // Physical panel -> recording. The shared SSE helper keeps only one browser
-  // tab connected to the server stream and fans events out to the others.
-  useEffect(() => {
-    return subscribeSharedEventSource("/api/esp32/events", {
-      events: {
-        status: (e) => {
-          try {
-            setEsp32Status(JSON.parse(e.data));
-          } catch (err) {
-            console.error("Bad ESP32 status payload:", err);
-          }
-        },
-        frame: (e) => {
-          let frame: Esp32Frame;
-          try {
-            frame = JSON.parse(e.data);
-          } catch (err) {
-            console.error("Bad ESP32 frame payload:", err);
-            return;
-          }
-
-          setLastEsp32Frame(frame);
-          setEsp32Status((prev) => (prev ? { ...prev, connected: true } : prev));
-
-          const raw = frame.raw.trim().toUpperCase();
-          if (ESP32_START_FRAMES.has(raw)) {
-            esp32TriggersRef.current.start();
-          } else if (ESP32_END_FRAMES.has(raw)) {
-            esp32TriggersRef.current.end();
-          }
-        },
-      },
-      onError: () => setEsp32Status((prev) => (prev ? { ...prev, connected: false } : prev)),
-    });
   }, []);
 
   return (

@@ -8,7 +8,12 @@ def main():
     args = parser.parse_args()
 
     model_name = "resnet50" if args.model == "resnet50" else "mobilenetv3"
-    torch.hub.load("PeterL1n/RobustVideoMatting", model_name, pretrained=True)
+    torch.hub.load(
+        "PeterL1n/RobustVideoMatting",
+        model_name,
+        pretrained=True,
+        trust_repo=True,
+    )
     print(f"RVM {model_name} is available in the torch hub cache.")
 
 

@@ -1,6 +1,6 @@
-import RecordingLooper from "@/components/recording-looper";
+import Screen6BrightnessPlayer from "@/components/screen6-brightness-player";
 
-/** Loops the newest Gemini-cut highlight reel with embedded synchronized audio. */
+/** Loops the newest Gemini-cut highlight reel with keyboard brightness control. */
 export default function Screen6Page() {
-  return <RecordingLooper source={{ highlight: true }} muted={false} screenId={6} />;
+  return <Screen6BrightnessPlayer />;
 }

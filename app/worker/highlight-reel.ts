@@ -67,11 +67,11 @@ const worker = new Worker<HighlightRenderJob>(
       `[${WORKER_NAME}] job ${job.id} done: "${result.title}" — ` +
         `${result.segments.length} segment(s), ${result.durationSeconds}s → ${result.url}`
     );
+    // Create the five background task rows before completing the highlight
+    // task. This prevents maybeMarkGenerationReady() from observing a
+    // temporarily incomplete task set and declaring the generation ready.
+    await enqueueAllBackgroundsForSource(result.filename, generationId);
     await markTaskCompleted(generationId, "highlight-reel");
-    enqueueAllBackgroundsForSource(result.filename, generationId).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[${WORKER_NAME}] failed to pre-warm Screen 7 backgrounds for "${result.filename}": ${message}`);
-    });
 
     return {
       filename: result.filename,

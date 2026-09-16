@@ -1,161 +1,141 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { composedOutputUrl } from "@/lib/green-screen";
-import Image from "next/image";
+import { useCallback, useEffect, useState } from "react";
+import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 
-const ADS = [
-  {
-    id: "amul",
-    fullImage: "/ads/ads001.png"
-  },
-  {
-    id: "ads002",
-    fullImage: "/ads/ads002.png"
-  },
-  {
-    id: "ads003",
-    fullImage: "/ads/ads003.png"
-  }
+const AD_INDUSTRIES = [
+  "FMCG",
+  "Consumer Electronics",
+  "Banking & Finance",
+  "Retail & E-commerce",
 ];
 
-const ROTATE_MS = 10000;
-const REEL_POLL_MS = 3000;
-
-export default function Screen9Page() {
-  const [currentAdIndex, setCurrentAdIndex] = useState(0);
-  const [reelUrl, setReelUrl] = useState<string | null>(null);
-  const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null);
-  const [soundBlocked, setSoundBlocked] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Fixed Screen 7-style green-screen composite, bannered here for broadcast.
-  useEffect(() => {
-    let cancelled = false;
-    const fetchLatestReel = async () => {
-      try {
-        const res = await fetch("/api/save-recording?kind=highlight");
-        if (!res.ok) return;
-        const data = await res.json();
-        const list: { filename: string }[] = data.recordings || [];
-        if (list.length > 0 && !cancelled) setReelUrl(composedOutputUrl("newsroom-blue", list[0].filename));
-      } catch {
-        // Keep whatever reel is already on screen.
-      }
-    };
-    fetchLatestReel();
-    const interval = setInterval(fetchLatestReel, REEL_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
-
-  useEffect(() => {
-    const fetchOriginalAudio = async () => {
-      try {
-        const res = await fetch("/api/save-audio");
-        if (!res.ok) return;
-        const data = await res.json();
-        const original = (data.audioFiles as {filename: string, url: string}[] | undefined)?.find(
-          (file) => file.filename !== "master-audio-16k.wav"
-        );
-        if (original) setOriginalAudioUrl(original.url);
-      } catch {
-        // The video remains playable while the original audio source retries on reload.
-      }
-    };
-    fetchOriginalAudio();
-  }, []);
-
-  useEffect(() => {
-    if (!originalAudioUrl || !audioRef.current) return;
-    audioRef.current
-      .play()
-      .then(() => setSoundBlocked(false))
-      .catch(() => setSoundBlocked(true));
-  }, [originalAudioUrl]);
-
-  const enableAudio = () => {
-    audioRef.current
-      ?.play()
-      .then(() => setSoundBlocked(false))
-      .catch(() => setSoundBlocked(true));
-  };
-
-  useEffect(() => {
-    // Rotate the ad creative
-    const adTimer = setInterval(() => {
-      setCurrentAdIndex((prev) => (prev + 1) % ADS.length);
-    }, ROTATE_MS);
-
-    return () => clearInterval(adTimer);
-  }, []);
-
-  const activeAd = ADS[currentAdIndex];
-
-  return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black font-sans text-slate-100">
-      
-      {/* LAYER 1: Full 16:9 Generated L-Band Image Background */}
-      <div className="absolute inset-0 z-0">
-        <Image
-          src={activeAd.fullImage}
-          alt={`Ad Campaign ${activeAd.id}`}
-          fill
-          className="object-cover transition-opacity duration-1000"
-          priority
-        />
-      </div>
-
-      {/* LAYER 2: Live Video Window overlaying the "fake" generated program area */}
-      {/* Adjust w-[75%] h-[80%] right-0 top-0 to fit exactly over the generated program area */}
-      <section 
-        className="absolute top-0 right-0 w-[81%] h-[76%] z-10 overflow-hidden bg-black shadow-[-10px_10px_30px_rgba(0,0,0,0.5)] border-l border-b border-white/10" 
-        onClick={enableAudio}
-      >
-        <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(rgba(18,24,38,0)_95%,rgba(0,0,0,0.15)_95%)] bg-[size:100%_4px] opacity-20" />
-
-        <div className="pointer-events-none absolute left-4 top-4 z-10 h-4 w-4 border-l-2 border-t-2 border-slate-500/40" />
-        <div className="pointer-events-none absolute right-4 top-4 z-10 h-4 w-4 border-r-2 border-t-2 border-slate-500/40" />
-        <div className="pointer-events-none absolute bottom-4 left-4 z-10 h-4 w-4 border-b-2 border-l-2 border-slate-500/40" />
-        <div className="pointer-events-none absolute bottom-4 right-4 z-10 h-4 w-4 border-b-2 border-r-2 border-slate-500/40" />
-
-        {reelUrl ? (
-          <video
-            key={reelUrl}
-            src={reelUrl}
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-slate-950 p-10" role="status" aria-label="Loading composited video">
-            <div className="w-full max-w-3xl space-y-7 animate-pulse">
-              <div className="h-8 w-36 rounded-full bg-slate-800/90" />
-              <div className="h-48 rounded-2xl bg-slate-800/75" />
-              <div className="h-10 w-3/4 rounded-xl bg-slate-800/55" />
-            </div>
-          </div>
-        )}
-        <audio ref={audioRef} src={originalAudioUrl || undefined} autoPlay loop />
-
-        <div className="pointer-events-none absolute left-4 right-4 top-4 z-10 flex items-center justify-between">
-          <div className="flex items-center gap-2 rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-1 font-mono text-[10px] text-slate-300 backdrop-blur-sm">
-            <span className={`h-1.5 w-1.5 rounded-full ${reelUrl ? "bg-indigo-500 animate-ping" : "bg-slate-600"}`} />
-            {reelUrl ? "LIVE BROADCAST" : "AWAITING FEED"}
-          </div>
-        </div>
-        {soundBlocked && (
-          <div className="absolute bottom-6 right-6 z-20 rounded-lg border border-slate-700 bg-slate-950/85 px-3 py-2 text-xs font-mono text-slate-200">
-            🔊 Click video to enable original audio
-          </div>
-        )}
-      </section>
-
-    </div>
-  );
+function wrapIndex(index: number) {
+  return (index + AD_INDUSTRIES.length) % AD_INDUSTRIES.length;
 }
 
+export default function Screen9Page() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const onRemote = useCallback((value: string) => { const index = AD_INDUSTRIES.findIndex((item) => item.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "") === value); if (index >= 0) setActiveIndex(index); }, []);
+  const saveIndustry = useRealtimeSelection("industry", onRemote);
+  const selectIndustry = useCallback((index: number) => { setActiveIndex(index); saveIndustry(["fmcg", "consumer-electronics", "banking-finance", "retail-ecommerce"][index]); }, [saveIndustry]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        selectIndustry(wrapIndex(activeIndex - 1));
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        selectIndustry(wrapIndex(activeIndex + 1));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeIndex, selectIndustry]);
+
+  return (
+    <main
+      className="relative grid min-h-screen overflow-hidden px-6 font-sans text-white"
+      style={{
+        placeItems: "center",
+        background: "radial-gradient(circle at 50% 35%, #182b78 0%, #0b1745 36%, #020617 82%)",
+      }}
+    >
+      <p
+        className="absolute left-6 right-6 text-center font-semibold uppercase text-cyan-100"
+        style={{
+          top: "clamp(3.5rem, 8vh, 6rem)",
+          fontSize: "clamp(1.56rem, 4.42vmin, 2.6rem)",
+          letterSpacing: "0.14em",
+        }}
+      >
+        Advertisement Industry Selection
+      </p>
+      <section
+        aria-label="Advertisement industry selection"
+        className="w-full"
+        style={{ width: "min(92vw, 75.6rem)" }}
+      >
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: "clamp(1.4rem, 3.5vmin, 2.45rem)",
+          }}
+        >
+          {AD_INDUSTRIES.map((industry, index) => {
+            const isActive = index === activeIndex;
+            const isHovered = index === hoveredIndex;
+            const isEmphasized = isActive || isHovered;
+
+            return (
+              <div key={industry} className="relative" style={{ aspectRatio: "1" }}>
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-2xl transition-all duration-300"
+                  style={{
+                    inset: isActive ? "-0.55rem" : "-0.35rem",
+                    transform: "none",
+                    opacity: isEmphasized ? (isActive ? 1 : 0.72) : 0,
+                    background: "linear-gradient(135deg, rgba(34,211,238,0.9), rgba(99,102,241,0.8), rgba(217,70,239,0.85))",
+                    boxShadow: isActive ? "0 14px 32px -14px rgba(34,211,238,0.8)" : "none",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => selectIndustry(index)}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  aria-pressed={isActive}
+                  style={
+                    isActive
+                      ? {
+                          padding: "0.75rem",
+                          fontSize: "clamp(1.4rem, 3.71vmin, 1.89rem)",
+                          lineHeight: 1.2,
+                          color: "#0f172a",
+                          background: "#ffffff",
+                          boxShadow: "0 0 26px -16px rgba(255,255,255,0.95)",
+                        }
+                      : {
+                          padding: "0.75rem",
+                          fontSize: "clamp(1.4rem, 3.71vmin, 1.89rem)",
+                          lineHeight: 1.2,
+                          color: "#0f172a",
+                          background: isHovered ? "#eef2ff" : "#ffffff",
+                          boxShadow: isHovered ? "0 0 30px -16px rgba(129,140,248,0.95)" : "none",
+                        }
+                  }
+                  className={`relative z-10 h-full w-full overflow-hidden rounded-2xl border text-center font-bold text-slate-950 transition-all duration-300 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-cyan-300 ${
+                    isActive
+                      ? "border-white"
+                      : "border-slate-300 hover:border-indigo-300/80"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -inset-1 rounded-2xl transition-opacity duration-300"
+                    style={{
+                      opacity: isHovered && !isActive ? 1 : 0,
+                      background:
+                        "radial-gradient(circle at 35% 20%, rgba(34,211,238,0.2), transparent 42%), radial-gradient(circle at 85% 85%, rgba(99,102,241,0.18), transparent 48%)",
+                    }}
+                  />
+                  <span className="relative z-10">{industry}</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <p className="sr-only" aria-live="polite">
+          {AD_INDUSTRIES[activeIndex]} selected
+        </p>
+      </section>
+    </main>
+  );
+}

@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { redisConnection } from "@/lib/redis";
-import { upsertTaskPending } from "@/lib/generation";
+import { markTaskFailed, upsertTaskPending } from "@/lib/generation";
 import { GREEN_SCREEN_MATTING_VERSION } from "@/lib/green-screen";
 
 /** Queue name shared by the producer (API) and the worker. */
@@ -441,6 +441,9 @@ export async function enqueueGreenScreenCompose(
   sourceFilename: string,
   generationId?: string | null
 ) {
+  if (!sourceFilename.startsWith("highlight-")) {
+    throw new Error(`Green-screen source must be an edited highlight reel, received "${sourceFilename}"`);
+  }
   const jobId = greenScreenJobId(backgroundId, sourceFilename);
 
   const existing = await greenScreenQueue.getJob(jobId);
@@ -480,8 +483,17 @@ export async function enqueueAllBackgroundsForSource(sourceFilename: string, gen
 
   const jobs = await Promise.all(
     GREEN_SCREEN_BACKGROUNDS.map((bg) =>
-      enqueueGreenScreenCompose(bg.id, sourceFilename, generationId).catch((err) => {
-        console.error(`[background-queue] Failed to enqueue ${bg.id}: ${err.message}`);
+      enqueueGreenScreenCompose(bg.id, sourceFilename, generationId).catch(async (err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[background-queue] Failed to enqueue ${bg.id} source=${sourceFilename}: ${message}`);
+        // enqueueGreenScreenCompose normally creates this row before adding
+        // BullMQ's job. This also records the failure when Redis is unavailable
+        // after the task row was created, keeping generation readiness honest.
+        if (generationId) {
+          await markTaskFailed(generationId, `greenscreen-${bg.id}`, message, 1, 1).catch((taskErr) => {
+            console.error(`[background-queue] Failed to record ${bg.id} enqueue error: ${taskErr}`);
+          });
+        }
         return null;
       })
     )

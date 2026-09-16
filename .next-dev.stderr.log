@@ -1,0 +1,347 @@
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+[browser] Camera audio capture failed, falling back to video-only: NotFoundError: Requested device not found (lib\use-camera-recorder.ts:141:21)
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+[browser] Camera audio capture failed, falling back to video-only: NotFoundError: Requested device not found (lib\use-camera-recorder.ts:141:21)
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+[browser] Camera audio capture failed, falling back to video-only: NotFoundError: Requested device not found (lib\use-camera-recorder.ts:141:21)
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+[browser] Camera audio capture failed, falling back to video-only: NotFoundError: Requested device not found (lib\use-camera-recorder.ts:141:21)
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+[browser] Camera audio capture failed, falling back to video-only: NotFoundError: Requested device not found (lib\use-camera-recorder.ts:141:21)
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./lib/highlight-pairing.ts
+./app/api/save-recording/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+[browser] Camera audio capture failed, falling back to video-only: NotFoundError: Requested device not found (lib\use-camera-recorder.ts:141:21)
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+[browser] Camera audio capture failed, falling back to video-only: NotFoundError: Requested device not found (lib\use-camera-recorder.ts:141:21)
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+⚠ ./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+Module not found: Can't resolve '@valkey/valkey-glide' in 'C:\Users\RDX\Desktop\News_Broadcast_Experience_Screen\node_modules\bullmq\dist\esm\classes'
+
+Import trace for requested module:
+./node_modules/bullmq/dist/esm/classes/valkey-glide-client.js
+./node_modules/bullmq/dist/esm/classes/index.js
+./node_modules/bullmq/dist/esm/index.js
+./lib/queue.ts
+./app/api/green-screen/status/route.ts
+[browser] Camera audio capture failed, falling back to video-only: NotFoundError: Requested device not found (lib\use-camera-recorder.ts:141:21)

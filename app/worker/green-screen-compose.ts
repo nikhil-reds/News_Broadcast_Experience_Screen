@@ -26,6 +26,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Worker, type Job } from "bullmq";
 import { redisConnection } from "@/lib/redis";
+import { prisma } from "@/lib/prisma";
 import { GREEN_SCREEN_QUEUE, type GreenScreenJob } from "@/lib/queue";
 import { composeGreenScreenBackground, composeMattedForegroundBackground } from "@/lib/ffmpeg";
 import { VIDEO_BUCKET, downloadObjectToFile, objectExists, uploadObject } from "@/lib/minio";
@@ -39,16 +40,23 @@ import {
   matteMetadataFilename,
 } from "@/lib/green-screen";
 import { backgroundImagePath } from "@/lib/green-screen-paths";
-import { markTaskProcessing, markTaskCompleted, markTaskFailed, publishVariant, failVariant } from "@/lib/generation";
+import {
+  isStaleBaseGeneration,
+  markTaskProcessing,
+  markTaskCompleted,
+  markTaskFailed,
+  publishVariant,
+  failVariant,
+} from "@/lib/generation";
 import { startHeartbeat } from "@/lib/generation-heartbeat";
-import { runRvmMatting, validateMatteFiles } from "@/lib/video-matting";
+import { RVM_TIMEOUT_MS, runRvmMatting, validateMatteFiles } from "@/lib/video-matting";
 
 // Same env-var-override convention as FFMPEG_EXPORT_TIMEOUT_MS (lib/video-export.ts).
 const FFMPEG_GREENSCREEN_TIMEOUT_MS = parseInt(process.env.FFMPEG_GREENSCREEN_TIMEOUT_MS || String(5 * 60 * 1000), 10);
 const GREEN_SCREEN_ENGINE = process.env.GREEN_SCREEN_ENGINE || "rvm";
 const GREEN_SCREEN_FALLBACK_CHROMAKEY = (process.env.GREEN_SCREEN_FALLBACK_CHROMAKEY || "true") !== "false";
-const MATTE_WAIT_TIMEOUT_MS = parseInt(process.env.RVM_MATTE_WAIT_TIMEOUT_MS || String(60 * 1000), 10);
-const MATTE_LOCK_TTL_MS = MATTE_WAIT_TIMEOUT_MS + 2 * 60 * 1000;
+const MATTE_WAIT_TIMEOUT_MS = parseInt(process.env.RVM_MATTE_WAIT_TIMEOUT_MS || String(RVM_TIMEOUT_MS + 60 * 1000), 10);
+const MATTE_LOCK_TTL_MS = parseInt(process.env.RVM_MATTE_LOCK_TTL_MS || String(RVM_TIMEOUT_MS + 2 * 60 * 1000), 10);
 
 /**
  * Screen 07 is the only consumer of this worker's output as a CURRENT/NEXT
@@ -69,6 +77,19 @@ const worker = new Worker<GreenScreenJob>(
   GREEN_SCREEN_QUEUE,
   async (job: Job<GreenScreenJob>) => {
     const { backgroundId, sourceFilename, generationId } = job.data;
+
+    if (generationId && (await isStaleBaseGeneration(generationId))) {
+      console.log(
+        `[${WORKER_NAME}] job ${job.id} stale before processing generation=${generationId} ` +
+          `source=${sourceFilename} background=${backgroundId}`
+      );
+      await prisma.generationTask.updateMany({
+        where: { generationId, taskType: `greenscreen-${backgroundId}` },
+        data: { status: "cancelled", errorMessage: "stale generation before processing" },
+      });
+      return { skipped: true, reason: "stale-generation" };
+    }
+
     await markTaskProcessing(generationId, `greenscreen-${backgroundId}`, job.id);
 
     const background = findBackground(backgroundId);
@@ -82,7 +103,9 @@ const worker = new Worker<GreenScreenJob>(
     const workDir = await mkdtemp(join(tmpdir(), "green-screen-"));
     try {
       const sourcePath = join(workDir, "source.mp4");
+      const downloadStartedAt = Date.now();
       await downloadObjectToFile(VIDEO_BUCKET, sourceFilename, sourcePath);
+      console.log(`[${WORKER_NAME}] source download complete job=${job.id} elapsedMs=${Date.now() - downloadStartedAt}`);
 
       const outputPath = join(workDir, "output.mp4");
       const fallbackReason = await tryComposeWithRvm({
@@ -95,6 +118,7 @@ const worker = new Worker<GreenScreenJob>(
       });
 
       const outputFilename = composedFilename(backgroundId, sourceFilename);
+      const uploadStartedAt = Date.now();
       const bytes = await readFile(outputPath);
       await uploadObject(VIDEO_BUCKET, outputFilename, bytes, "video/mp4");
       await uploadObject(
@@ -117,6 +141,7 @@ const worker = new Worker<GreenScreenJob>(
         ),
         "application/json"
       );
+      console.log(`[${WORKER_NAME}] output upload complete job=${job.id} elapsedMs=${Date.now() - uploadStartedAt} bytes=${bytes.length}`);
 
       const url = composedOutputUrl(backgroundId, sourceFilename);
       console.log(
@@ -225,54 +250,18 @@ async function ensureRvmMatte(opts: {
   onHeartbeat: (pid: number) => void;
 }): Promise<void> {
   if (await matteCacheExists(opts.foregroundKey, opts.alphaKey, opts.metadataKey)) {
+    console.log(`[${WORKER_NAME}] matte cache HIT source=${opts.sourceFilename}`);
     await downloadCachedMatte(opts);
     return;
   }
 
+  console.log(`[${WORKER_NAME}] matte cache MISS source=${opts.sourceFilename}`);
+
   const lockKey = `rvm-matte-lock:${opts.sourceFilename}`;
   const failureKey = `rvm-matte-failed:${opts.sourceFilename}`;
-  const lockToken = randomUUID();
-  const lockAcquired = await redisConnection.set(lockKey, lockToken, "PX", MATTE_LOCK_TTL_MS, "NX");
-
-  if (lockAcquired === "OK") {
-    try {
-      await redisConnection.del(failureKey);
-      console.log(`[${WORKER_NAME}] MATTE_PROCESSING "${opts.sourceFilename}"`);
-      await runRvmMatting({
-        input: opts.sourcePath,
-        foreground: opts.foregroundPath,
-        alpha: opts.alphaPath,
-        metadata: opts.metadataPath,
-        onHeartbeat: opts.onHeartbeat,
-      });
-      console.log(`[${WORKER_NAME}] VALIDATING_ALPHA "${opts.sourceFilename}"`);
-      await validateMatteFiles({
-        source: opts.sourcePath,
-        foreground: opts.foregroundPath,
-        alpha: opts.alphaPath,
-        metadata: opts.metadataPath,
-      });
-      await uploadObject(VIDEO_BUCKET, opts.foregroundKey, await readFile(opts.foregroundPath), "video/x-matroska");
-      await uploadObject(VIDEO_BUCKET, opts.alphaKey, await readFile(opts.alphaPath), "video/x-matroska");
-      await uploadObject(VIDEO_BUCKET, opts.metadataKey, await readFile(opts.metadataPath), "application/json");
-      console.log(`[${WORKER_NAME}] MATTE_READY "${opts.sourceFilename}"`);
-      return;
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      await redisConnection.set(failureKey, reason, "PX", 10 * 60 * 1000);
-      throw err;
-    } finally {
-      const currentToken = await redisConnection.get(lockKey);
-      if (currentToken === lockToken) {
-        await redisConnection.del(lockKey);
-      }
-    }
-  }
-
-  console.log(`[${WORKER_NAME}] MATTE_PENDING "${opts.sourceFilename}"`);
   const startedAt = Date.now();
+  let loggedWait = false;
   while (Date.now() - startedAt < MATTE_WAIT_TIMEOUT_MS) {
-    await sleep(1500);
     const failureReason = await redisConnection.get(failureKey);
     if (failureReason) {
       throw new Error(failureReason);
@@ -281,6 +270,51 @@ async function ensureRvmMatte(opts: {
       await downloadCachedMatte(opts);
       return;
     }
+
+    const lockToken = randomUUID();
+    const lockAcquired = await redisConnection.set(lockKey, lockToken, "PX", MATTE_LOCK_TTL_MS, "NX");
+    if (lockAcquired === "OK") {
+      console.log(`[${WORKER_NAME}] matte lock ACQUIRED source=${opts.sourceFilename}`);
+      try {
+        await redisConnection.del(failureKey);
+        console.log(`[${WORKER_NAME}] matte generation START source=${opts.sourceFilename}`);
+        await runRvmMatting({
+          input: opts.sourcePath,
+          foreground: opts.foregroundPath,
+          alpha: opts.alphaPath,
+          metadata: opts.metadataPath,
+          onHeartbeat: opts.onHeartbeat,
+        });
+        console.log(`[${WORKER_NAME}] VALIDATING_ALPHA "${opts.sourceFilename}"`);
+        await validateMatteFiles({
+          source: opts.sourcePath,
+          foreground: opts.foregroundPath,
+          alpha: opts.alphaPath,
+          metadata: opts.metadataPath,
+        });
+        await uploadObject(VIDEO_BUCKET, opts.foregroundKey, await readFile(opts.foregroundPath), "video/x-matroska");
+        await uploadObject(VIDEO_BUCKET, opts.alphaKey, await readFile(opts.alphaPath), "video/x-matroska");
+        await uploadObject(VIDEO_BUCKET, opts.metadataKey, await readFile(opts.metadataPath), "application/json");
+        console.log(`[${WORKER_NAME}] matte generation COMPLETE source=${opts.sourceFilename}`);
+        return;
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        console.error(`[${WORKER_NAME}] matte generation FAILED source=${opts.sourceFilename}: ${reason}`);
+        await redisConnection.set(failureKey, reason, "PX", 10 * 60 * 1000);
+        throw err;
+      } finally {
+        const currentToken = await redisConnection.get(lockKey);
+        if (currentToken === lockToken) {
+          await redisConnection.del(lockKey);
+        }
+      }
+    }
+
+    if (!loggedWait) {
+      console.log(`[${WORKER_NAME}] matte lock WAIT source=${opts.sourceFilename}`);
+      loggedWait = true;
+    }
+    await sleep(1500);
   }
 
   throw new Error(`Timed out waiting for cached RVM matte for "${opts.sourceFilename}"`);
@@ -330,13 +364,13 @@ worker.on("failed", async (job, err) => {
   await markTaskFailed(
     job?.data?.generationId,
     `greenscreen-${job?.data?.backgroundId}`,
-    err.message,
+    describeError(err),
     attemptsMade,
     maxAttempts,
     job?.id
   );
   if (job?.data?.generationId && attemptsMade >= maxAttempts) {
-    await failVariant(SCREEN_7, job.data.generationId, { backgroundId: job.data.backgroundId }, err.message);
+    await failVariant(SCREEN_7, job.data.generationId, { backgroundId: job.data.backgroundId }, describeError(err));
   }
 });
 worker.on("error", (err) => {

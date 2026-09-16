@@ -8,9 +8,8 @@ The experience is designed for a physical room with:
 
 - Three camera inputs.
 - One master audio input.
-- ESP32 and Nexmosphere hardware controls.
 - A control-room landing screen.
-- Capture, processing, post-production, preview, camera, sensor, and device-preview screens.
+- Capture, processing, post-production, preview, camera, and device-preview screens.
 
 The app is not only a visual screen launcher. It also coordinates an asynchronous media-processing pipeline using PostgreSQL, Redis, BullMQ, MinIO, FFmpeg, Whisper/faster-whisper, Qwen, Gemini, and CosyVoice.
 
@@ -38,7 +37,6 @@ The app is not only a visual screen launcher. It also coordinates an asynchronou
 - TypeScript
 - Tailwind CSS `4`
 - HTML5 `video` and `audio`
-- Server-Sent Events for ESP32/Nexmosphere event streams
 - Browser MediaRecorder APIs for camera and audio capture
 
 ### Backend And APIs
@@ -73,7 +71,6 @@ The app is not only a visual screen launcher. It also coordinates an asynchronou
 
 - `app/page.tsx`: Control-room landing page.
 - `app/(main)/camera/page.tsx`: Camera and master-audio recording studio.
-- `app/(main)/sensor/page.tsx`: ESP32 media-control telemetry screen.
 - `app/(main)/main/page.tsx`: Multi-device preview wall.
 - `app/(screens)/screen1` through `screen12`: Broadcast output screens.
 - `components/screen-navigation-matrix.tsx`: Screen launcher grid.
@@ -91,9 +88,9 @@ The app is not only a visual screen launcher. It also coordinates an asynchronou
 
 ### `/` - Control Room Multi-View
 
-The landing page renders the Amagi-branded control matrix. It lists every screen and provides navigation links into each output view. It also listens to ESP32 serial events through `/api/esp32/events`, where configured button frames can start or stop camera recording.
+The landing page renders the Amagi-branded control matrix. It lists every screen and provides navigation links into each output view.
 
-Current screen cards include capture screens, processing screens, post-production screens, preview screens, the camera control page, the sensor page, and the responsive preview page.
+Current screen cards include capture screens, processing screens, post-production screens, preview screens, the camera control page, and the responsive preview page.
 
 ### `/camera` - Multi-Camera And Audio Studio Control
 
@@ -110,18 +107,6 @@ When recording ends, the page:
 - Stops all camera and audio recorders.
 - Uploads the media.
 - Marks the session as `processing`.
-
-### `/sensor` - ESP32 Media Controller
-
-This screen visualizes hardware input from the ESP32 controller. It supports:
-
-- Button press/release state.
-- Click-based play/pause toggles.
-- Rotary volume changes.
-- A small event log.
-- Connection status from `/api/esp32/events`.
-
-It also supports browser media-key events, so keyboard media controls can mimic the hardware behavior.
 
 ### `/screen1` - Camera 01 Footage
 
@@ -143,7 +128,6 @@ Screen 04 is the English teleprompter/transcript screen. It:
 - Polls `/api/transcript/english` until the transcript is ready.
 - Plays the source audio.
 - Uses transcript segment timestamps to keep the active line centered.
-- Uses a Nexmosphere rotary control to adjust volume.
 
 The visual style is a full-screen, centered teleprompter with active-line emphasis.
 
@@ -157,7 +141,7 @@ English uses the original master audio. Other languages depend on:
 - Qwen transcript translation.
 - CosyVoice speech synthesis.
 
-The language ring is driven by Nexmosphere rotation and regular button clicks. The selected language is committed after a short delay, which avoids reloading audio repeatedly while the knob is spinning.
+The language ring is driven by regular button clicks and keyboard arrows. The selected language is committed after a short delay, which avoids reloading audio repeatedly while selections change.
 
 ### `/screen6` - First Edited Highlight Reel
 
@@ -406,10 +390,6 @@ The export pipeline re-times subtitles using the reel sidecar before burning the
 - `GET /api/ad-campaigns`: Lists active ad campaigns.
 - `POST /api/ad-campaigns`: Creates an ad campaign.
 - `POST /api/ad-campaigns/impression`: Tracks an ad impression.
-- `GET /api/esp32/events`: Streams ESP32 frames and status.
-- `POST /api/esp32/events`: Accepts ESP32 frames.
-- `GET /api/nexmosphere/events`: Streams Nexmosphere events.
-- `POST /api/nexmosphere/events`: Accepts Nexmosphere events.
 
 ## 9. Database Model Summary
 

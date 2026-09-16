@@ -1,15 +1,34 @@
 "use client";
 
-import type { ReactNode } from "react";
-import BackgroundVideoScreen from "@/components/background-video-screen";
-import { useBroadcastTrigger } from "@/lib/use-broadcast-trigger";
+import { usePathname } from "next/navigation";
+import { useState, type ReactNode } from "react";
 
 export default function TriggeredBroadcastScreen({ children }: { children: ReactNode }) {
-  const { isFinalActive } = useBroadcastTrigger();
+  const pathname = usePathname();
 
-  if (isFinalActive) {
-    return <>{children}</>;
+  return <ScreenStartGate key={pathname}>{children}</ScreenStartGate>;
+}
+
+function ScreenStartGate({ children }: { children: ReactNode }) {
+  const [hasStarted, setHasStarted] = useState(false);
+
+  if (hasStarted) {
+    return children;
   }
 
-  return <BackgroundVideoScreen />;
+  return (
+    <div className="relative min-h-screen w-full overflow-hidden bg-black">
+      <video
+        autoPlay
+        muted
+        playsInline
+        preload="auto"
+        className="absolute inset-0 h-full w-full object-cover"
+        aria-hidden="true"
+        onEnded={() => setHasStarted(true)}
+      >
+        <source src="/bg-video/1.1.mp4" type="video/mp4" />
+      </video>
+    </div>
+  );
 }

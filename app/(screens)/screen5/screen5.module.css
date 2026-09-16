@@ -1,0 +1,37 @@
+.wheelMachine {
+  width: clamp(20rem, 58vmin, 27.625rem);
+  height: clamp(20rem, 58vmin, 27.625rem);
+}
+
+.wheelList {
+  --radius: clamp(9.25rem, 26.5vmin, 13.8125rem);
+}
+
+.wheelFace {
+  width: clamp(10rem, 26vmin, 13rem);
+  height: clamp(10rem, 26vmin, 13rem);
+}
+
+.wheelPointer {
+  top: calc(50% - clamp(12.4rem, 34.5vmin, 17.75rem));
+}
+
+@media (min-width: 1024px) {
+  .wheelMachine {
+    width: clamp(26rem, 75.4vmin, 35.9125rem);
+    height: clamp(26rem, 75.4vmin, 35.9125rem);
+  }
+
+  .wheelList {
+    --radius: clamp(12.025rem, 34.45vmin, 17.95625rem);
+  }
+
+  .wheelFace {
+    width: clamp(13rem, 33.8vmin, 16.9rem);
+    height: clamp(13rem, 33.8vmin, 16.9rem);
+  }
+
+  .wheelPointer {
+    top: calc(50% - clamp(16.12rem, 44.85vmin, 23.075rem));
+  }
+}

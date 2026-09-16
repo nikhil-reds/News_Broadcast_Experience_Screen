@@ -92,13 +92,16 @@ function run(
   onHeartbeat?: (pid: number) => void
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { cwd, windowsHide: true });
+    const command = [bin, ...args].join(" ");
+    const child = spawn(bin, args, { cwd, windowsHide: true, windowsVerbatimArguments: false });
     const startedAt = Date.now();
+    console.log(`[process] starting binary=${bin} command=${command}`);
     if (onHeartbeat && child.pid) onHeartbeat(child.pid); // record the pid right away, don't wait for the first 30s tick
 
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let settled = false;
     let timer: NodeJS.Timeout | undefined;
     let heartbeat: NodeJS.Timeout | undefined;
 
@@ -124,7 +127,10 @@ function run(
     child.stderr.on("data", (d) => (stderr += d.toString()));
 
     child.on("error", (err: NodeJS.ErrnoException) => {
+      if (settled) return;
+      settled = true;
       clearTimers();
+      console.error(`[process] error binary=${bin} elapsedMs=${Date.now() - startedAt} code=${err.code ?? "unknown"}: ${err.message}`);
       if (err.code === "ENOENT") {
         reject(
           new Error(
@@ -138,13 +144,19 @@ function run(
     });
 
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
       clearTimers();
+      const elapsedMs = Date.now() - startedAt;
+      console.log(`[process] exited binary=${bin} code=${code ?? "signal"} elapsedMs=${elapsedMs}`);
+      if (stdout.trim()) console.log(`[process] stdout tail=${stdout.trim().slice(-1200)}`);
+      if (stderr.trim()) console.error(`[process] stderr tail=${stderr.trim().slice(-1200)}`);
       if (timedOut) {
-        reject(new Error(`${bin} timed out after ${Math.round(timeoutMs! / 60000)} minutes and was killed`));
+        reject(new Error(`${bin} timed out after ${Math.round(timeoutMs! / 60000)} minutes and was killed; command=${command}`));
         return;
       }
       if (code === 0) resolve(stdout);
-      else reject(new Error(`${bin} exited ${code}: ${stderr.trim().slice(-800)}`));
+      else reject(new Error(`${bin} exited ${code}: ${stderr.trim().slice(-800)}; command=${command}`));
     });
   });
 }

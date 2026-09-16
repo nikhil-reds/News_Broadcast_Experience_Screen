@@ -33,16 +33,6 @@ const SCREENS: ScreenInfo[] = [
   },
 
   {
-    id: "screen15",
-    num: "03",
-    title: "Sensor",
-    description: "Hardware telemetry and status sensors.",
-    path: "/sensor",
-    category: "Screen Control Room Multi-View",
-    icon: "📡",
-    visualType: "sensor",
-  },
-  {
     id: "screen01",
     num: "01",
     title: "Camera 01 Footage",
@@ -125,8 +115,8 @@ const SCREENS: ScreenInfo[] = [
   {
     id: "screen09",
     num: "09",
-    title: "Ads Banner Video",
-    description: "Edited video with integrated advertisement banners.",
+    title: "Advertisement Industry Selection",
+    description: "Select an advertisement industry for the broadcast experience.",
     path: "/screen9",
     category: "Post-Prod",
     icon: "🏷️",
@@ -135,8 +125,8 @@ const SCREENS: ScreenInfo[] = [
   {
     id: "screen10",
     num: "10",
-    title: "Ads Banner Mirror",
-    description: "Alternate layout of ads-integrated video.",
+    title: "Advertisement Brand Selection",
+    description: "Select a featured brand for the advertisement experience.",
     path: "/screen10",
     category: "Post-Prod",
     icon: "🏷️",
@@ -145,8 +135,8 @@ const SCREENS: ScreenInfo[] = [
   {
     id: "screen11",
     num: "11",
-    title: "Final Preview (Portrait)",
-    description: "Mobile portrait output compilation feed.",
+    title: "Video with Ads Showcase",
+    description: "Full-screen video that transitions into L-band advertisement showcases.",
     path: "/screen11",
     category: "Preview",
     icon: "📱",
