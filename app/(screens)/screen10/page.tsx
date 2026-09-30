@@ -2,42 +2,41 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import { AD_INDUSTRIES, getIndustryById } from "@/lib/ad-catalog";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 
-const BRANDS = [
-  { name: "boAt", logo: "/logo/boat.svg" },
-  { name: "Samsung", logo: "/logo/samsung.svg" },
-  { name: "Apple", logo: "/logo/apple.svg" },
-  { name: "Sony", logo: "/logo/sony.svg" },
-] as const;
-
-function wrapIndex(index: number) {
-  return (index + BRANDS.length) % BRANDS.length;
+function wrapIndex(index: number, length: number) {
+  return (index + length) % length;
 }
 
 export default function Screen10Page() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const onRemote = useCallback((value: string) => { const index = BRANDS.findIndex((brand) => brand.name.toLowerCase() === value); if (index >= 0) setActiveIndex(index); }, []);
-  const saveBrand = useRealtimeSelection("brand", onRemote);
-  const selectBrand = useCallback((index: number) => { setActiveIndex(index); saveBrand(BRANDS[index].name.toLowerCase()); }, [saveBrand]);
+  const [industryId, setIndustryId] = useState<string>(AD_INDUSTRIES[0].id);
+  const selectedIndustry = getIndustryById(industryId);
+  const brands = selectedIndustry.brands;
+  const onRemoteIndustry = useCallback((value: string) => { if (AD_INDUSTRIES.some((industry) => industry.id === value)) { setIndustryId(value); setActiveIndex(0); setHoveredIndex(null); } }, []);
+  const onRemoteBrand = useCallback((value: string) => { const index = brands.findIndex((brand) => brand.id === value); if (index >= 0) setActiveIndex(index); }, [brands]);
+  useRealtimeSelection("industry", onRemoteIndustry);
+  const saveBrand = useRealtimeSelection("brand", onRemoteBrand);
+  const selectBrand = useCallback((index: number) => { setActiveIndex(index); saveBrand(brands[index].id); }, [brands, saveBrand]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "ArrowRight") {
         event.preventDefault();
-        selectBrand(wrapIndex(activeIndex + 1));
+        selectBrand(wrapIndex(activeIndex + 1, brands.length));
       }
 
       if (event.key === "ArrowLeft") {
         event.preventDefault();
-        selectBrand(wrapIndex(activeIndex - 1));
+        selectBrand(wrapIndex(activeIndex - 1, brands.length));
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeIndex, selectBrand]);
+  }, [activeIndex, brands.length, selectBrand]);
 
   return (
     <main
@@ -55,24 +54,25 @@ export default function Screen10Page() {
           letterSpacing: "0.14em",
         }}
       >
-        BRAND SELECTION
+        {selectedIndustry.name} Brand Selection
       </p>
 
       <section className="relative z-10 w-full" style={{ width: "min(92vw, 75.6rem)" }} aria-label="Brand selection">
         <div
           className="grid"
           style={{
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gridTemplateColumns: `repeat(${Math.min(brands.length, 4)}, minmax(0, 1fr))`,
             gap: "clamp(1.4rem, 3.5vmin, 2.45rem)",
+            justifyContent: "center",
           }}
         >
-          {BRANDS.map((brand, index) => {
+          {brands.map((brand, index) => {
             const isActive = index === activeIndex;
             const isHovered = index === hoveredIndex;
             const isEmphasized = isActive || isHovered;
 
             return (
-              <div key={brand.name} className="relative" style={{ aspectRatio: "1" }}>
+              <div key={brand.id} className="relative" style={{ aspectRatio: "1" }}>
                 <div
                   aria-hidden="true"
                   className="absolute inset-0 rounded-2xl transition-all duration-300"
@@ -113,13 +113,18 @@ export default function Screen10Page() {
                     className="relative z-10 flex w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50"
                     style={{ height: "clamp(5.32rem, 11.9vmin, 8.4rem)", padding: "clamp(0.84rem, 1.68vmin, 1.26rem)" }}
                   >
-                    <Image
-                      src={brand.logo}
-                      alt={`${brand.name} logo`}
-                      width={160}
-                      height={72}
-                      className="h-full w-full object-contain"
-                    />
+                    {brand.logo ? (
+                      <Image
+                        src={brand.logo}
+                        alt={`${brand.name} logo`}
+                        width={180}
+                        height={96}
+                        unoptimized
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-center text-3xl font-black text-slate-800">{brand.name}</span>
+                    )}
                   </span>
                   <span className="relative font-bold text-slate-900" style={{ fontSize: "clamp(1.4rem, 3.71vmin, 1.89rem)" }}>
                     {brand.name}
@@ -130,7 +135,7 @@ export default function Screen10Page() {
           })}
         </div>
         <p className="sr-only" aria-live="polite">
-          {BRANDS[activeIndex].name} selected
+          {brands[activeIndex]?.name} selected
         </p>
       </section>
     </main>
