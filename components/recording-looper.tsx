@@ -48,6 +48,8 @@ export default function RecordingLooper({
   screenId,
   containerClassName,
   englishSubtitles = false,
+  subtitleLanguage = "English",
+  brightness = 100,
   compositeBackgroundId,
 }: {
   source: RecordingSource;
@@ -60,6 +62,10 @@ export default function RecordingLooper({
   containerClassName?: string;
   /** Show the English transcript, re-timed to the highlight reel's edit. */
   englishSubtitles?: boolean;
+  /** Subtitle language to show when subtitles are enabled. */
+  subtitleLanguage?: string;
+  /** Display brightness percentage for the programme video. */
+  brightness?: number;
   /** Use a fixed green-screen composite instead of the raw recording. */
   compositeBackgroundId?: string;
 }) {
@@ -175,8 +181,8 @@ export default function RecordingLooper({
     };
   }, [englishSubtitles, originalAudio]);
 
-  // Screen 8's subtitle endpoint maps English transcript cues to the edited
-  // reel timeline, so captions follow the video cuts instead of the source
+  // Screen 8's subtitle endpoint maps transcript cues to the edited reel
+  // timeline, so captions follow the video cuts instead of the source
   // recording's unedited timestamps.
   useEffect(() => {
     if (!englishSubtitles || !videoFilename || !originalAudioUrl) {
@@ -187,13 +193,11 @@ export default function RecordingLooper({
     const fetchCues = async () => {
       try {
         const res = await fetch(
-          compositeBackgroundId
-            ? `/api/transcript/english?sourceAudio=${encodeURIComponent(originalAudioUrl)}`
-            : `/api/subtitle-cues?reelFilename=${encodeURIComponent(videoFilename)}` +
-              `&sourceAudio=${encodeURIComponent(originalAudioUrl)}&language=English`
+          `/api/subtitle-cues?reelFilename=${encodeURIComponent(videoFilename)}` +
+            `&sourceAudio=${encodeURIComponent(originalAudioUrl)}&language=${encodeURIComponent(subtitleLanguage)}`
         );
         const data = await res.json();
-        const nextCues = compositeBackgroundId ? data.transcript?.segments : data.cues;
+        const nextCues = data.cues;
         if (!cancelled) setCues(res.ok && Array.isArray(nextCues) ? nextCues : []);
       } catch {
         if (!cancelled) setCues([]);
@@ -203,7 +207,7 @@ export default function RecordingLooper({
     return () => {
       cancelled = true;
     };
-  }, [compositeBackgroundId, englishSubtitles, originalAudioUrl, videoFilename]);
+  }, [englishSubtitles, originalAudioUrl, subtitleLanguage, videoFilename]);
 
   // Start the video first. Some composed/export previews still opt into a
   // separate original audio track; Screen 6 now uses embedded highlight audio.
@@ -264,6 +268,7 @@ export default function RecordingLooper({
           playsInline
           onTimeUpdate={() => setVideoTime(videoRef.current?.currentTime ?? 0)}
           className="w-full h-full object-cover"
+          style={{ filter: `brightness(${brightness}%)` }}
         />
         {originalAudio && <audio ref={audioRef} src={originalAudioUrl || undefined} autoPlay loop />}
         {activeCue && (
