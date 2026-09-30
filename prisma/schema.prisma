@@ -89,6 +89,8 @@ model BroadcastSession {
   pipelineStatus           String    @default("processing") // "processing" | "ready" | "failed"
   selectedBackgroundId     String?
   selectedSubtitleLanguage String    @default("English")
+  selectedAudioLanguage    String    @default("English")
+  selectedBrightness       Int       @default(100)
   startedAt                DateTime  @default(now())
   endedAt                  DateTime?
   createdAt                DateTime  @default(now())
