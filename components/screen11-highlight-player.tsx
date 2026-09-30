@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import RecordingLooper from "@/components/recording-looper";
+import { AD_INDUSTRIES, getAdsByBrandId } from "@/lib/ad-catalog";
+import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 import { useSelectedBackground } from "@/lib/use-selected-background";
 import { useSelectedBrightness } from "@/lib/use-selected-brightness";
 
-const BOAT_AD_IMAGE = "/ads/Boat%20L%20band.png";
-const BLINKIT_AD_IMAGE = "/ads/Blink%20it%20L%20band.jpg.jpeg";
 const L_BAND_VIDEO_BOUNDS = { top: "0%", right: "0%", bottom: "19.4%", left: "13.5%" };
 const FULL_VIDEO_BOUNDS = { top: "0%", right: "0%", bottom: "0%", left: "0%" };
 
@@ -18,30 +18,41 @@ type PlayoutScene = {
   alt?: string;
 };
 
-// Begin with the full programme video, then switch to the same L-band ads used on Screen 12.
-const PLAYOUT_SEQUENCE: readonly PlayoutScene[] = [
-  { id: "full-1", durationMs: 6_000 },
-  { id: "boat", durationMs: 8_000, image: BOAT_AD_IMAGE, alt: "boAt Rockerz Prime 415 advertisement" },
-  { id: "full-2", durationMs: 6_000 },
-  { id: "blinkit", durationMs: 8_000, image: BLINKIT_AD_IMAGE, alt: "Blinkit groceries delivery advertisement" },
-];
+function buildPlayoutSequence(brandId: string): readonly PlayoutScene[] {
+  const ads = getAdsByBrandId(brandId);
 
-/** Screen 11: starts full-screen, then alternates full programme video and Screen 12 L-band ads. */
+  if (ads.length === 0) return [{ id: "full-only", durationMs: 6_000 }];
+
+  return ads.map((ad) => ({ id: ad.id, durationMs: 8_000, image: ad.image, alt: ad.alt }));
+}
+
+/** Screen 11: starts full-screen, then alternates full programme video and the selected brand's ads. */
 export default function Screen11HighlightPlayer() {
   const [sceneIndex, setSceneIndex] = useState(0);
+  const [brandId, setBrandId] = useState<string>(AD_INDUSTRIES[0].brands[0].id);
   const backgroundId = useSelectedBackground();
   const brightness = useSelectedBrightness();
-  const scene = PLAYOUT_SEQUENCE[sceneIndex];
+  const playoutSequence = useMemo(() => buildPlayoutSequence(brandId), [brandId]);
+  const scene = playoutSequence[sceneIndex] ?? playoutSequence[0];
   const isLBand = Boolean(scene.image);
+  const onRemoteBrand = useCallback((value: string) => {
+    if (getAdsByBrandId(value).length === 0) return;
+    setBrandId((current) => {
+      if (current === value) return current;
+      setSceneIndex(0);
+      return value;
+    });
+  }, []);
+  useRealtimeSelection("brand", onRemoteBrand);
 
   useEffect(() => {
     const timer = window.setTimeout(
-      () => setSceneIndex((current) => (current + 1) % PLAYOUT_SEQUENCE.length),
+      () => setSceneIndex((current) => (current + 1) % playoutSequence.length),
       scene.durationMs,
     );
 
     return () => window.clearTimeout(timer);
-  }, [scene.durationMs]);
+  }, [playoutSequence.length, scene.durationMs]);
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-black font-sans text-slate-100">
