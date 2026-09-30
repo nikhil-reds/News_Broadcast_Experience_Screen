@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import RecordingLooper from "@/components/recording-looper";
+import { useSelectedBackground } from "@/lib/use-selected-background";
+import { useSelectedBrightness } from "@/lib/use-selected-brightness";
 
 const BOAT_AD_IMAGE = "/ads/Boat%20L%20band.png";
 const BLINKIT_AD_IMAGE = "/ads/Blink%20it%20L%20band.jpg.jpeg";
@@ -27,6 +29,8 @@ const PLAYOUT_SEQUENCE: readonly PlayoutScene[] = [
 /** Screen 11: starts full-screen, then alternates full programme video and Screen 12 L-band ads. */
 export default function Screen11HighlightPlayer() {
   const [sceneIndex, setSceneIndex] = useState(0);
+  const backgroundId = useSelectedBackground();
+  const brightness = useSelectedBrightness();
   const scene = PLAYOUT_SEQUENCE[sceneIndex];
   const isLBand = Boolean(scene.image);
 
@@ -54,7 +58,8 @@ export default function Screen11HighlightPlayer() {
         <RecordingLooper
           source={{ highlight: true }}
           muted
-          compositeBackgroundId="newsroom-blue"
+          brightness={brightness}
+          compositeBackgroundId={backgroundId}
           containerClassName="h-full w-full bg-black"
         />
       </section>
