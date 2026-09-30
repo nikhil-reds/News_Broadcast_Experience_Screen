@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { fetchCurrentSession, patchSession } from "@/lib/current-session";
 import { composedOutputUrl } from "@/lib/green-screen";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
+import { useSelectedBackground } from "@/lib/use-selected-background";
+import { useSelectedBrightness } from "@/lib/use-selected-brightness";
 
 interface TimedCue {
   start: number;
@@ -42,7 +44,8 @@ export default function Screen8Page() {
 
   const [reelUrl, setReelUrl] = useState<string | null>(null);
   const [reelFilename, setReelFilename] = useState<string | null>(null);
-  const [backgroundId, setBackgroundId] = useState("newsroom-blue");
+  const backgroundId = useSelectedBackground();
+  const brightness = useSelectedBrightness();
 
   const [language, setLanguage] = useState<string>("English");
   const onRemoteSubtitle = useCallback((code: string) => { const item = LANGUAGES.find((entry) => entry.code === code); if (item) setLanguage(item.label); }, []);
@@ -71,23 +74,6 @@ export default function Screen8Page() {
     } catch {
       return [] as AudioFileItem[];
     }
-  }, []);
-
-  // ---- Follow Screen 7's selected background -------------------------------
-  useEffect(() => {
-    let cancelled = false;
-    const fetchBackground = async () => {
-      const session = await fetchCurrentSession();
-      if (!cancelled && session?.selectedBackgroundId) {
-        setBackgroundId(session.selectedBackgroundId);
-      }
-    };
-    fetchBackground();
-    const interval = setInterval(fetchBackground, REEL_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
   }, []);
 
   // ---- Data loading: use Screen 7's composite of the edited highlight reel -
@@ -171,8 +157,10 @@ export default function Screen8Page() {
   // ---- When the user switches audio, transcribe if needed -------------------
   useEffect(() => {
     if (!selectedUrl) return;
-    setCues([]);
-    setVideoTime(0);
+    const resetTimer = window.setTimeout(() => {
+      setCues([]);
+      setVideoTime(0);
+    }, 0);
     (async () => {
       const exists = await checkTranscriptExists(selectedUrl);
       setHasTranscript(exists);
@@ -181,6 +169,7 @@ export default function Screen8Page() {
         await runTranscription(selectedUrl);
       }
     })();
+    return () => window.clearTimeout(resetTimer);
   }, [selectedUrl, checkTranscriptExists, runTranscription]);
 
   // ---- Subtitle cues: map the base English transcript to edited reel time. --
@@ -300,6 +289,7 @@ export default function Screen8Page() {
               playsInline
               onTimeUpdate={() => videoRef.current && setVideoTime(videoRef.current.currentTime)}
               className="w-full h-full object-cover"
+              style={{ filter: `brightness(${brightness}%)` }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm font-mono">
