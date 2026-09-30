@@ -5,6 +5,8 @@ export interface CurrentSession {
   status: string;
   selectedBackgroundId: string | null;
   selectedSubtitleLanguage: string;
+  selectedAudioLanguage?: string;
+  selectedBrightness?: number;
   startedAt: string;
   endedAt: string | null;
 }
@@ -24,7 +26,7 @@ export async function fetchCurrentSession(): Promise<CurrentSession | null> {
 /** PATCH one field (or a few) on a session — Screen 7's background pick, Screen 8's language pick. */
 export async function patchSession(
   sessionId: string,
-  patch: Partial<Pick<CurrentSession, "selectedBackgroundId" | "selectedSubtitleLanguage" | "status">>
+  patch: Partial<Pick<CurrentSession, "selectedBackgroundId" | "selectedSubtitleLanguage" | "selectedAudioLanguage" | "selectedBrightness" | "status">>
 ): Promise<void> {
   try {
     await fetch(`/api/sessions/${sessionId}`, {
