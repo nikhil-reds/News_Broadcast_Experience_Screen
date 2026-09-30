@@ -1,14 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AD_INDUSTRIES } from "@/lib/ad-catalog";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
-
-const AD_INDUSTRIES = [
-  "FMCG",
-  "Consumer Electronics",
-  "Banking & Finance",
-  "Retail & E-commerce",
-];
 
 function wrapIndex(index: number) {
   return (index + AD_INDUSTRIES.length) % AD_INDUSTRIES.length;
@@ -17,9 +11,9 @@ function wrapIndex(index: number) {
 export default function Screen9Page() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const onRemote = useCallback((value: string) => { const index = AD_INDUSTRIES.findIndex((item) => item.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "") === value); if (index >= 0) setActiveIndex(index); }, []);
+  const onRemote = useCallback((value: string) => { const index = AD_INDUSTRIES.findIndex((industry) => industry.id === value); if (index >= 0) setActiveIndex(index); }, []);
   const saveIndustry = useRealtimeSelection("industry", onRemote);
-  const selectIndustry = useCallback((index: number) => { setActiveIndex(index); saveIndustry(["fmcg", "consumer-electronics", "banking-finance", "retail-ecommerce"][index]); }, [saveIndustry]);
+  const selectIndustry = useCallback((index: number) => { setActiveIndex(index); saveIndustry(AD_INDUSTRIES[index].id); }, [saveIndustry]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -74,7 +68,7 @@ export default function Screen9Page() {
             const isEmphasized = isActive || isHovered;
 
             return (
-              <div key={industry} className="relative" style={{ aspectRatio: "1" }}>
+              <div key={industry.id} className="relative" style={{ aspectRatio: "1" }}>
                 <div
                   aria-hidden="true"
                   className="absolute inset-0 rounded-2xl transition-all duration-300"
@@ -126,14 +120,14 @@ export default function Screen9Page() {
                         "radial-gradient(circle at 35% 20%, rgba(34,211,238,0.2), transparent 42%), radial-gradient(circle at 85% 85%, rgba(99,102,241,0.18), transparent 48%)",
                     }}
                   />
-                  <span className="relative z-10">{industry}</span>
+                  <span className="relative z-10">{industry.name}</span>
                 </button>
               </div>
             );
           })}
         </div>
         <p className="sr-only" aria-live="polite">
-          {AD_INDUSTRIES[activeIndex]} selected
+          {AD_INDUSTRIES[activeIndex].name} selected
         </p>
       </section>
     </main>
