@@ -7,8 +7,8 @@ import { useSelectedBackground } from "@/lib/use-selected-background";
 import { useSelectedBrightness } from "@/lib/use-selected-brightness";
 import { useSelectedSubtitleLanguage } from "@/lib/use-selected-subtitle-language";
 
-const BOAT_AD_IMAGE = "/ads/Boat%20L%20band.png";
-const BLINKIT_AD_IMAGE = "/ads/Blink%20it%20L%20band.jpg.jpeg";
+const BOAT_AD_IMAGE = "/ads/industry/Consumer%20Electronics/Boat/Boat%20L%20band.png";
+const BLINKIT_AD_IMAGE = "/ads/industry/RETAIL%20%26%20E-COMMERCE/BlinkIT/Blink%20it%20L%20band.jpg.jpeg";
 const L_BAND_VIDEO_BOUNDS = { top: "0%", right: "0%", bottom: "19.4%", left: "13.5%" };
 const FULL_VIDEO_BOUNDS = { top: "0%", right: "0%", bottom: "0%", left: "0%" };
 
