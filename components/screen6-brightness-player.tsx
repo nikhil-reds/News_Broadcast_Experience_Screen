@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchCurrentSession } from "@/lib/current-session";
+import { fetchCurrentSession, patchSession } from "@/lib/current-session";
 import { useScreenPublication } from "@/lib/use-screen-publication";
 
 const MIN_BRIGHTNESS = 1;
@@ -29,6 +29,14 @@ function sliderVars(brightness: number): React.CSSProperties {
     "--p": `hsl(${thumbHSL})`,
     "--pT": `hsla(${thumbHSL},0)`,
   } as React.CSSProperties;
+}
+
+async function saveBrightnessSelection(sessionId: string, brightness: number) {
+  await fetch("/api/brightness/selection", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, brightness }),
+  });
 }
 
 /** Screen 06: muted Gemini reel with a live brightness control rail. */
@@ -59,12 +67,17 @@ export default function Screen6BrightnessPlayer() {
     setBrightness(nextBrightness);
     pendingBrightnessRef.current = nextBrightness;
     const socket = socketRef.current;
-    if (!sessionIdRef.current || !socket || socket.readyState !== WebSocket.OPEN) return;
+    if (!sessionIdRef.current) return;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      saveBrightnessSelection(sessionIdRef.current, nextBrightness).catch(() => {});
+      return;
+    }
     socket.send(JSON.stringify({
       type: "brightness:set",
       sessionId: sessionIdRef.current,
       brightness: nextBrightness,
     }));
+    patchSession(sessionIdRef.current, { selectedBrightness: nextBrightness });
     pendingBrightnessRef.current = null;
   }, []);
 
