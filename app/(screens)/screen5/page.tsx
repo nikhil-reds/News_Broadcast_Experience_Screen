@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./screen5.module.css";
-import { fetchCurrentSession } from "@/lib/current-session";
+import { fetchCurrentSession, patchSession } from "@/lib/current-session";
 
 interface AudioFileItem {
   filename: string;
@@ -52,6 +52,18 @@ const SCREEN_BACKGROUND =
   "radial-gradient(circle at 50% 30%, rgba(15, 43, 157, 0.52), #020617 68%)";
 const FACE_BACKGROUND =
   "linear-gradient(135deg, #2717b6 0%, #6d1aa8 46%, #c01875 100%)";
+const AUDIO_LANGUAGE_BY_LABEL = new Map(
+  FALLBACK_LANGUAGES.map((language) => [language.language, language.langCode])
+);
+
+async function saveAudioLanguageSelection(sessionId: string, audioLanguage: string, label: string) {
+  await fetch("/api/audio-language/selection", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, audioLanguage }),
+  });
+  await patchSession(sessionId, { selectedAudioLanguage: label });
+}
 
 function wrapIndex(index: number, length: number) {
   return ((index % length) + length) % length;
@@ -235,6 +247,7 @@ export default function Screen5Page() {
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const [rotation, setRotation] = useState<number>(0);
+  const languagesRef = useRef<AudioLanguageEntry[]>(FALLBACK_LANGUAGES);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const shouldPlayOnReadyRef = useRef<boolean>(false);
   const socketRef = useRef<WebSocket | null>(null);
@@ -243,6 +256,7 @@ export default function Screen5Page() {
   const lastVersionRef = useRef<number>(0);
   const persistOnCommitRef = useRef(false);
   const pendingLanguageRef = useRef<string | null>(null);
+  const savedLanguageRef = useRef<string>("en");
 
   const items = useMemo<WheelItem[]>(
     () =>
@@ -258,19 +272,29 @@ export default function Screen5Page() {
   const active = languages[activeIndex] ?? languages[0];
   const activeUrl = active?.original ? selectedUrl : active?.url || "";
 
+  useEffect(() => {
+    languagesRef.current = languages;
+  }, [languages]);
+
+  const selectLanguageByCode = useCallback((langCode: string, availableLanguages = languagesRef.current) => {
+    const index = availableLanguages.findIndex((language) => language.langCode === langCode);
+    if (index < 0) return false;
+    setHighlightedIndex(index);
+    setActiveIndex(index);
+    setRotation((currentRotation) => getNextRotation(currentRotation, index, availableLanguages.length));
+    return true;
+  }, []);
+
   const applyRemoteState = useCallback((state: unknown) => {
     if (!state || typeof state !== "object") return;
     const candidate = state as { audioLanguage?: string; version?: number };
     if (typeof candidate.version !== "number" || candidate.version < lastVersionRef.current) return;
-    const index = languages.findIndex((language) => language.langCode === candidate.audioLanguage);
-    if (index < 0) return;
+    if (!candidate.audioLanguage || !selectLanguageByCode(candidate.audioLanguage)) return;
     lastVersionRef.current = candidate.version;
     persistOnCommitRef.current = false;
     pendingLanguageRef.current = null;
-    setHighlightedIndex(index);
-    setActiveIndex(index);
-    setRotation((currentRotation) => getNextRotation(currentRotation, index, languages.length));
-  }, [languages]);
+    savedLanguageRef.current = candidate.audioLanguage;
+  }, [selectLanguageByCode]);
 
   const moveTo = useCallback(
     (nextIndex: number) => {
@@ -317,6 +341,8 @@ export default function Screen5Page() {
       const session = await fetchCurrentSession();
       if (disposed || !session) return;
       sessionIdRef.current = session.id;
+      savedLanguageRef.current = AUDIO_LANGUAGE_BY_LABEL.get(session.selectedAudioLanguage ?? "") ?? "en";
+      selectLanguageByCode(savedLanguageRef.current);
       const socket = new WebSocket(websocketUrl);
       socketRef.current = socket;
       socket.onopen = () => {
@@ -352,15 +378,30 @@ export default function Screen5Page() {
       if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
       socketRef.current?.close();
     };
-  }, [applyRemoteState]);
+  }, [applyRemoteState, selectLanguageByCode]);
 
   useEffect(() => {
-    if (!persistOnCommitRef.current || !active || !sessionIdRef.current) return;
+    if (!persistOnCommitRef.current || !active) return;
     pendingLanguageRef.current = active.langCode;
+    if (!sessionIdRef.current) return;
+
     const socket = socketRef.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      const audioLanguage = pendingLanguageRef.current;
+      persistOnCommitRef.current = false;
+      pendingLanguageRef.current = null;
+      savedLanguageRef.current = audioLanguage;
+      saveAudioLanguageSelection(sessionIdRef.current, audioLanguage, active.language).catch(() => {
+        persistOnCommitRef.current = true;
+        pendingLanguageRef.current = audioLanguage;
+      });
+      return;
+    }
+
     persistOnCommitRef.current = false;
+    savedLanguageRef.current = pendingLanguageRef.current;
     socket.send(JSON.stringify({ type: "audio-language:set", sessionId: sessionIdRef.current, audioLanguage: pendingLanguageRef.current }));
+    patchSession(sessionIdRef.current, { selectedAudioLanguage: active.language });
     pendingLanguageRef.current = null;
   }, [active]);
 
@@ -373,7 +414,9 @@ export default function Screen5Page() {
       const data = await res.json();
       if (Array.isArray(data.languages) && data.languages.length) {
         setLanguages(data.languages as AudioLanguageEntry[]);
-        return data.languages as AudioLanguageEntry[];
+        const nextLanguages = data.languages as AudioLanguageEntry[];
+        languagesRef.current = nextLanguages;
+        return nextLanguages;
       }
     } catch {
       /* keep the wheel usable with fallback languages */
@@ -400,13 +443,12 @@ export default function Screen5Page() {
   useEffect(() => {
     if (!selectedUrl) return;
     const resetTimer = window.setTimeout(() => {
-      setHighlightedIndex(0);
-      setActiveIndex(0);
-      setRotation(0);
-      fetchCatalogue(selectedUrl);
+      fetchCatalogue(selectedUrl).then((list) => {
+        selectLanguageByCode(savedLanguageRef.current, list ?? languagesRef.current);
+      });
     }, 0);
     return () => window.clearTimeout(resetTimer);
-  }, [selectedUrl, fetchCatalogue]);
+  }, [selectedUrl, fetchCatalogue, selectLanguageByCode]);
 
   useEffect(() => {
     if (!selectedUrl || !active || active.original || active.ready) return;
