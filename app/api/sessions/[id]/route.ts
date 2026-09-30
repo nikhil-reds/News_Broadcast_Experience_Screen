@@ -33,11 +33,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof body.selectedSubtitleLanguage === "string") {
     data.selectedSubtitleLanguage = body.selectedSubtitleLanguage;
   }
+  if (typeof body.selectedAudioLanguage === "string") {
+    data.selectedAudioLanguage = body.selectedAudioLanguage;
+  }
+  if (typeof body.selectedBrightness === "number" && Number.isInteger(body.selectedBrightness)) {
+    data.selectedBrightness = Math.min(100, Math.max(1, body.selectedBrightness));
+  }
 
   try {
     const session = await prisma.broadcastSession.update({ where: { id }, data });
     return NextResponse.json({ session });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 404 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Session update failed";
+    return NextResponse.json({ error: message }, { status: 404 });
   }
 }
