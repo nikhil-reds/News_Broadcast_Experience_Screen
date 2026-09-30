@@ -8,6 +8,7 @@ import {
 import { recordingSourceQuery } from "@/lib/camera-recordings";
 import { fetchCurrentSession, patchSession } from "@/lib/current-session";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
+import { useSelectedBrightness } from "@/lib/use-selected-brightness";
 
 type ComposeStatus = "waiting" | "active" | "delayed" | "paused" | "completed" | "fallback-ready" | "failed";
 
@@ -26,6 +27,19 @@ interface RecordingItem {
   url: string;
 }
 
+interface AudioFileItem {
+  filename: string;
+  url: string;
+}
+
+interface AudioLanguageEntry {
+  language: string;
+  langCode: string;
+  url: string | null;
+  ready: boolean;
+  original: boolean;
+}
+
 interface BackgroundStatusResponse {
   backgroundsStatus?: Array<{
     backgroundId: string;
@@ -41,8 +55,20 @@ const POLL_INTERVAL_MS = 700;
 const COMPOSE_TIMEOUT_MS = 3 * 60 * 1000;
 /** How often to check for a newer edited highlight reel. */
 const SOURCE_POLL_MS = 3000;
+const AUDIO_POLL_MS = 3000;
+const WS_RECONNECT_MS = 2000;
 
 const EDITED_REEL_QUERY = recordingSourceQuery({ highlight: true });
+const FALLBACK_AUDIO_LANGUAGES: AudioLanguageEntry[] = [
+  { language: "English", langCode: "en", url: null, ready: true, original: true },
+  { language: "German", langCode: "de", url: null, ready: false, original: false },
+  { language: "Hindi", langCode: "hi", url: null, ready: false, original: false },
+  { language: "French", langCode: "fr", url: null, ready: false, original: false },
+  { language: "Spanish", langCode: "es", url: null, ready: false, original: false },
+];
+const AUDIO_LANGUAGE_BY_LABEL = new Map(
+  FALLBACK_AUDIO_LANGUAGES.map((language) => [language.language, language.langCode])
+);
 
 /**
  * One render in progress, keyed by `${backgroundId}::${sourceFilename}` — a
@@ -74,11 +100,15 @@ export default function Screen7Page() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  // Composited backgrounds now carry real audio (see composeGreenScreenBackground
-  // in lib/ffmpeg.ts) — unmuted autoplay can be silently blocked by the browser
-  // without a prior user gesture, same pattern as components/recording-looper.tsx.
+  const [sourceAudioUrl, setSourceAudioUrl] = useState<string | null>(null);
+  const [audioLanguages, setAudioLanguages] = useState<AudioLanguageEntry[]>(FALLBACK_AUDIO_LANGUAGES);
+  const [selectedAudioLanguage, setSelectedAudioLanguage] = useState("en");
+  const brightness = useSelectedBrightness();
+  // Screen 7 keeps audio separate from the visual composite so Screen 5's
+  // selected language can drive playback. Autoplay can still need a gesture.
   const [soundBlocked, setSoundBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const inFlight = useRef<Map<string, InFlightCompose>>(new Map());
   const elapsedTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -86,6 +116,9 @@ export default function Screen7Page() {
   const selectedIdRef = useRef<string | null>(null);
   const chooseBackgroundRef = useRef<(backgroundId: string) => void>(() => {});
   const remoteBackgroundRef = useRef<string | null>(null);
+  const audioSocketRef = useRef<WebSocket | null>(null);
+  const audioReconnectTimerRef = useRef<number | null>(null);
+  const lastAudioVersionRef = useRef<number>(0);
   const onRemoteBackground = useCallback((backgroundId: string) => {
     if (!GREEN_SCREEN_BACKGROUNDS.some((background) => background.id === backgroundId)) return;
     remoteBackgroundRef.current = backgroundId;
@@ -107,8 +140,33 @@ export default function Screen7Page() {
         setSelectedId(session.selectedBackgroundId);
         selectedIdRef.current = session.selectedBackgroundId;
       }
+      if (session?.selectedAudioLanguage) {
+        setSelectedAudioLanguage(AUDIO_LANGUAGE_BY_LABEL.get(session.selectedAudioLanguage) ?? "en");
+      }
     });
   }, []);
+
+  const selectedAudioEntry =
+    audioLanguages.find((language) => language.langCode === selectedAudioLanguage) ??
+    audioLanguages[0] ??
+    FALLBACK_AUDIO_LANGUAGES[0];
+  const selectedAudioUrl = selectedAudioEntry?.original
+    ? sourceAudioUrl
+    : selectedAudioEntry?.url || sourceAudioUrl;
+  const selectedAudioLabel = selectedAudioEntry?.original
+    ? "Original audio"
+    : selectedAudioEntry?.ready && selectedAudioEntry.url
+      ? `${selectedAudioEntry.language} audio`
+      : `Original audio (${selectedAudioEntry?.language ?? "selected"} unavailable)`;
+
+  const playSelectedAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || !selectedAudioUrl) return;
+    audio
+      .play()
+      .then(() => setSoundBlocked(false))
+      .catch(() => setSoundBlocked(true));
+  }, [selectedAudioUrl]);
   const persistBackgroundSelection = (backgroundId: string) => {
     if (sessionIdRef.current) {
       patchSession(sessionIdRef.current, { selectedBackgroundId: backgroundId });
@@ -120,6 +178,143 @@ export default function Screen7Page() {
   useEffect(() => {
     selectedIdRef.current = selectedId;
   }, [selectedId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLatestAudio = async () => {
+      try {
+        const res = await fetch("/api/save-audio");
+        if (!res.ok) return;
+        const data = await res.json();
+        const files: AudioFileItem[] = (data.audioFiles || []).filter(
+          (audio: AudioFileItem) => audio.filename !== "master-audio-16k.wav"
+        );
+        if (files.length > 0 && !cancelled) {
+          setSourceAudioUrl((prev) => (prev === files[0].url ? prev : files[0].url));
+        }
+      } catch {
+        /* keep the last usable original audio */
+      }
+    };
+    fetchLatestAudio();
+    const interval = setInterval(fetchLatestAudio, SOURCE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const fetchAudioCatalogue = useCallback(async (sourceAudio: string) => {
+    try {
+      const res = await fetch(`/api/audio-language?sourceAudio=${encodeURIComponent(sourceAudio)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (Array.isArray(data.languages) && data.languages.length) {
+        const languages = data.languages as AudioLanguageEntry[];
+        setAudioLanguages(languages);
+        return languages;
+      }
+    } catch {
+      /* original audio remains the fallback */
+    }
+    return null;
+  }, []);
+
+  useEffect(() => {
+    if (!sourceAudioUrl) return;
+    const timer = window.setTimeout(() => {
+      fetchAudioCatalogue(sourceAudioUrl);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [sourceAudioUrl, fetchAudioCatalogue]);
+
+  useEffect(() => {
+    if (!sourceAudioUrl) return;
+    const active = audioLanguages.find((language) => language.langCode === selectedAudioLanguage);
+    if (!active || active.original || active.ready) return;
+
+    let cancelled = false;
+    let timer: number | null = null;
+    const poll = async () => {
+      const list = await fetchAudioCatalogue(sourceAudioUrl);
+      if (cancelled) return;
+      const refreshed = list?.find((language) => language.langCode === selectedAudioLanguage);
+      if (!refreshed?.ready) timer = window.setTimeout(poll, AUDIO_POLL_MS);
+    };
+
+    timer = window.setTimeout(poll, AUDIO_POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [audioLanguages, fetchAudioCatalogue, selectedAudioLanguage, sourceAudioUrl]);
+
+  useEffect(() => {
+    if (!sourceAudioUrl || selectedAudioLanguage === "en") return;
+    const active = audioLanguages.find((language) => language.langCode === selectedAudioLanguage);
+    if (!active || active.ready) return;
+    fetch("/api/audio-language", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceAudio: sourceAudioUrl, language: active.language }),
+    }).catch(() => {});
+  }, [audioLanguages, selectedAudioLanguage, sourceAudioUrl]);
+
+  useEffect(() => {
+    let disposed = false;
+    const websocketUrl = process.env.NEXT_PUBLIC_AUDIO_LANGUAGE_WS_URL ||
+      `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:3001/ws`;
+
+    const applyAudioState = (state: unknown) => {
+      if (!state || typeof state !== "object") return;
+      const candidate = state as { audioLanguage?: string; version?: number };
+      if (typeof candidate.version !== "number" || candidate.version < lastAudioVersionRef.current) return;
+      const audioLanguage = candidate.audioLanguage;
+      if (typeof audioLanguage !== "string") return;
+      if (!FALLBACK_AUDIO_LANGUAGES.some((language) => language.langCode === audioLanguage)) return;
+      lastAudioVersionRef.current = candidate.version;
+      setSelectedAudioLanguage(audioLanguage);
+    };
+
+    const connect = async () => {
+      const session = sessionIdRef.current ?? await fetchCurrentSession().then((session) => session?.id ?? null);
+      if (disposed || !session) return;
+      sessionIdRef.current = session;
+      const socket = new WebSocket(websocketUrl);
+      audioSocketRef.current = socket;
+      socket.onopen = () => {
+        socket.send(JSON.stringify({ type: "audio-language:get", sessionId: session }));
+      };
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(String(event.data)) as { type?: string; state?: unknown };
+          if (message.type === "audio-language:state" || message.type === "audio-language:changed" || message.type === "audio-language:saved") {
+            applyAudioState(message.state);
+          }
+        } catch {
+          /* reconnects resync state */
+        }
+      };
+      socket.onclose = () => {
+        if (!disposed) audioReconnectTimerRef.current = window.setTimeout(connect, WS_RECONNECT_MS);
+      };
+    };
+
+    void connect();
+    return () => {
+      disposed = true;
+      if (audioReconnectTimerRef.current) window.clearTimeout(audioReconnectTimerRef.current);
+      audioSocketRef.current?.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !selectedAudioUrl) return;
+    audio.currentTime = 0;
+    audio.load();
+    playSelectedAudio();
+  }, [playSelectedAudio, selectedAudioUrl]);
 
   // Latest edited highlight reel — the base video this whole screen composites against.
   useEffect(() => {
@@ -158,9 +353,6 @@ export default function Screen7Page() {
   }, []);
 
   const startElapsedClock = () => {
-    // This function is only invoked from user/effect callbacks, never during
-    // render; the React purity rule cannot infer that through this closure.
-    // eslint-disable-next-line react-hooks/purity
     startedAt.current = Date.now();
     setElapsedSeconds(0);
     if (elapsedTimer.current) clearInterval(elapsedTimer.current);
@@ -446,7 +638,6 @@ export default function Screen7Page() {
     const key = keyFor(backgroundId, sourceFilename);
     if (readyIds.has(key)) {
       // Already rendered against the current edited reel — swap instantly.
-      // eslint-disable-next-line react-hooks/purity
       setVideoSrc(`${composedOutputUrl(backgroundId, sourceFilename)}?t=${Date.now()}`);
       setSelectedId(backgroundId);
       selectedIdRef.current = backgroundId;
@@ -517,10 +708,8 @@ export default function Screen7Page() {
             className="relative h-full w-full overflow-hidden bg-black"
             onClick={() => {
               if (!soundBlocked) return;
-              videoRef.current
-                ?.play()
-                .then(() => setSoundBlocked(false))
-                .catch(() => {});
+              videoRef.current?.play().catch(() => {});
+              playSelectedAudio();
             }}
           >
             {videoSrc ? (
@@ -530,6 +719,7 @@ export default function Screen7Page() {
                 src={videoSrc}
                 autoPlay
                 loop
+                muted
                 playsInline
                 onError={handleVideoError}
                 onLoadedData={() => {
@@ -538,10 +728,10 @@ export default function Screen7Page() {
                   }
                   videoRef.current
                     ?.play()
-                    .then(() => setSoundBlocked(false))
-                    .catch(() => setSoundBlocked(true));
+                    .catch(() => {});
                 }}
                 className="w-full h-full object-cover"
+                style={{ filter: `brightness(${brightness}%)` }}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm font-mono">
@@ -549,9 +739,22 @@ export default function Screen7Page() {
               </div>
             )}
 
+            <audio
+              ref={audioRef}
+              src={selectedAudioUrl || undefined}
+              loop
+              preload="auto"
+              className="hidden"
+              aria-hidden="true"
+            />
+
+            <div className="absolute left-6 bottom-6 z-20 rounded-xl border border-cyan-400/25 bg-slate-950/80 px-3.5 py-2.5 text-xs font-mono text-cyan-100 backdrop-blur-md">
+              Selected audio: {selectedAudioLabel}
+            </div>
+
             {soundBlocked && (
               <div className="absolute bottom-4 right-4 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs font-mono text-slate-200">
-                🔇 Click to enable sound
+                Click to enable selected audio
               </div>
             )}
 
