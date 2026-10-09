@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { formatDate } from "@/lib/admin-format";
@@ -12,10 +13,7 @@ export default async function AdminSessionsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold">Sessions</h2>
-        <p className="text-sm text-slate-500">Recording generations and selected output settings.</p>
-      </div>
+      <AdminPageHeader title="Sessions" description="Recording generations and selected output settings." />
       <AdminTable
         headers={["Seq", "Status", "Pipeline", "Background", "Subtitle", "Audio", "Brightness", "Started", "Ended"]}
         empty={sessions.length === 0}
@@ -23,7 +21,7 @@ export default async function AdminSessionsPage() {
         {sessions.map((session) => (
           <tr key={session.id}>
             <Td>
-              <Link href={`/admin/sessions/${session.id}`} className="font-semibold text-blue-700">
+              <Link href={`/admin/sessions/${session.id}`} className="font-semibold text-admin-accent">
                 #{session.seq}
               </Link>
             </Td>
