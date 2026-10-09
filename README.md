@@ -1,6 +1,6 @@
 # Multi-Camera Interactive Video System
 
-Full project documentation is available at [docs/news-broadcast-system-documentation.md](docs/news-broadcast-system-documentation.md).
+Full project documentation is available at [documentation/news-broadcast-system-documentation.md](documentation/news-broadcast-system-documentation.md).
 
 ## Current Local Application Notes
 
