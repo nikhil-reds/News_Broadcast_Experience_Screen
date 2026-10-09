@@ -1,3 +1,4 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminCard } from "@/components/admin/admin-card";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -25,10 +26,7 @@ export default async function AdminWorkersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Workers</h2>
-        <p className="text-sm text-slate-500">Operational health based on generation task activity.</p>
-      </div>
+      <AdminPageHeader title="Workers" description="Operational health based on generation task activity." />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <AdminCard title="Processing" value={processing} detail="Tasks currently running" tone="warn" />
