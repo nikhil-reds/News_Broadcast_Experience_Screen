@@ -16,7 +16,6 @@ import { join } from "node:path";
 
 import { prisma } from "@/lib/prisma";
 import { AUDIO_BUCKET, TRANSCRIPTS_BUCKET, VIDEO_BUCKET, downloadObjectToFile, uploadObject } from "@/lib/minio";
-import { GEMINI_MODEL } from "@/lib/gemini";
 import {
   concatClips,
   extractNormalizedClip,
@@ -24,9 +23,19 @@ import {
   probeStreamDurations,
 } from "@/lib/ffmpeg";
 import { highlightFilenameFor, type CameraId } from "@/lib/camera-recordings";
-import type { HighlightAnalysisResult, HighlightSegment } from "@/lib/highlight-analysis";
+export interface HighlightSegment {
+  camera: CameraId;
+  start: number;
+  end: number;
+  reason: string;
+}
 
-export type { HighlightSegment };
+export interface HighlightAnalysisResult {
+  title: string;
+  segments: HighlightSegment[];
+  audio: Record<CameraId, boolean>;
+}
+
 
 /**
  * Bounds this stage's ffmpeg calls (one extractNormalizedClip per segment,
@@ -229,7 +238,7 @@ export async function renderHighlightReel(
         JSON.stringify(
           {
             title,
-            model: GEMINI_MODEL,
+            model: "local-vision",
             sessionId: generationId ?? null,
             masterAudio: masterAudio
               ? {
@@ -272,7 +281,7 @@ export async function renderHighlightReel(
       durationSeconds: Number(durationSeconds.toFixed(2)),
       segments,
       title,
-      model: GEMINI_MODEL,
+      model: "local-vision",
     };
   } finally {
     await rm(workDir, { recursive: true, force: true });
