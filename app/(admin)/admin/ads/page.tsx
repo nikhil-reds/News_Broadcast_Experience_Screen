@@ -1,10 +1,20 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminTable, Td } from "@/components/admin/admin-table";
+import { ConfirmSubmitButton } from "@/components/admin/confirm-submit-button";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { createAdCampaignAction, toggleAdCampaignAction } from "@/app/actions/admin-ads";
 import { formatDate } from "@/lib/admin-format";
 import { prisma } from "@/lib/prisma";
 
-export default async function AdminAdsPage() {
+const inputClass =
+  "mt-1 w-full rounded-md border border-admin-input px-3 py-2 text-sm focus:border-admin-focus focus:outline-none focus:ring-2 focus:ring-admin-focus/30 bg-admin-surface text-admin-text";
+
+export default async function AdminAdsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   const ads = await prisma.adCampaign.findMany({
     orderBy: [{ isActive: "desc" }, { priority: "asc" }, { createdAt: "desc" }],
     take: 50,
@@ -12,24 +22,41 @@ export default async function AdminAdsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold">Ads</h2>
-        <p className="text-sm text-slate-500">Sponsored campaigns used by the ad showcase screens.</p>
-      </div>
+      <AdminPageHeader title="Ads" description="Sponsored campaigns used by the ad showcase screens." />
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-admin-border bg-admin-surface p-5 shadow-sm">
         <h3 className="font-bold">Create Campaign</h3>
-        <form action={createAdCampaignAction} className="mt-4 grid gap-3 lg:grid-cols-6">
-          <input name="sponsor" required placeholder="Sponsor" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <input name="code" required placeholder="Code" className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <input name="text" required placeholder="Campaign text" className="rounded-md border border-slate-300 px-3 py-2 text-sm lg:col-span-2" />
-          <input name="priority" type="number" defaultValue={5} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <input name="endTime" type="datetime-local" required className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+        {error === "missing-fields" ? (
+          <p role="alert" className="mt-3 rounded-md border border-status-danger-border bg-status-danger-bg px-3 py-2 text-sm text-status-danger-text">
+            Sponsor, code, campaign text and end time are required.
+          </p>
+        ) : null}
+        <form action={createAdCampaignAction} className="mt-4 grid gap-4 lg:grid-cols-6">
+          <label className="text-sm font-semibold text-admin-text-secondary">
+            Sponsor
+            <input name="sponsor" required className={inputClass} />
+          </label>
+          <label className="text-sm font-semibold text-admin-text-secondary">
+            Code
+            <input name="code" required className={inputClass} />
+          </label>
+          <label className="text-sm font-semibold text-admin-text-secondary lg:col-span-2">
+            Campaign text
+            <input name="text" required className={inputClass} />
+          </label>
+          <label className="text-sm font-semibold text-admin-text-secondary">
+            Priority
+            <input name="priority" type="number" defaultValue={5} className={inputClass} />
+          </label>
+          <label className="text-sm font-semibold text-admin-text-secondary">
+            End time
+            <input name="endTime" type="datetime-local" required className={inputClass} />
+          </label>
+          <label className="flex items-center gap-2 self-end pb-2 text-sm font-semibold text-admin-text-secondary">
             <input name="isActive" type="checkbox" defaultChecked className="h-4 w-4" />
             Active
           </label>
-          <button className="rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 lg:col-span-5">
+          <button className="rounded-md bg-admin-primary px-4 py-2 text-sm font-bold text-admin-on-primary hover:bg-admin-primary-hover lg:col-span-6 lg:justify-self-start">
             Add campaign
           </button>
         </form>
@@ -44,21 +71,24 @@ export default async function AdminAdsPage() {
             <Td>{ad.priority}</Td>
             <Td>{ad.impressions}</Td>
             <Td>
-              <span className="inline-block max-w-xs truncate align-bottom">{ad.text}</span>
+              <span className="inline-block max-w-xs truncate align-bottom" title={ad.text}>{ad.text}</span>
             </Td>
             <Td>{formatDate(ad.startTime)}</Td>
             <Td>{formatDate(ad.endTime)}</Td>
             <Td>
-              <div className="flex items-center gap-2">
-                <a href={`/admin/ads/${ad.id}`} className="font-semibold text-blue-700">
+              <div className="flex items-center gap-3">
+                <a href={`/admin/ads/${ad.id}`} className="font-semibold text-admin-accent hover:underline">
                   Details
                 </a>
                 <form action={toggleAdCampaignAction}>
                   <input type="hidden" name="id" value={ad.id} />
                   <input type="hidden" name="isActive" value={String(ad.isActive)} />
-                  <button className="font-semibold text-slate-700">
+                  <ConfirmSubmitButton
+                    message={`${ad.isActive ? "Disable" : "Enable"} the "${ad.sponsor}" campaign?`}
+                    className="font-semibold text-admin-text-secondary hover:underline"
+                  >
                     {ad.isActive ? "Disable" : "Enable"}
-                  </button>
+                  </ConfirmSubmitButton>
                 </form>
               </div>
             </Td>
