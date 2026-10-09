@@ -33,7 +33,6 @@
  */
 import "dotenv/config";
 import "@/app/worker/audio-transcription";
-import "@/app/worker/highlight-analysis";
 import "@/app/worker/highlight-reel";
 import "@/app/worker/translations";
 import "@/app/worker/tts";
