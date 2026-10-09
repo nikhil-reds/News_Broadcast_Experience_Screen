@@ -38,7 +38,6 @@ import { prisma } from "@/lib/prisma";
 import {
   getQueueForTaskType,
   enqueueTranscription,
-  enqueueHighlightAnalysis,
   enqueueHighlightReel,
   enqueueTranslations,
   enqueueAudioConversion,
@@ -124,10 +123,6 @@ async function requeueFromPayload(taskType: string, payload: any): Promise<boole
 
   if (taskType === "transcription") {
     await enqueueTranscription(payload.filename, generationId);
-    return true;
-  }
-  if (taskType === "highlight-analysis") {
-    await enqueueHighlightAnalysis(payload.cam1Filename, payload.cam2Filename, payload.cam3Filename, generationId);
     return true;
   }
   if (taskType === "highlight-reel") {
