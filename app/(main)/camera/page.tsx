@@ -5,7 +5,10 @@ import CameraStudioCard from "@/components/camera-studio-card";
 import AudioStudioCard from "@/components/audio-studio-card";
 import { useCameraRecorder } from "@/lib/use-camera-recorder";
 
+type CameraRecorder = ReturnType<typeof useCameraRecorder>;
+
 export default function CameraPage() {
+  const [startError, setStartError] = useState<string | null>(null);
   // --- Camera States ---
   const camera1 = useCameraRecorder(1, { captureAudio: true });
   const camera2 = useCameraRecorder(2);
@@ -45,7 +48,7 @@ export default function CameraPage() {
       navigator.mediaDevices?.removeEventListener("devicechange", onDeviceChange);
   }, [refreshVideoDevices]);
 
-  const handleSelectDevice = (recorder: any) => async (deviceId: string) => {
+  const handleSelectDevice = (recorder: CameraRecorder) => async (deviceId: string) => {
     if (!deviceId) return;
     await recorder.startCamera(deviceId);
     refreshVideoDevices();
@@ -93,14 +96,22 @@ export default function CameraPage() {
     // One session id for this take, shared by all 3 cameras + audio so the
     // backend can tell when all 4 uploads for THIS take have landed instead
     // of guessing from filename timestamps.
+    // Without a session the takes cannot be matched later, so do not start
+    // any recorder unless the session was created.
     let sessionId: string | null = null;
     try {
       const res = await fetch("/api/sessions", { method: "POST" });
       const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `Request failed with ${res.status}`);
       sessionId = data.session?.id ?? null;
     } catch (err) {
       console.error("Failed to create broadcast session:", err);
     }
+    if (!sessionId) {
+      setStartError("Could not create a recording session, so recording did not start. Check the server and try again.");
+      return;
+    }
+    setStartError(null);
     sessionIdRef.current = sessionId;
 
     camera1.setSessionId(sessionId);
@@ -117,6 +128,7 @@ export default function CameraPage() {
   };
 
   const endAllRecording = () => {
+    if (!window.confirm("End the recording for all cameras and audio?")) return;
     camera1.endRecording();
     camera2.endRecording();
     camera3.endRecording();
@@ -194,7 +206,12 @@ export default function CameraPage() {
         </div>
 
         {/* Global Recording Controls */}
-        <div className="flex justify-center pt-8">
+        <div className="flex flex-col items-center gap-4 pt-8">
+          {startError ? (
+            <p role="alert" className="max-w-xl rounded-xl border border-rose-800 bg-rose-950/60 px-4 py-3 text-center text-sm text-rose-200">
+              {startError}
+            </p>
+          ) : null}
           {isAnyRecording ? (
             <button
               onClick={endAllRecording}
