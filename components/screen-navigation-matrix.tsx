@@ -86,7 +86,7 @@ const SCREENS: ScreenInfo[] = [
     id: "screen06",
     num: "06",
     title: "Edited Video (1st)",
-    description: "Gemini-cut initial highlight reel.",
+    description: "Initial edited-video preview (AI cutting disabled).",
     path: "/screen6",
     category: "Post-Prod",
     icon: "🎬",
@@ -95,8 +95,8 @@ const SCREENS: ScreenInfo[] = [
   {
     id: "screen07",
     num: "07",
-    title: "Bg Changes Video",
-    description: "Video feed with modified background layouts.",
+    title: "Background Compositing",
+    description: "Broadcast feed with selectable virtual backgrounds.",
     path: "/screen7",
     category: "Post-Prod",
     icon: "🖼️",
@@ -105,8 +105,8 @@ const SCREENS: ScreenInfo[] = [
   {
     id: "screen08",
     num: "08",
-    title: "Subtitle Lang Change",
-    description: "Edited highlights with dynamic subtitle languages.",
+    title: "Subtitle Language",
+    description: "Edited highlights with dynamic subtitle language selection.",
     path: "/screen8",
     category: "Post-Prod",
     icon: "🔤",
@@ -115,8 +115,8 @@ const SCREENS: ScreenInfo[] = [
   {
     id: "screen09",
     num: "09",
-    title: "Advertisement Industry Selection",
-    description: "Select an advertisement industry for the broadcast experience.",
+    title: "Ad Industry Selection",
+    description: "Choose an advertising industry for the broadcast experience.",
     path: "/screen9",
     category: "Post-Prod",
     icon: "🏷️",
@@ -125,8 +125,8 @@ const SCREENS: ScreenInfo[] = [
   {
     id: "screen10",
     num: "10",
-    title: "Advertisement Brand Selection",
-    description: "Select a featured brand for the advertisement experience.",
+    title: "Ad Brand Selection",
+    description: "Choose a featured brand for the advertising experience.",
     path: "/screen10",
     category: "Post-Prod",
     icon: "🏷️",
@@ -155,8 +155,8 @@ const SCREENS: ScreenInfo[] = [
   {
     id: "screenMain",
     num: "13",
-    title: "main screen",
-    description: "Responsive preview across 12 device profiles.",
+    title: "Responsive Preview Studio",
+    description: "Preview the broadcast across 12 device profiles.",
     path: "/main",
     category: "Preview",
     icon: "📱",
@@ -191,8 +191,7 @@ export default function ScreenNavigationMatrix({
 
   return (
     <section 
-      className="w-full p-6 rounded-2xl border border-slate-800/80 shadow-2xl space-y-6"
-      style={{ backgroundColor: '#0F2B9D' }}
+      className="screen-navigation-matrix w-full p-6 rounded-2xl border border-slate-800/80 shadow-2xl space-y-6"
     >
       <div className="flex items-center justify-between border-b border-slate-800 pb-4">
         <div>
@@ -278,7 +277,7 @@ export default function ScreenNavigationMatrix({
                   {screen.visualType === "video" && (
                     <div className="flex flex-col items-center gap-1">
                       <span className="text-2xl text-indigo-400">✦</span>
-                      <span className="text-[9px] font-mono text-indigo-300">GEMINI CUT</span>
+                      <span className="text-[9px] font-mono text-indigo-300">EDITED PREVIEW</span>
                     </div>
                   )}
 
@@ -394,7 +393,7 @@ export default function ScreenNavigationMatrix({
                       {screen.visualType === "video" && (
                         <div className="flex flex-col items-center gap-1">
                           <span className="text-2xl text-indigo-400">✦</span>
-                          <span className="text-[9px] font-mono text-indigo-300">GEMINI CUT</span>
+                          <span className="text-[9px] font-mono text-indigo-300">EDITED PREVIEW</span>
                         </div>
                       )}
 
