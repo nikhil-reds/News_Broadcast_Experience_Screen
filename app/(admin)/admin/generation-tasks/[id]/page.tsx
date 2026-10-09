@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { notFound } from "next/navigation";
 import { AdminSection, DetailGrid, DetailItem } from "@/components/admin/admin-section";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -19,11 +19,12 @@ export default async function AdminGenerationTaskDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/admin/generation-tasks" className="text-sm font-semibold text-blue-700">Back to tasks</Link>
-        <h2 className="mt-2 text-2xl font-bold">{task.taskType}</h2>
-        <p className="text-sm text-slate-500">Pipeline task diagnostics and recovery context.</p>
-      </div>
+      <AdminPageHeader
+        backHref="/admin/generation-tasks"
+        backLabel="Back to tasks"
+        title={task.taskType}
+        description="Pipeline task diagnostics and recovery context."
+      />
 
       <AdminSection title="Task Details">
         <DetailGrid>
