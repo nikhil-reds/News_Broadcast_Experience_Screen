@@ -1,3 +1,4 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { formatDate, shortId } from "@/lib/admin-format";
 import { prisma } from "@/lib/prisma";
@@ -14,10 +15,7 @@ export default async function AdminTranscriptsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold">Transcripts</h2>
-        <p className="text-sm text-slate-500">Speech-to-text output and segment counts.</p>
-      </div>
+      <AdminPageHeader title="Transcripts" description="Speech-to-text output and segment counts." />
       <AdminTable headers={["Language", "Source", "Generation", "Duration", "Segments", "Engine", "Preview", "Created"]} empty={transcripts.length === 0}>
         {transcripts.map((transcript) => (
           <tr key={transcript.id}>
