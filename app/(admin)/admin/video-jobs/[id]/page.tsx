@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { notFound } from "next/navigation";
 import { AdminSection, DetailGrid, DetailItem } from "@/components/admin/admin-section";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -19,11 +20,12 @@ export default async function AdminVideoJobDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/admin/video-jobs" className="text-sm font-semibold text-blue-700">Back to video jobs</Link>
-        <h2 className="mt-2 text-2xl font-bold">{job.reelFilename}</h2>
-        <p className="text-sm text-slate-500">Export job for {job.language} / {job.aspect}.</p>
-      </div>
+      <AdminPageHeader
+        backHref="/admin/video-jobs"
+        backLabel="Back to video jobs"
+        title={job.reelFilename}
+        description={<>Export job for {job.language} / {job.aspect}.</>}
+      />
 
       <AdminSection title="Job Details">
         <DetailGrid>
@@ -40,7 +42,7 @@ export default async function AdminVideoJobDetailPage({
       </AdminSection>
 
       {job.outputUrl ? (
-        <Link href={job.outputUrl} className="inline-flex rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white">
+        <Link href={job.outputUrl} className="inline-flex rounded-md bg-admin-primary px-4 py-2 text-sm font-bold text-admin-on-primary">
           Open output
         </Link>
       ) : null}
