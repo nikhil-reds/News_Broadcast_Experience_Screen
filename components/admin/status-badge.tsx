@@ -1,9 +1,9 @@
 const toneMap = {
-  success: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  warning: "border-amber-200 bg-amber-50 text-amber-700",
-  danger: "border-rose-200 bg-rose-50 text-rose-700",
-  info: "border-sky-200 bg-sky-50 text-sky-700",
-  neutral: "border-slate-200 bg-slate-50 text-slate-700",
+  success: "border-status-success-border bg-status-success-bg text-status-success-text",
+  warning: "border-status-warning-border bg-status-warning-bg text-status-warning-text",
+  danger: "border-status-danger-border bg-status-danger-bg text-status-danger-text",
+  info: "border-status-info-border bg-status-info-bg text-status-info-text",
+  neutral: "border-status-neutral-border bg-status-neutral-bg text-status-neutral-text",
 };
 
 export function statusTone(status?: string | null): keyof typeof toneMap {
