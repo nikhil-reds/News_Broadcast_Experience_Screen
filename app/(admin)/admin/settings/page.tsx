@@ -1,3 +1,4 @@
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminCard } from "@/components/admin/admin-card";
 
 export default function AdminSettingsPage() {
@@ -7,10 +8,7 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Settings</h2>
-        <p className="text-sm text-slate-500">Current admin configuration and defaults.</p>
-      </div>
+      <AdminPageHeader title="Settings" description="Current admin configuration and defaults." />
 
       <div className="grid gap-4 md:grid-cols-3">
         <AdminCard title="Admin Email" value={email} detail="Configured sign-in identity" />
@@ -28,7 +26,7 @@ export default function AdminSettingsPage() {
         />
       </div>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-admin-border bg-admin-surface p-5 shadow-sm">
         <h3 className="font-bold">Recommended Environment</h3>
         <div className="mt-4 space-y-2 rounded-md bg-slate-950 p-4 font-mono text-sm text-slate-100">
           <p>ADMIN_EMAIL=admin@example.com</p>
