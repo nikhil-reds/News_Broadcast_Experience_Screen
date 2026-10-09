@@ -390,6 +390,15 @@ export default function Screen7Page() {
    * than a closure param, so a pre-warm that got promoted by a click settles
    * as the visible render it became.
    */
+  // Stops waiting on the visible render and releases the loader. The server
+  // render is not aborted; choosing the background again picks it back up.
+  const cancelWaiting = () => {
+    for (const [key, entry] of inFlight.current) {
+      if (!entry.silent) settleCompose(key, entry);
+    }
+    setErrorMessage("Stopped waiting. Choose the background again to retry.");
+  };
+
   const settleCompose = (key: string, entry: InFlightCompose, url?: string) => {
     if (entry.timer) clearTimeout(entry.timer);
     if (inFlight.current.get(key) === entry) {
@@ -436,7 +445,7 @@ export default function Screen7Page() {
       if (Date.now() - entry.startedAt > COMPOSE_TIMEOUT_MS) {
         if (!entry.silent) {
           setErrorMessage(
-            "Compositing timed out. Is the worker running? — npm run worker:green-screen"
+            "This background is taking too long to render. Check that the background service is running, then choose it again."
           );
         }
         settleCompose(key, entry, undefined);
@@ -455,7 +464,7 @@ export default function Screen7Page() {
         if ((data.status === "completed" || data.status === "fallback-ready") && data.url) {
           setFallbackMessage(
             data.status === "fallback-ready"
-              ? `RVM matte failed; showing chromakey fallback${data.fallbackReason ? ` (${data.fallbackReason})` : ""}.`
+              ? "Using a simpler background key for this one."
               : null
           );
           if (entry.autoShow && (selectedIdRef.current === null || selectedIdRef.current === backgroundId)) {
@@ -482,7 +491,7 @@ export default function Screen7Page() {
         entry.timer = setTimeout(tick, POLL_INTERVAL_MS);
       } catch {
         if (!ownsCompose(key, entry)) return;
-        if (!entry.silent) setErrorMessage("Lost contact with the compose worker.");
+        if (!entry.silent) setErrorMessage("Lost contact with the background service.");
         settleCompose(key, entry, undefined);
       }
     };
@@ -549,7 +558,7 @@ export default function Screen7Page() {
         if ((data.status === "completed" || data.status === "fallback-ready") && data.url) {
           setFallbackMessage(
             data.status === "fallback-ready"
-              ? `RVM matte failed; showing chromakey fallback${data.fallbackReason ? ` (${data.fallbackReason})` : ""}.`
+              ? "Using a simpler background key for this one."
               : null
           );
           if (entry.autoShow && (selectedIdRef.current === null || selectedIdRef.current === backgroundId)) {
@@ -564,12 +573,12 @@ export default function Screen7Page() {
           return;
         }
 
-        if (!entry.silent) setErrorMessage("The compose API returned no job to track.");
+        if (!entry.silent) setErrorMessage("The background service did not start a render.");
         settleCompose(key, entry, undefined);
       } catch (err) {
         if (!ownsCompose(key, entry)) return;
         const reason = err instanceof Error ? err.message : "";
-        if (!entry.silent) setErrorMessage(reason || "Failed to reach the compose API.");
+        if (!entry.silent) setErrorMessage(reason || "Could not reach the background service.");
         settleCompose(key, entry, undefined);
       }
     })();
@@ -685,7 +694,7 @@ export default function Screen7Page() {
 
     if (attempts >= MAX_VIDEO_RETRIES) {
       setErrorMessage(
-        `"${label}" keeps failing to load — check the worker terminal for ffmpeg errors.`
+        `"${label}" could not be prepared after several attempts. Check the background service logs, then choose it again.`
       );
       return;
     }
@@ -765,8 +774,15 @@ export default function Screen7Page() {
                   <div className="h-full w-1/3 rounded-full bg-emerald-500 animate-[loaderSlide_1.1s_ease-in-out_infinite]" />
                 </div>
                 <p className="text-sm font-mono text-slate-200">
-                  Compositing background with ffmpeg… {elapsedSeconds}s
+                  Preparing background… {elapsedSeconds}s
                 </p>
+                <button
+                  type="button"
+                  onClick={cancelWaiting}
+                  className="rounded-md border border-slate-600 px-3 py-1.5 text-xs font-mono text-slate-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-emerald-400"
+                >
+                  Stop waiting
+                </button>
               </div>
             )}
           </div>
