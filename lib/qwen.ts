@@ -1,5 +1,9 @@
-const QWEN_API_URL = (process.env.QWEN_API_URL || "http://localhost:11434").replace(/\/$/, "");
-export const QWEN_MODEL = process.env.QWEN_MODEL || "qwen2.5:3b";
+const QWEN_TRANSLATION_URL = (
+  process.env.QWEN_TRANSLATION_URL || process.env.QWEN_API_URL || "http://localhost:11434"
+).replace(/\/$/, "");
+export const QWEN_TRANSLATION_MODEL =
+  process.env.QWEN_TRANSLATION_MODEL || process.env.QWEN_MODEL || "qwen2.5:3b";
+export const QWEN_MODEL = QWEN_TRANSLATION_MODEL;
 
 /** Call the Qwen (ollama) model with a prompt and return the raw response text. */
 export async function callQwen(prompt: string, json: boolean): Promise<string> {
@@ -7,11 +11,11 @@ export async function callQwen(prompt: string, json: boolean): Promise<string> {
   // Qwen on CPU can be slow; allow up to 5 minutes.
   const timeoutId = setTimeout(() => controller.abort(), 300000);
   try {
-    const res = await fetch(`${QWEN_API_URL}/api/generate`, {
+    const res = await fetch(`${QWEN_TRANSLATION_URL}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: QWEN_MODEL,
+        model: QWEN_TRANSLATION_MODEL,
         prompt,
         stream: false,
         ...(json ? { format: "json" } : {}),
