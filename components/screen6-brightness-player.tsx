@@ -39,7 +39,7 @@ async function saveBrightnessSelection(sessionId: string, brightness: number) {
   });
 }
 
-/** Screen 06: muted Gemini reel with a live brightness control rail. */
+/** Screen 06: muted preview with a live brightness control rail. */
 export default function Screen6BrightnessPlayer() {
   const [brightness, setBrightness] = useState(MAX_BRIGHTNESS);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
