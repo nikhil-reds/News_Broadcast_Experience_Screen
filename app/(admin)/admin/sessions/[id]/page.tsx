@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { notFound } from "next/navigation";
 import { AdminSection, DetailGrid, DetailItem } from "@/components/admin/admin-section";
 import { AdminTable, Td } from "@/components/admin/admin-table";
@@ -28,11 +29,12 @@ export default async function AdminSessionDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/admin/sessions" className="text-sm font-semibold text-blue-700">Back to sessions</Link>
-        <h2 className="mt-2 text-2xl font-bold">Session #{session.seq}</h2>
-        <p className="text-sm text-slate-500">Full generation record and related pipeline assets.</p>
-      </div>
+      <AdminPageHeader
+        backHref="/admin/sessions"
+        backLabel="Back to sessions"
+        title={<>Session #{session.seq}</>}
+        description="Full generation record and related pipeline assets."
+      />
 
       <AdminSection title="Session Details">
         <DetailGrid>
@@ -65,7 +67,7 @@ export default async function AdminSessionDetailPage({
         <AdminTable headers={["Task", "Status", "Attempt", "Progress", "Updated"]} empty={session.generationTasks.length === 0}>
           {session.generationTasks.map((task) => (
             <tr key={task.id}>
-              <Td><Link href={`/admin/generation-tasks/${task.id}`} className="font-semibold text-blue-700">{task.taskType}</Link></Td>
+              <Td><Link href={`/admin/generation-tasks/${task.id}`} className="font-semibold text-admin-accent">{task.taskType}</Link></Td>
               <Td><StatusBadge value={task.status} /></Td>
               <Td>{task.attempt}/{task.maxAttempts}</Td>
               <Td>{task.progressPercent ?? 0}%</Td>
