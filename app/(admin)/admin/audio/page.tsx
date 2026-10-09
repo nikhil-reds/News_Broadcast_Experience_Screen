@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { formatBytes, formatDate } from "@/lib/admin-format";
@@ -16,10 +17,7 @@ export default async function AdminAudioPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold">Audio</h2>
-        <p className="text-sm text-slate-500">Master audio files and voice profile status.</p>
-      </div>
+      <AdminPageHeader title="Audio" description="Master audio files and voice profile status." />
       <AdminTable headers={["Filename", "Session", "Duration", "Size", "Speaker", "Created", "Asset"]} empty={audioFiles.length === 0}>
         {audioFiles.map((audio) => (
           <tr key={audio.id}>
@@ -32,7 +30,7 @@ export default async function AdminAudioPage() {
             </Td>
             <Td>{formatDate(audio.createdAt)}</Td>
             <Td>
-              <Link href={audio.url} className="font-semibold text-blue-700">
+              <Link href={audio.url} className="font-semibold text-admin-accent">
                 View
               </Link>
             </Td>
