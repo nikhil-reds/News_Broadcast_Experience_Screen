@@ -1,5 +1,7 @@
 export const adminNavigation = [
   { label: "Dashboard", href: "/admin", icon: "grid" },
+  { label: "Studio", href: "/admin/studio", icon: "studio" },
+  { label: "Control Room", href: "/admin/control-room", icon: "control-room" },
   { label: "Sessions", href: "/admin/sessions", icon: "sessions" },
   { label: "Screens", href: "/admin/screens", icon: "screens" },
   { label: "Recordings", href: "/admin/recordings", icon: "recordings" },
