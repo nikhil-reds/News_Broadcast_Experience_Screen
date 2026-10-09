@@ -10,17 +10,17 @@ export function AdminCard({
   tone?: "default" | "good" | "warn" | "bad";
 }) {
   const accents = {
-    default: "border-slate-200",
-    good: "border-emerald-200",
-    warn: "border-amber-200",
-    bad: "border-rose-200",
+    default: "border-admin-border",
+    good: "border-tone-good-border",
+    warn: "border-tone-warn-border",
+    bad: "border-tone-bad-border",
   };
 
   return (
-    <div className={`rounded-lg border bg-white p-4 shadow-sm ${accents[tone]}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
-      <p className="mt-3 text-2xl font-bold text-slate-950">{value}</p>
-      {detail ? <p className="mt-1 text-sm text-slate-500">{detail}</p> : null}
+    <div className={`rounded-lg border bg-admin-surface p-4 shadow-sm ${accents[tone]}`}>
+      <p className="text-xs font-semibold uppercase tracking-wide text-admin-text-muted">{title}</p>
+      <p className="mt-3 text-2xl font-bold text-admin-text">{value}</p>
+      {detail ? <p className="mt-1 text-sm text-admin-text-muted">{detail}</p> : null}
     </div>
   );
 }
