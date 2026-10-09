@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { formatBytes, formatDate } from "@/lib/admin-format";
 import { prisma } from "@/lib/prisma";
@@ -12,10 +13,7 @@ export default async function AdminRecordingsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold">Recordings</h2>
-        <p className="text-sm text-slate-500">Camera and studio video files stored for each generation.</p>
-      </div>
+      <AdminPageHeader title="Recordings" description="Camera and studio video files stored for each generation." />
       <AdminTable headers={["Filename", "Session", "Type", "Size", "Created", "Asset"]} empty={recordings.length === 0}>
         {recordings.map((recording) => (
           <tr key={recording.id}>
@@ -25,7 +23,7 @@ export default async function AdminRecordingsPage() {
             <Td>{formatBytes(recording.size)}</Td>
             <Td>{formatDate(recording.createdAt)}</Td>
             <Td>
-              <Link href={recording.url} className="font-semibold text-blue-700">
+              <Link href={recording.url} className="font-semibold text-admin-accent">
                 View
               </Link>
             </Td>
