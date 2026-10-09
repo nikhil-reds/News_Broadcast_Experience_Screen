@@ -6,13 +6,27 @@ services:
       WHISPER_MODEL: small
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
-      QWEN_API_URL: http://qwen:11434
-      QWEN_MODEL: qwen2.5:3b
+      QWEN_TRANSLATION_URL: http://qwen:11434
+      QWEN_TRANSLATION_MODEL: qwen2.5:3b
     ports:
       - "8000:8000"
     volumes:
       - whisper-models:/root/.cache/huggingface
     restart: unless-stopped
+
+  qwen:
+    image: ollama/ollama:latest
+    container_name: qwen
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - qwen-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
 
 
   
