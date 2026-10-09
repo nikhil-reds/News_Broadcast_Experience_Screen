@@ -46,7 +46,7 @@ export default function SignInPage() {
           
           <div className="text-center">
             {/* Logo */}
-            <div className="mb-8 flex justify-center">
+            <div className="mb-8 flex justify-center lg:hidden">
               <div className="flex h-14 w-40 items-center justify-center rounded-xl bg-slate-950 p-3 shadow-lg">
                 <div className="relative h-full w-full">
                   <Image 
@@ -69,6 +69,7 @@ export default function SignInPage() {
 
           <form action={action} className="space-y-5">
             <div className="space-y-1.5">
+              <label htmlFor="email" className="sr-only">Email or username</label>
               <input
                 id="email"
                 name="email"
@@ -81,6 +82,7 @@ export default function SignInPage() {
             </div>
             
             <div className="space-y-1.5">
+              <label htmlFor="password" className="sr-only">Password</label>
               <div className="relative">
                 <input
                   id="password"
@@ -110,15 +112,10 @@ export default function SignInPage() {
                   )}
                 </button>
               </div>
-              <div className="pt-2 pl-4">
-                <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">
-                  Forgot password?
-                </a>
-              </div>
             </div>
 
             {state.error ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+              <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4">
                 <p className="text-sm font-medium text-rose-800">
                   {state.error}
                 </p>
