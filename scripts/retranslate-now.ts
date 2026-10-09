@@ -23,7 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { translateSegmentTexts } from "@/lib/translation";
 import { persistTranslation } from "@/lib/transcript-language";
 import { enqueueAudioConversion, TRANSLATION_LANGUAGES } from "@/lib/queue";
-import { GEMINI_MODEL } from "@/lib/gemini";
+import { QWEN_MODEL } from "@/lib/qwen";
 
 async function main() {
   const requested = process.argv[2];
@@ -56,7 +56,7 @@ async function main() {
   const filename = decodeURIComponent(transcript.sourceAudio.split("/").pop() || "");
   const sourceTexts = transcript.segments.map((s) => s.text);
 
-  console.log(`[retranslate] model: ${GEMINI_MODEL}`);
+  console.log(`[retranslate] model: ${QWEN_MODEL}`);
   console.log(
     `[retranslate] generation ${generationId} — ${sourceTexts.length} segment(s) of "${filename}"`
   );
