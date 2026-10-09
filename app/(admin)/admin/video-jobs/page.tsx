@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { formatBytes, formatDate, shortId } from "@/lib/admin-format";
@@ -12,15 +13,12 @@ export default async function AdminVideoJobsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold">Video Jobs</h2>
-        <p className="text-sm text-slate-500">Final export renders for language, aspect, and background variants.</p>
-      </div>
+      <AdminPageHeader title="Video Jobs" description="Final export renders for language, aspect, and background variants." />
       <AdminTable headers={["Reel", "Generation", "Language", "Aspect", "Background", "Status", "Size", "Output", "Updated"]} empty={jobs.length === 0}>
         {jobs.map((job) => (
           <tr key={job.id}>
             <Td>
-              <Link href={`/admin/video-jobs/${job.id}`} className="font-semibold text-blue-700">
+              <Link href={`/admin/video-jobs/${job.id}`} className="font-semibold text-admin-accent">
                 {job.reelFilename}
               </Link>
             </Td>
@@ -32,7 +30,7 @@ export default async function AdminVideoJobsPage() {
             <Td>{formatBytes(job.size)}</Td>
             <Td>
               {job.outputUrl ? (
-                <Link href={job.outputUrl} className="font-semibold text-blue-700">
+                <Link href={job.outputUrl} className="font-semibold text-admin-accent">
                   View
                 </Link>
               ) : (
