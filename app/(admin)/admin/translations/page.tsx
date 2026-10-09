@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { formatDate, shortId } from "@/lib/admin-format";
@@ -15,10 +16,7 @@ export default async function AdminTranslationsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold">Translations</h2>
-        <p className="text-sm text-slate-500">Translated transcript text and generated TTS audio.</p>
-      </div>
+      <AdminPageHeader title="Translations" description="Translated transcript text and generated TTS audio." />
       <AdminTable headers={["Language", "Generation", "TTS", "Voice", "Preview", "Created", "Asset"]} empty={translations.length === 0}>
         {translations.map((translation) => (
           <tr key={translation.id}>
@@ -32,7 +30,7 @@ export default async function AdminTranslationsPage() {
             <Td>{formatDate(translation.createdAt)}</Td>
             <Td>
               {translation.audio ? (
-                <Link href={translation.audio.url} className="font-semibold text-blue-700">
+                <Link href={translation.audio.url} className="font-semibold text-admin-accent">
                   Listen
                 </Link>
               ) : (
