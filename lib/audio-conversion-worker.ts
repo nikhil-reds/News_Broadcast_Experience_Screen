@@ -2,7 +2,6 @@ import { Worker, type Job } from "bullmq";
 import { redisConnection } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { TTS_AUDIO_BUCKET, getObjectBuffer, uploadObject } from "@/lib/minio";
-import { fallbackVoiceForGender, synthesizeGeminiSpeech } from "@/lib/gemini-tts";
 import { synthesizeCrossLingual } from "@/lib/cosyvoice";
 import type { AudioConversionJob } from "@/lib/queue";
 import { markTaskProcessing, markTaskCompleted, markTaskFailed } from "@/lib/generation";
@@ -101,7 +100,7 @@ export function startAudioConversionWorker(
                   `[${workerName}] voice clone failed for "${filename}" (${opts.language}); ` +
                     `falling back to ${voiceMode}: ${errorMessage(err)}`
                 );
-                return synthesizeGeminiSpeech(text, fallbackVoiceForGender(speakerGender));
+                throw err;
               }
             },
             TTS_TIMEOUT_MS,
@@ -124,7 +123,7 @@ export function startAudioConversionWorker(
           objectKey,
           url,
           size: synthesizedWav.length,
-          engine: voiceMode === "cloned" ? "CosyVoice2-0.5B" : "Gemini TTS",
+          engine: "CosyVoice2-0.5B",
           voiceMode,
           speakerGender,
         },
@@ -133,7 +132,7 @@ export function startAudioConversionWorker(
           objectKey,
           url,
           size: synthesizedWav.length,
-          engine: voiceMode === "cloned" ? "CosyVoice2-0.5B" : "Gemini TTS",
+          engine: "CosyVoice2-0.5B",
           voiceMode,
           speakerGender,
         },
