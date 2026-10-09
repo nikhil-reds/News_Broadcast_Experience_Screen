@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { formatDate, shortId } from "@/lib/admin-format";
@@ -13,16 +14,13 @@ export default async function AdminGenerationTasksPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold">Generation Tasks</h2>
-        <p className="text-sm text-slate-500">Per-generation pipeline task status, progress, and errors.</p>
-      </div>
+      <AdminPageHeader title="Generation Tasks" description="Per-generation pipeline task status, progress, and errors." />
       <AdminTable headers={["Generation", "Task", "Status", "Attempt", "Progress", "Heartbeat", "Error", "Updated"]} empty={tasks.length === 0}>
         {tasks.map((task) => (
           <tr key={task.id}>
             <Td>{task.generation ? `#${task.generation.seq}` : shortId(task.generationId)}</Td>
             <Td>
-              <Link href={`/admin/generation-tasks/${task.id}`} className="font-semibold text-blue-700">
+              <Link href={`/admin/generation-tasks/${task.id}`} className="font-semibold text-admin-accent">
                 {task.taskType}
               </Link>
             </Td>
