@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { shortId } from "@/lib/admin-format";
@@ -11,10 +12,7 @@ export default async function AdminScreensPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold">Screens</h2>
-        <p className="text-sm text-slate-500">Publication state for screen outputs.</p>
-      </div>
+      <AdminPageHeader title="Screens" description="Publication state for screen outputs." />
       <AdminTable
         headers={["Screen", "Current Generation", "Pending Generation", "Pending Status", "Failure", "Open"]}
         empty={screens.length === 0}
@@ -27,7 +25,7 @@ export default async function AdminScreensPage() {
             <Td><StatusBadge value={screen.pendingStatus} /></Td>
             <Td>{screen.pendingFailureReason ?? "None"}</Td>
             <Td>
-              <Link href={`/screen${screen.screenId}`} className="font-semibold text-blue-700">
+              <Link href={`/screen${screen.screenId}`} className="font-semibold text-admin-accent">
                 Open
               </Link>
             </Td>
