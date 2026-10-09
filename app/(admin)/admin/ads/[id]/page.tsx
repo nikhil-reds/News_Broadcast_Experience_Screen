@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { deleteAdCampaignAction, toggleAdCampaignAction } from "@/app/actions/admin-ads";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminSection, DetailGrid, DetailItem } from "@/components/admin/admin-section";
+import { ConfirmSubmitButton } from "@/components/admin/confirm-submit-button";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { formatDate } from "@/lib/admin-format";
 import { prisma } from "@/lib/prisma";
@@ -17,11 +18,12 @@ export default async function AdminAdDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/admin/ads" className="text-sm font-semibold text-blue-700">Back to ads</Link>
-        <h2 className="mt-2 text-2xl font-bold">{ad.sponsor}</h2>
-        <p className="text-sm text-slate-500">{ad.text}</p>
-      </div>
+      <AdminPageHeader
+        backHref="/admin/ads"
+        backLabel="Back to ads"
+        title={ad.sponsor}
+        description={ad.text}
+      />
 
       <AdminSection title="Campaign Details">
         <DetailGrid>
@@ -37,22 +39,31 @@ export default async function AdminAdDetailPage({
         </DetailGrid>
       </AdminSection>
 
-      <AdminSection title="Actions">
+      <AdminSection title="Actions" description="Enabling or disabling changes what the ad screens show.">
         <div className="flex flex-wrap gap-3">
           <form action={toggleAdCampaignAction}>
             <input type="hidden" name="id" value={ad.id} />
             <input type="hidden" name="isActive" value={String(ad.isActive)} />
-            <button className="rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white">
+            <ConfirmSubmitButton
+              message={`${ad.isActive ? "Disable" : "Enable"} the "${ad.sponsor}" campaign?`}
+              className="rounded-md bg-admin-primary px-4 py-2 text-sm font-bold text-admin-on-primary hover:bg-admin-primary-hover"
+            >
               {ad.isActive ? "Disable campaign" : "Enable campaign"}
-            </button>
-          </form>
-          <form action={deleteAdCampaignAction}>
-            <input type="hidden" name="id" value={ad.id} />
-            <button className="rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700">
-              Delete campaign
-            </button>
+            </ConfirmSubmitButton>
           </form>
         </div>
+      </AdminSection>
+
+      <AdminSection title="Danger zone" description="Deleting a campaign cannot be undone.">
+        <form action={deleteAdCampaignAction}>
+          <input type="hidden" name="id" value={ad.id} />
+          <ConfirmSubmitButton
+            message={`Permanently delete the "${ad.sponsor}" campaign? This cannot be undone.`}
+            className="rounded-md border border-status-danger-border bg-status-danger-bg px-4 py-2 text-sm font-bold text-status-danger-text hover:bg-status-danger-bg"
+          >
+            Delete campaign
+          </ConfirmSubmitButton>
+        </form>
       </AdminSection>
     </div>
   );
