@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { VIDEO_BUCKET, uploadObject } from "@/lib/minio";
-import {
-  CAMERA_FILENAME_PREFIX,
-  HIGHLIGHT_FILENAME_PREFIX,
-  parseCameraId,
-} from "@/lib/camera-recordings";
-import { enqueueHighlightIfSessionComplete } from "@/lib/highlight-pairing";
+import { CAMERA_FILENAME_PREFIX, HIGHLIGHT_FILENAME_PREFIX, parseCameraId } from "@/lib/camera-recordings";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "unknown error";
@@ -55,20 +50,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // All 3 camera takes are needed before the reel can be cut, so this only
-    // enqueues once the last of the three (for this sessionId) lands.
-    // Best-effort: a Redis/worker outage must not fail the upload.
-    let highlightQueued = false;
-    try {
-      const pair = await enqueueHighlightIfSessionComplete(sessionId);
-      highlightQueued = pair.queued;
-      if (!pair.queued) {
-        console.log(`No highlight job for "${filename}": ${pair.reason}`);
-      }
-    } catch (queueErr: unknown) {
-      console.error("Failed to enqueue highlight-reel job:", errorMessage(queueErr));
-    }
-
     return NextResponse.json({
       success: true,
       message: "Recording uploaded to MinIO and saved to database",
@@ -77,7 +58,7 @@ export async function POST(req: NextRequest) {
       url,
       size: buffer.length,
       createdAt: record.createdAt.toISOString(),
-      highlightQueued,
+      highlightQueued: false,
     });
   } catch (error: unknown) {
     console.error("Error saving recording:", error);
@@ -90,7 +71,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    // Raw takes and Gemini-cut reels share this table; the filename prefix is
+    // Raw takes and optional edited reels share this table; the filename prefix is
     // what separates them. `?camera=1|2` lists one camera's takes (camera 1
     // keeps the original prefix, so pre-existing recordings stay with it),
     // `?kind=highlight` lists the reels. No param still returns everything.
