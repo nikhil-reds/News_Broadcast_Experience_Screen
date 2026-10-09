@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminCard } from "@/components/admin/admin-card";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -26,10 +27,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Dashboard</h2>
-        <p className="text-sm text-slate-500">Live operational summary for the broadcast pipeline.</p>
-      </div>
+      <AdminPageHeader title="Dashboard" description="Live operational summary for the broadcast pipeline." />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <AdminCard title="Sessions" value={totalSessions} detail="All generations" />
@@ -43,7 +41,7 @@ export default async function AdminDashboardPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-bold">Latest Sessions</h3>
-            <Link href="/admin/sessions" className="text-sm font-semibold text-blue-700">
+            <Link href="/admin/sessions" className="text-sm font-semibold text-admin-accent">
               View all
             </Link>
           </div>
@@ -62,7 +60,7 @@ export default async function AdminDashboardPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-bold">Recent Pipeline Tasks</h3>
-            <Link href="/admin/generation-tasks" className="text-sm font-semibold text-blue-700">
+            <Link href="/admin/generation-tasks" className="text-sm font-semibold text-admin-accent">
               View all
             </Link>
           </div>
