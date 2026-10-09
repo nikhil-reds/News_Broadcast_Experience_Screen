@@ -6,7 +6,7 @@
  *
  * WHY this is needed: every failure path in lib/translation.ts falls back to
  * returning the SOURCE text (`catch -> return text`, and
- * `result.translation?.trim() || text`). So when GEMINI_MODEL pointed at a
+ * `result.translation?.trim() || text`). So when the local model returned a
  * retired model, all 4 "translations" were stored as the original English and
  * their tasks still reported `completed` — no retry would ever fix that on its
  * own, because nothing failed. The TTS takes were then synthesized from that
@@ -25,7 +25,7 @@ import {
   enqueueAudioConversion,
   TRANSLATION_LANGUAGES,
 } from "@/lib/queue";
-import { GEMINI_MODEL } from "@/lib/gemini";
+import { QWEN_MODEL } from "@/lib/qwen";
 
 const POLL_MS = 4_000;
 const TRANSLATION_WAIT_MS = 5 * 60 * 1000;
@@ -77,7 +77,7 @@ async function main() {
     text: s.text,
   }));
 
-  console.log(`[requeue] model in use: ${GEMINI_MODEL}`);
+  console.log(`[requeue] model in use: ${QWEN_MODEL}`);
   console.log(
     `[requeue] generation ${generationId} — transcript ${transcript.id}, ${segments.length} segment(s) of "${filename}"`
   );
