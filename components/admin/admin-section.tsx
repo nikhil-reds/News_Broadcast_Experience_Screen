@@ -10,10 +10,10 @@ export function AdminSection({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-admin-border bg-admin-surface p-5 shadow-sm">
       <div className="mb-4">
-        <h3 className="font-bold text-slate-950">{title}</h3>
-        {description ? <p className="text-sm text-slate-500">{description}</p> : null}
+        <h3 className="font-bold text-admin-text">{title}</h3>
+        {description ? <p className="text-sm text-admin-text-muted">{description}</p> : null}
       </div>
       {children}
     </section>
@@ -32,9 +32,9 @@ export function DetailItem({
   value: ReactNode;
 }) {
   return (
-    <div className="rounded-md border border-slate-100 bg-slate-50 p-3">
-      <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="mt-1 break-words text-sm font-semibold text-slate-900">{value}</dd>
+    <div className="rounded-md border border-admin-border-subtle bg-admin-surface-muted p-3">
+      <dt className="text-xs font-bold uppercase tracking-wide text-admin-text-muted">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-semibold text-admin-text">{value}</dd>
     </div>
   );
 }
