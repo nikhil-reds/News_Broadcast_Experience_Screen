@@ -166,7 +166,7 @@ export default function MultiDevicePreviewPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 p-8 font-sans text-slate-100 animate-fade-in">
+    <div className="studio-preview min-h-screen bg-slate-950 p-8 font-sans text-slate-100 animate-fade-in">
       {/* Masonry / Random Collage layout matching the drawing */}
       <div className="columns-1 sm:columns-2 md:columns-3 xl:columns-4 gap-6 space-y-6 max-w-7xl mx-auto w-full">
         {DEVICES.map((device, index) => (
