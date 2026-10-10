@@ -12,6 +12,9 @@ services:
       - "8000:8000"
     volumes:
       - whisper-models:/root/.cache/huggingface
+    depends_on:
+      qwen:
+        condition: service_healthy
     restart: unless-stopped
 
   qwen:
@@ -20,8 +23,12 @@ services:
     restart: unless-stopped
     ports:
       - "11434:11434"
+    environment:
+      QWEN_TRANSLATION_MODEL: qwen2.5:3b
     volumes:
       - qwen-models:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama serve & server_pid=$!; until ollama list >/dev/null 2>&1; do sleep 2; done; ollama pull $${QWEN_TRANSLATION_MODEL}; wait $${server_pid}"]
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 15s
@@ -42,6 +49,11 @@ services:
       POSTGRES_DB: news_broadcast_db
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U news_admin -d news_broadcast_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   minio:
     image: minio/minio:latest
@@ -56,6 +68,11 @@ services:
     volumes:
       - minio-data:/data
     command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -81,6 +98,11 @@ services:
       - "9500:50000"
     volumes:
       - cosyvoice-models:/root/.cache
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:50000/docs', timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
 volumes:
