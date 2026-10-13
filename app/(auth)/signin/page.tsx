@@ -11,9 +11,9 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <main className="flex min-h-screen bg-slate-50">
+    <main className="signin-page experience-gradient flex min-h-screen">
       {/* Left Pane - Branding */}
-      <section className="relative hidden w-1/2 flex-col items-center justify-center bg-slate-950 p-10 lg:flex overflow-hidden">
+      <section className="relative hidden w-1/2 flex-col items-center justify-center bg-slate-950/35 p-10 lg:flex overflow-hidden">
         {/* Decorative background elements */}
         <div className="absolute -left-[20%] -top-[10%] h-[50%] w-[50%] rounded-full bg-blue-600/20 blur-[120px]"></div>
         <div className="absolute -bottom-[20%] -right-[10%] h-[60%] w-[60%] rounded-full bg-purple-600/10 blur-[120px]"></div>
@@ -41,33 +41,34 @@ export default function SignInPage() {
       </section>
 
       {/* Right Pane - Login Form */}
-      <section className="flex w-full flex-col items-center justify-center p-6 sm:p-12 lg:w-1/2">
-        <div className="w-full max-w-md space-y-8 rounded-2xl bg-slate-100 p-8 shadow-sm sm:p-10 border border-slate-200 relative">
+      <section className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-8 sm:px-8 sm:py-12 lg:w-1/2 lg:px-12 lg:py-16">
+        <div className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/70 bg-white/95 p-6 shadow-[0_24px_80px_rgba(8,12,40,0.28),0_8px_24px_rgba(8,12,40,0.12)] backdrop-blur-xl sm:rounded-[2rem] sm:p-10">
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/80 to-transparent sm:inset-x-10" />
           
           <div className="text-center">
-            {/* Logo */}
-            <div className="mb-8 flex justify-center lg:hidden">
-              <div className="flex h-14 w-40 items-center justify-center rounded-xl bg-slate-950 p-3 shadow-lg">
+            <div className="mb-7 flex justify-center sm:mb-8">
+              <div className="flex h-14 w-40 items-center justify-center rounded-2xl bg-slate-950 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.2)] ring-1 ring-slate-900/10 sm:h-16 sm:w-44 sm:p-3.5">
                 <div className="relative h-full w-full">
-                  <Image 
-                    src="/amagi-logo-white.svg" 
-                    alt="Amagi Logo" 
-                    fill 
+                  <Image
+                    src="/amagi-logo-white.svg"
+                    alt="Amagi Logo"
+                    fill
                     className="object-contain"
+                    priority
                   />
                 </div>
               </div>
             </div>
             
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+            <h1 className="text-[1.4rem] font-semibold tracking-tight text-slate-950 sm:text-2xl">
               Welcome back
             </h1>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm leading-6 text-slate-500">
               Sign in to your operator account
             </p>
           </div>
 
-          <form action={action} className="space-y-5">
+          <form action={action} className="mt-7 space-y-4 sm:mt-8 sm:space-y-5">
             <div className="space-y-1.5">
               <label htmlFor="email" className="sr-only">Email or username</label>
               <input
@@ -76,7 +77,7 @@ export default function SignInPage() {
                 type="text"
                 autoComplete="email"
                 required
-                className="block w-full rounded-full border border-slate-200 bg-white px-6 py-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-500 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 shadow-sm"
+                className="block w-full rounded-2xl border border-slate-200/90 bg-slate-50/80 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/10 shadow-[inset_0_1px_2px_rgba(15,23,42,0.03)] sm:px-5 sm:py-4"
                 placeholder="Email or Username"
               />
             </div>
@@ -90,7 +91,7 @@ export default function SignInPage() {
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   required
-                  className="block w-full rounded-full border border-slate-200 bg-white px-6 py-4 pr-12 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-500 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 shadow-sm"
+                  className="block w-full rounded-2xl border border-slate-200/90 bg-slate-50/80 px-4 py-3.5 pr-12 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/10 shadow-[inset_0_1px_2px_rgba(15,23,42,0.03)] sm:px-5 sm:py-4"
                   placeholder="Password"
                 />
                 <button
@@ -122,11 +123,11 @@ export default function SignInPage() {
               </div>
             ) : null}
 
-            <div className="pt-4">
+            <div className="pt-2 sm:pt-4">
               <button
                 type="submit"
                 disabled={pending}
-                className="group relative flex w-full items-center justify-center overflow-hidden rounded-full bg-blue-600 px-4 py-4 text-base font-medium text-white shadow-md transition-all hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-70 active:scale-[0.98]"
+                className="group relative flex w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-4 py-3.5 text-base font-medium text-white shadow-[0_12px_24px_rgba(79,70,229,0.28)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(79,70,229,0.34)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 disabled:cursor-not-allowed disabled:opacity-70 active:translate-y-0 active:scale-[0.98] sm:py-4"
               >
                 {pending ? (
                   <>

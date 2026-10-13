@@ -1,6 +1,6 @@
 export default function HomePage() {
   return (
-    <main className="landing-page">
+    <main className="landing-page experience-gradient">
       <div className="landing-copy">
         <p className="landing-kicker">Amagi Media Labs</p>
         <h1>News<br />simulation.</h1>
