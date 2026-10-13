@@ -7,6 +7,8 @@ import Image from "next/image";
 import { signOutAction } from "@/app/actions/auth";
 import { adminNavigation } from "@/lib/admin-navigation";
 
+type AdminSidebarProps = { email: string; open: boolean; onClose: () => void };
+
 const icons: Record<string, ReactNode> = {
   grid: (
     <>
@@ -99,23 +101,27 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminSidebar({ email }: { email: string }) {
+export function AdminSidebar({ email, open, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-admin-sidebar text-white lg:flex">
-      <div className="flex h-16 shrink-0 items-start border-b border-white/10 px-5 pt-7">
+    <aside id="admin-navigation" aria-label="Admin navigation panel" className={`admin-sidebar-gradient fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(20rem,88vw)] shrink-0 flex-col border-r border-white/10 text-white shadow-2xl transition-transform duration-200 motion-reduce:transition-none md:w-[4.5rem] lg:sticky lg:z-auto lg:h-screen lg:w-64 lg:shadow-none ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+      <div className="flex h-16 shrink-0 items-start justify-between border-b border-white/10 px-5 pt-5 md:justify-center md:px-3 lg:justify-start lg:px-5 lg:pt-7">
         <Image
           src="/amagi-logo-white.svg"
           alt="Amagi"
           width={132}
           height={38}
           priority
-          className="h-8 pb-2 w-auto object-contain"
+          className="h-8 w-auto object-contain md:hidden lg:block"
         />
+        <span className="hidden text-xl font-bold text-white md:block lg:hidden" aria-hidden="true">A</span>
+        <button type="button" onClick={onClose} aria-label="Close navigation" className="rounded-md p-2 text-slate-300 hover:bg-white/10 hover:text-white md:hidden">
+          <span aria-hidden="true" className="text-xl leading-none">×</span>
+        </button>
       </div>
 
-      <nav aria-label="Admin navigation" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav aria-label="Admin navigation" className="flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4">
         {adminNavigation.map((item) => {
           const active = isActivePath(pathname, item.href);
           return (
@@ -123,7 +129,9 @@ export function AdminSidebar({ email }: { email: string }) {
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
+              onClick={onClose}
+              title={item.label}
+              className={`group flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition md:justify-center md:px-2 lg:justify-start lg:px-3 ${
                 active
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-300 hover:bg-white/10 hover:text-white"
@@ -141,20 +149,21 @@ export function AdminSidebar({ email }: { email: string }) {
               >
                 {icons[item.icon]}
               </svg>
-              {item.label}
+              <span className="md:hidden lg:inline">{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
       <div className="shrink-0 space-y-3 border-t border-white/10 p-3">
-        <p className="truncate px-1 text-xs text-slate-400" title={email}>
+        <p className="hidden truncate px-1 text-xs text-slate-400 lg:block" title={email}>
           Signed in as <span className="font-medium text-slate-200">{email}</span>
         </p>
         <form action={signOutAction}>
           <button
             type="submit"
-            className="flex w-full items-center justify-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
+            aria-label="Sign out"
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 lg:px-3"
           >
             <svg
               aria-hidden="true"
@@ -169,7 +178,7 @@ export function AdminSidebar({ email }: { email: string }) {
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <path d="m16 17 5-5-5-5M21 12H9" />
             </svg>
-            Sign out
+            <span className="md:hidden lg:inline">Sign out</span>
           </button>
         </form>
       </div>
