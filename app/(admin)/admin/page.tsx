@@ -1,81 +1,104 @@
-import Link from "next/link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminCard } from "@/components/admin/admin-card";
-import { AdminTable, Td } from "@/components/admin/admin-table";
-import { StatusBadge } from "@/components/admin/status-badge";
-import { formatDate } from "@/lib/admin-format";
 import { prisma } from "@/lib/prisma";
 
+function MetricSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-3 sm:space-y-4">
+      <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-admin-text-muted sm:text-sm">{title}</h3>
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">{children}</div>
+    </section>
+  );
+}
+
 export default async function AdminDashboardPage() {
+  const today = new Date();
+  const startOfToday = new Date(today);
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(startOfWeek.getDate() - 7);
+
   const [
     totalSessions,
+    sessionsToday,
+    sessionsThisWeek,
     processingSessions,
+    readySessions,
+    failedSessions,
+    pendingTasks,
+    processingTasks,
+    completedTasks,
     failedTasks,
+    cancelledTasks,
+    audioFiles,
+    videoRecordings,
+    transcripts,
+    translations,
     completedVideoJobs,
-    activeAds,
-    latestSessions,
-    latestTasks,
+    activeScreens,
+    onlineCameras,
   ] = await Promise.all([
     prisma.broadcastSession.count(),
+    prisma.broadcastSession.count({ where: { createdAt: { gte: startOfToday } } }),
+    prisma.broadcastSession.count({ where: { createdAt: { gte: startOfWeek } } }),
     prisma.broadcastSession.count({ where: { pipelineStatus: "processing" } }),
+    prisma.broadcastSession.count({ where: { pipelineStatus: "ready" } }),
+    prisma.broadcastSession.count({ where: { pipelineStatus: "failed" } }),
+    prisma.generationTask.count({ where: { status: "pending" } }),
+    prisma.generationTask.count({ where: { status: "processing" } }),
+    prisma.generationTask.count({ where: { status: "completed" } }),
     prisma.generationTask.count({ where: { status: "failed" } }),
+    prisma.generationTask.count({ where: { status: "cancelled" } }),
+    prisma.audioFile.count(),
+    prisma.videoRecording.count(),
+    prisma.transcript.count(),
+    prisma.transcriptTranslation.count(),
     prisma.videoJob.count({ where: { status: "completed" } }),
-    prisma.adCampaign.count({ where: { isActive: true } }),
-    prisma.broadcastSession.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
-    prisma.generationTask.findMany({ orderBy: { updatedAt: "desc" }, take: 6 }),
+    prisma.broadcastScreen.count({ where: { isActive: true } }),
+    prisma.cameraFeed.count({ where: { status: "online" } }),
   ]);
 
   return (
-    <div className="space-y-6">
-      <AdminPageHeader title="Dashboard" description="Live operational summary for the broadcast pipeline." />
+    <div className="admin-dashboard-surface space-y-6 p-4 sm:space-y-8 sm:p-6 lg:p-8">
+      <AdminPageHeader
+        title="Dashboard"
+        description="Live operational summary for the broadcast pipeline."
+        actions={
+          <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-xs font-semibold text-admin-text-secondary shadow-sm transition hover:bg-admin-surface-muted focus-visible:outline-2 focus-visible:outline-admin-focus sm:text-sm">
+            <span aria-hidden="true">◷</span>
+            <span>Last 7 days</span>
+            <span aria-hidden="true">⌄</span>
+          </button>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <AdminCard title="Sessions" value={totalSessions} detail="All generations" />
-        <AdminCard title="Processing" value={processingSessions} detail="Pipeline in progress" tone="warn" />
-        <AdminCard title="Failed Tasks" value={failedTasks} detail="Needs review" tone={failedTasks ? "bad" : "good"} />
-        <AdminCard title="Video Exports" value={completedVideoJobs} detail="Completed jobs" tone="good" />
-        <AdminCard title="Active Ads" value={activeAds} detail="Campaigns live" />
-      </div>
+      <MetricSection title="Overview">
+        <AdminCard title="Total Sessions" value={totalSessions} detail="All generations" href="/admin/sessions" />
+        <AdminCard title="Sessions Today" value={sessionsToday} detail="Created since midnight" href="/admin/sessions" />
+        <AdminCard title="Sessions This Week" value={sessionsThisWeek} detail="Last 7 days" href="/admin/sessions" />
+        <AdminCard title="Processing" value={processingSessions} detail="Pipeline in progress" tone="warn" href="/admin/sessions" />
+        <AdminCard title="Ready Sessions" value={readySessions} detail="Available generations" tone="good" href="/admin/sessions" />
+        <AdminCard title="Failed Sessions" value={failedSessions} detail="Pipeline failures" tone={failedSessions ? "bad" : "good"} href="/admin/sessions" />
+      </MetricSection>
+      <MetricSection title="Pipeline health">
+        <AdminCard title="Pending Tasks" value={pendingTasks} detail="Waiting to start" tone={pendingTasks ? "warn" : "good"} href="/admin/generation-tasks" />
+        <AdminCard title="Processing Tasks" value={processingTasks} detail="Currently running" href="/admin/generation-tasks" />
+        <AdminCard title="Completed Tasks" value={completedTasks} detail="Successfully finished" tone="good" href="/admin/generation-tasks" />
+        <AdminCard title="Failed Tasks" value={failedTasks} detail="Needs review" tone={failedTasks ? "bad" : "good"} href="/admin/generation-tasks" />
+        <AdminCard title="Cancelled Tasks" value={cancelledTasks} detail="Stopped by operator" href="/admin/generation-tasks" />
+      </MetricSection>
+      <MetricSection title="Media output">
+        <AdminCard title="Audio Files" value={audioFiles} detail="Uploaded masters" href="/admin/audio" />
+        <AdminCard title="Video Recordings" value={videoRecordings} detail="Camera assets" href="/admin/recordings" />
+        <AdminCard title="Transcripts" value={transcripts} detail="Generated transcripts" href="/admin/transcripts" />
+        <AdminCard title="Translations" value={translations} detail="Language outputs" href="/admin/translations" />
+        <AdminCard title="Video Exports" value={completedVideoJobs} detail="Completed jobs" tone="good" href="/admin/video-jobs" />
+      </MetricSection>
+      <MetricSection title="Infrastructure">
+        <AdminCard title="Active Screens" value={activeScreens} detail="Screens enabled" tone="good" href="/admin/screens" />
+        <AdminCard title="Online Cameras" value={onlineCameras} detail="Feeds currently online" tone={onlineCameras ? "good" : "warn"} href="/admin/control-room" />
+      </MetricSection>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold">Latest Sessions</h3>
-            <Link href="/admin/sessions" className="text-sm font-semibold text-admin-accent">
-              View all
-            </Link>
-          </div>
-          <AdminTable headers={["Seq", "Status", "Pipeline", "Started"]} empty={latestSessions.length === 0}>
-            {latestSessions.map((session) => (
-              <tr key={session.id}>
-                <Td>#{session.seq}</Td>
-                <Td><StatusBadge value={session.status} /></Td>
-                <Td><StatusBadge value={session.pipelineStatus} /></Td>
-                <Td>{formatDate(session.startedAt)}</Td>
-              </tr>
-            ))}
-          </AdminTable>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold">Recent Pipeline Tasks</h3>
-            <Link href="/admin/generation-tasks" className="text-sm font-semibold text-admin-accent">
-              View all
-            </Link>
-          </div>
-          <AdminTable headers={["Task", "Status", "Progress", "Updated"]} empty={latestTasks.length === 0}>
-            {latestTasks.map((task) => (
-              <tr key={task.id}>
-                <Td>{task.taskType}</Td>
-                <Td><StatusBadge value={task.status} /></Td>
-                <Td>{task.progressPercent ?? 0}%</Td>
-                <Td>{formatDate(task.updatedAt)}</Td>
-              </tr>
-            ))}
-          </AdminTable>
-        </div>
-      </section>
     </div>
   );
 }
