@@ -27,7 +27,7 @@ export function AdminDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="admin-detail-title" className="max-h-[min(80vh,48rem)] w-full max-w-3xl overflow-hidden rounded-2xl border border-admin-border bg-admin-surface shadow-2xl">
+      <section role="dialog" aria-modal="true" aria-labelledby="admin-detail-title" className="max-h-[min(80vh,48rem)] w-full max-w-3xl overflow-hidden rounded-2xl border border-admin-border bg-admin-surface-solid shadow-2xl">
         <header className="flex items-start justify-between border-b border-admin-border bg-admin-surface-muted px-6 py-4">
           <h2 id="admin-detail-title" className="text-lg font-bold text-admin-text">{title}</h2>
           <button ref={closeRef} type="button" onClick={onClose} aria-label="Close details" className="rounded-md p-2 text-admin-text-muted transition hover:bg-admin-table-hover hover:text-admin-text focus-visible:outline-2 focus-visible:outline-admin-focus">
