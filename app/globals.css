@@ -32,17 +32,7 @@ body {
 
 .admin-dashboard-surface {
   border-radius: 1.25rem;
-  background: linear-gradient(145deg, rgba(255,255,255,.82), rgba(241,245,249,.7));
-}
-
-.admin-theme-dark .admin-dashboard-surface {
-  background: radial-gradient(circle at 80% 0%, rgba(30,64,175,.16), transparent 34%), linear-gradient(145deg, #071124, #020617 72%);
-}
-
-@media (prefers-color-scheme: dark) {
-  .admin-theme-system .admin-dashboard-surface {
-    background: radial-gradient(circle at 80% 0%, rgba(30,64,175,.16), transparent 34%), linear-gradient(145deg, #071124, #020617 72%);
-  }
+  background: transparent;
 }
 
 .landing-page {
@@ -56,11 +46,12 @@ body {
   position: relative;
 }
 
-.experience-gradient {
+.experience-gradient,
+.mesh-bg {
   background:
-    radial-gradient(circle at 72% 28%, rgba(123, 94, 255, .32), transparent 28%),
-    radial-gradient(circle at 16% 86%, rgba(255, 123, 96, .18), transparent 26%),
-    linear-gradient(135deg, #12152b 0%, #1e1a45 52%, #171a37 100%);
+    radial-gradient(circle at 72% 28%, var(--mesh-glow-a, rgba(123, 94, 255, .32)), transparent 28%),
+    radial-gradient(circle at 16% 86%, var(--mesh-glow-b, rgba(255, 123, 96, .18)), transparent 26%),
+    var(--mesh-base, linear-gradient(135deg, #12152b 0%, #1e1a45 52%, #171a37 100%));
 }
 
 .signin-page {
@@ -68,25 +59,17 @@ body {
   overflow: hidden;
 }
 
-.signin-page::before {
+.signin-page::before,
+.landing-page::before,
+.mesh-grid::before {
   content: "";
   position: absolute;
   inset: 0;
-  opacity: .16;
-  background-image: linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);
+  opacity: var(--mesh-grid-opacity, .16);
+  background-image: linear-gradient(var(--mesh-grid-line, rgba(255,255,255,.07)) 1px, transparent 1px), linear-gradient(90deg, var(--mesh-grid-line, rgba(255,255,255,.07)) 1px, transparent 1px);
   background-size: 72px 72px;
   mask-image: linear-gradient(to bottom, black, transparent 82%);
   pointer-events: none;
-}
-
-.landing-page::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: .16;
-  background-image: linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: linear-gradient(to bottom, black, transparent 82%);
 }
 
 .landing-copy { position: relative; width: min(900px, 100%); }
@@ -108,7 +91,9 @@ body {
   .admin-theme-system .studio-preview .text-slate-400 { color: #64748b; }
 }
 
-.admin-theme-dark .control-room-preview { background: #020617 !important; color: #f8fafc; }
+.admin-theme .control-room-preview { background: transparent !important; }
+.admin-theme .studio-preview { background: transparent !important; }
+.admin-theme-dark .control-room-preview { color: #f8fafc; }
 .admin-theme-light .screen-navigation-matrix { background: #fff; border-color: #e2e8f0; box-shadow: 0 20px 45px rgba(15, 23, 42, .08); }
 .admin-theme-light .screen-navigation-matrix .bg-slate-950 { background: #f8fafc !important; }
 .admin-theme-light .screen-navigation-matrix .bg-slate-900\/60 { background: #f1f5f9 !important; }
@@ -122,7 +107,7 @@ body {
 .admin-theme:has(.control-room-preview) main:has(.control-room-preview) { max-width: none; padding: 0; }
 .admin-theme:has(.control-room-preview) .control-room-preview > main { padding: clamp(1rem, 2.5vw, 2.5rem); }
 @media (prefers-color-scheme: dark) {
-  .admin-theme-system .control-room-preview { background: #020617 !important; color: #f8fafc; }
+  .admin-theme-system .control-room-preview { color: #f8fafc; }
 }
 @media (prefers-color-scheme: light) {
   .admin-theme-system .screen-navigation-matrix { background: #fff; border-color: #e2e8f0; box-shadow: 0 20px 45px rgba(15, 23, 42, .08); }
@@ -225,6 +210,7 @@ button { font: inherit; }
 @theme inline {
   --color-admin-page: var(--admin-page);
   --color-admin-surface: var(--admin-surface);
+  --color-admin-surface-solid: var(--admin-surface-solid);
   --color-admin-surface-muted: var(--admin-surface-muted);
   --color-admin-border: var(--admin-border);
   --color-admin-border-subtle: var(--admin-border-subtle);
@@ -265,7 +251,13 @@ button { font: inherit; }
 .admin-theme-system {
   color-scheme: light;
   --admin-page: #f1f5f9;
-  --admin-surface: #ffffff;
+  --admin-surface: rgba(255, 255, 255, .8);
+  --admin-surface-solid: #ffffff;
+  --mesh-base: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 52%, #f1f5f9 100%);
+  --mesh-glow-a: rgba(123, 94, 255, .16);
+  --mesh-glow-b: rgba(255, 123, 96, .12);
+  --mesh-grid-line: rgba(15, 23, 42, .07);
+  --mesh-grid-opacity: .7;
   --admin-surface-muted: #f8fafc;
   --admin-border: #e2e8f0;
   --admin-border-subtle: #f1f5f9;
@@ -305,7 +297,13 @@ button { font: inherit; }
 .admin-theme-dark {
   color-scheme: dark;
   --admin-page: #020617;
-  --admin-surface: #0f172a;
+  --admin-surface: rgba(15, 23, 42, .72);
+  --admin-surface-solid: #0f172a;
+  --mesh-base: linear-gradient(145deg, #071124, #020617 72%);
+  --mesh-glow-a: rgba(123, 94, 255, .32);
+  --mesh-glow-b: rgba(255, 123, 96, .18);
+  --mesh-grid-line: rgba(255, 255, 255, .07);
+  --mesh-grid-opacity: .22;
   --admin-surface-muted: #1e293b;
   --admin-border: #1e293b;
   --admin-border-subtle: #1e293b;
@@ -346,7 +344,13 @@ button { font: inherit; }
   .admin-theme-system {
     color-scheme: dark;
     --admin-page: #020617;
-    --admin-surface: #0f172a;
+    --admin-surface: rgba(15, 23, 42, .72);
+  --admin-surface-solid: #0f172a;
+  --mesh-base: linear-gradient(145deg, #071124, #020617 72%);
+  --mesh-glow-a: rgba(123, 94, 255, .32);
+  --mesh-glow-b: rgba(255, 123, 96, .18);
+  --mesh-grid-line: rgba(255, 255, 255, .07);
+  --mesh-grid-opacity: .22;
     --admin-surface-muted: #1e293b;
     --admin-border: #1e293b;
     --admin-border-subtle: #1e293b;
@@ -381,5 +385,26 @@ button { font: inherit; }
     --tone-good-border: #065f46;
     --tone-warn-border: #92400e;
     --tone-bad-border: #9f1239;
+  }
+}
+
+@keyframes settings-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.settings-fade {
+  animation: settings-fade-in 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-fade {
+    animation: none;
   }
 }
