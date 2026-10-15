@@ -34,8 +34,9 @@ export function AdminShell({
   }, [sidebarOpen]);
 
   return (
-    <div className={`admin-theme admin-theme-${theme} min-h-screen bg-admin-page text-admin-text`}>
-      <div className="flex min-h-screen">
+    <div className={`admin-theme admin-theme-${theme} relative min-h-screen bg-admin-page text-admin-text`}>
+      <div aria-hidden="true" className="mesh-bg mesh-grid pointer-events-none fixed inset-0 z-0" />
+      <div className="relative z-10 flex min-h-screen">
         <AdminSidebar email={email} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         {sidebarOpen ? (
           <button
