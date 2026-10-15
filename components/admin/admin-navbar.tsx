@@ -10,7 +10,7 @@ export function AdminNavbar({ theme, sidebarOpen, onMenuClick }: { theme: AdminT
           <button type="button" onClick={onMenuClick} aria-label={sidebarOpen ? "Close navigation" : "Open navigation"} aria-expanded={sidebarOpen} aria-controls="admin-navigation" className="inline-flex size-11 items-center justify-center rounded-md border border-admin-border text-admin-text-secondary hover:bg-admin-surface-muted focus-visible:outline-2 focus-visible:outline-admin-focus lg:hidden">
             <span aria-hidden="true" className="text-xl">{sidebarOpen ? "×" : "☰"}</span>
           </button>
-          <span className="truncate text-sm font-semibold text-admin-text lg:hidden">Admin control center</span>
+          <span className="truncate text-sm font-semibold text-admin-text sm:text-base">Amagi Media Labs - News simulation.</span>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
         <AdminThemeToggle theme={theme} />
