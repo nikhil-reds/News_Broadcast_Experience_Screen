@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import Image from "next/image";
 import { signOutAction } from "@/app/actions/auth";
 import { adminNavigation } from "@/lib/admin-navigation";
 
@@ -106,16 +105,12 @@ export function AdminSidebar({ email, open, onClose }: AdminSidebarProps) {
 
   return (
     <aside id="admin-navigation" aria-label="Admin navigation panel" className={`admin-sidebar-gradient fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(20rem,88vw)] shrink-0 flex-col border-r border-white/10 text-white shadow-2xl transition-transform duration-200 motion-reduce:transition-none md:w-[4.5rem] lg:sticky lg:z-auto lg:h-screen lg:w-64 lg:shadow-none ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-      <div className="flex h-16 shrink-0 items-start justify-between border-b border-white/10 px-5 pt-5 md:justify-center md:px-3 lg:justify-start lg:px-5 lg:pt-7">
-        <Image
-          src="/amagi-logo-white.svg"
-          alt="Amagi"
-          width={132}
-          height={38}
-          priority
-          className="h-8 w-auto object-contain md:hidden lg:block"
-        />
-        <span className="hidden text-xl font-bold text-white md:block lg:hidden" aria-hidden="true">A</span>
+      <div className="flex shrink-0 items-start justify-between border-b border-white/10 px-5 pb-3 pt-3 md:justify-center md:px-3 lg:justify-start lg:px-5">
+        <div className="min-w-0 md:hidden lg:block">
+          <span className="block truncate text-lg font-bold leading-7 tracking-tight text-white">News Simulation</span>
+          <span className="block truncate text-xs leading-4 text-slate-400">Smarter broadcast experience</span>
+        </div>
+        <span className="hidden text-xl font-bold leading-8 text-white md:block lg:hidden" aria-hidden="true">N</span>
         <button type="button" onClick={onClose} aria-label="Close navigation" className="rounded-md p-2 text-slate-300 hover:bg-white/10 hover:text-white md:hidden">
           <span aria-hidden="true" className="text-xl leading-none">×</span>
         </button>
