@@ -18,6 +18,49 @@ npm run worker:all
 Run them in separate terminals. The old `script/` utilities, seed commands,
 requeue commands, and individual worker commands have been removed.
 
+To run the worker startup health check without adding another npm script:
+
+```bash
+npx tsx script/worker-health.ts
+```
+
+The check starts each worker entry point independently, waits for its ready
+signal, stops the test process, and writes an ignored report to
+`script/worker-health/results/latest.json`. It validates startup and service
+connectivity; it does not submit production media jobs.
+
+## Complete script and worker reference
+
+The following table lists every executable file currently used for worker
+operation or worker testing. Run direct worker files only for debugging. For
+normal operation, use `npm run worker:all`.
+
+| File | What it does | Command |
+| --- | --- | --- |
+| `script/run-workers.mjs` | Starts the production worker groups as separate Node processes. | `node script/run-workers.mjs` or `npm run worker:all` |
+| `script/worker-health.ts` | Starts every worker individually, checks its ready signal, stops it, and writes a JSON report. | `npx tsx script/worker-health.ts` |
+| `app/worker/all.ts` | Starts the main workers in one process for legacy/manual debugging. | `npx tsx app/worker/all.ts` |
+| `app/worker/video.ts` | Starts the FFmpeg-heavy video export, highlight, and green-screen workers together. | `npx tsx app/worker/video.ts` |
+| `app/worker/audio-transcription.ts` | Consumes audio jobs and creates timestamped transcripts through Whisper. | `npx tsx app/worker/audio-transcription.ts` |
+| `app/worker/highlight-analysis.ts` | Analyses camera recordings and transcript timing to create highlight manifests. | `npx tsx app/worker/highlight-analysis.ts` |
+| `app/worker/highlight-reel.ts` | Renders selected camera segments into highlight reels with FFmpeg. | `npx tsx app/worker/highlight-reel.ts` |
+| `app/worker/translations.ts` | Starts the four transcript translation workers. | `npx tsx app/worker/translations.ts` |
+| `app/worker/german-transcript.ts` | Translates transcript segments into German. | `npx tsx app/worker/german-transcript.ts` |
+| `app/worker/hindi-transcript.ts` | Translates transcript segments into Hindi. | `npx tsx app/worker/hindi-transcript.ts` |
+| `app/worker/french-transcript.ts` | Translates transcript segments into French. | `npx tsx app/worker/french-transcript.ts` |
+| `app/worker/spanish-transcript.ts` | Translates transcript segments into Spanish. | `npx tsx app/worker/spanish-transcript.ts` |
+| `app/worker/tts.ts` | Starts the four translated-audio workers. | `npx tsx app/worker/tts.ts` |
+| `app/worker/german-audio.ts` | Generates German audio from translated transcript text. | `npx tsx app/worker/german-audio.ts` |
+| `app/worker/hindi-audio.ts` | Generates Hindi audio from translated transcript text. | `npx tsx app/worker/hindi-audio.ts` |
+| `app/worker/french-audio.ts` | Generates French audio from translated transcript text. | `npx tsx app/worker/french-audio.ts` |
+| `app/worker/spanish-audio.ts` | Generates Spanish audio from translated transcript text. | `npx tsx app/worker/spanish-audio.ts` |
+| `app/worker/green-screen-compose.ts` | Removes the speaker background and composites the result over a selected background. | `npx tsx app/worker/green-screen-compose.ts` |
+| `app/worker/video-export.ts` | Produces final videos with subtitles, orientation, backgrounds, and advertisements. | `npx tsx app/worker/video-export.ts` |
+| `app/worker/watchdog.ts` | Detects stale generation tasks and re-enqueues recoverable jobs. | `npx tsx app/worker/watchdog.ts` |
+
+All commands require the local `.env`, Redis, PostgreSQL, MinIO, and any
+required AI services to be available. Stop a foreground worker with `Ctrl+C`.
+
 ## Requirements
 
 - Node.js and npm
@@ -96,7 +139,8 @@ Next.js pages and API routes
 
 ## Worker processing
 
-`npm run worker:all` starts `app/worker/all.ts`, covering:
+`npm run worker:all` starts `script/run-workers.mjs`, which launches the
+production worker groups covering:
 
 - Audio transcription
 - Highlight analysis and reel generation
