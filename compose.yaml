@@ -98,6 +98,8 @@ services:
       - "9500:50000"
     volumes:
       - cosyvoice-models:/root/.cache
+      - ./public/nextjs-faster-whisper/cosyvoice-service/server.py:/opt/CosyVoice/server.py:ro
+    command: ["python3", "/opt/CosyVoice/server.py", "--port", "50000", "--model_dir", "iic/CosyVoice2-0.5B"]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:50000/docs', timeout=3)\""]
       interval: 15s

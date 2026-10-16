@@ -54,6 +54,7 @@ interface WhisperSegmentPayload {
 }
 
 interface WhisperPayload {
+  text?: string;
   duration?: number | string;
   segments?: WhisperSegmentPayload[];
 }
@@ -90,6 +91,8 @@ export async function runWhisper(
     "http://whisper:8000/transcribe",
   ];
 
+  const endpointErrors: string[] = [];
+
   for (const whisperUrl of whisperUrls) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), WHISPER_TIMEOUT_MS);
@@ -104,7 +107,10 @@ export async function runWhisper(
         signal: controller.signal,
       });
 
-      if (!res.ok) continue;
+      if (!res.ok) {
+        endpointErrors.push(`${whisperUrl} returned HTTP ${res.status}`);
+        continue;
+      }
       const data = (await res.json()) as WhisperPayload;
       const duration = data.duration ? Number(Number(data.duration).toFixed(2)) : 0;
 
@@ -117,8 +123,12 @@ export async function runWhisper(
         }));
         return { segments, duration };
       }
-      // Whisper reachable but no speech detected.
+      // Whisper was reachable and returned a valid empty result. Preserve
+      // this as a real no-speech result; the caller decides whether an empty
+      // transcript is acceptable for the workflow.
       if (data && "segments" in data) return { segments: [], duration };
+
+      endpointErrors.push(`${whisperUrl} returned no segments field`);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
         // A hung Whisper call must throw (not silently fall through to the
@@ -128,12 +138,17 @@ export async function runWhisper(
           `Whisper transcription timed out after ${Math.round(WHISPER_TIMEOUT_MS / 60000)} minutes`
         );
       }
-      console.log(`Whisper endpoint ${whisperUrl} unavailable: ${errorMessage(err)}`);
+      const message = errorMessage(err);
+      endpointErrors.push(`${whisperUrl}: ${message}`);
+      console.log(`Whisper endpoint ${whisperUrl} unavailable: ${message}`);
     } finally {
       clearTimeout(timeoutId);
     }
   }
-  return { segments: [], duration: 0 };
+  throw new Error(
+    `Whisper service unavailable; tried ${whisperUrls.join(", ")}. ` +
+      endpointErrors.join(" | ")
+  );
 }
 
 /**
@@ -157,6 +172,11 @@ export async function transcribeAndStore(filename: string): Promise<TranscribeRe
     { generationId, taskType: "transcription" },
     () => runWhisper(audioBuffer, filename)
   );
+
+  if (segments.length === 0) {
+    throw new Error(`Whisper returned no speech segments for "${filename}"`);
+  }
+
   const text = segments.map((s) => s.text).join(" ");
   const srtContent = generateSrt(segments);
   const sttEngine =

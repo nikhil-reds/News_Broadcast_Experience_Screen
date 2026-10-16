@@ -4,8 +4,8 @@
  * Re-runs all 5 background composites against the SAME source recording that
  * already failed, rather than forcing a whole new take through the pipeline.
  *
- *     npx tsx scripts/requeue-greenscreen.ts              # latest generation
- *     npx tsx scripts/requeue-greenscreen.ts <generationId>
+ *     npx tsx script/requeue-greenscreen.ts              # latest generation
+ *     npx tsx script/requeue-greenscreen.ts <generationId>
  *
  * The source filename is read back out of each failed task's stored `payload`
  * (see upsertTaskPending in lib/generation.ts), so the retry is guaranteed to

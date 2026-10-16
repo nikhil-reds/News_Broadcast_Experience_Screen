@@ -9,7 +9,7 @@
  *     npm run worker:all-single-process
  *
  * `npm run worker:all` no longer runs this file — it runs
- * scripts/run-workers.mjs instead, which spawns 5 separate OS processes
+ * script/run-workers.mjs instead, which spawns 5 separate OS processes
  * (see app/worker/video.ts) so a stuck/slow ffmpeg export can't starve the
  * other workers' Redis connections of event-loop time (the exact failure
  * mode this single-process mode is prone to — see docs/generation-

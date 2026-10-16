@@ -45,7 +45,7 @@ export function startHeartbeat(opts: {
   const write = async () => {
     await prisma.generationTask
       .updateMany({
-        where: { generationId, taskType },
+        where: { generationId, taskType, status: { in: ["waiting-for-cosyvoice", "processing"] } },
         data: { lastHeartbeatAt: new Date(), progressPercent, progressMessage, processId },
       })
       .catch((err) => {

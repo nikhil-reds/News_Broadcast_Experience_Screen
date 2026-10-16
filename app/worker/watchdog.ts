@@ -319,6 +319,29 @@ async function scan() {
     });
   }
 
+  // Waiting-for-CosyVoice tasks are queue/lock waiters, not active inference.
+  // Never apply STALE_AFTER_MS to them. Only recover a missing BullMQ job or
+  // cancel one whose generation has genuinely been superseded.
+  const waitingTasks = await prisma.generationTask.findMany({
+    where: { status: "waiting-for-cosyvoice" },
+  });
+  for (const task of waitingTasks) {
+    const queue = task.jobId ? getQueueForTaskType(task.taskType) : undefined;
+    const job = task.jobId && queue ? await queue.getJob(task.jobId) : undefined;
+    const state = job ? await job.getState() : "missing";
+    if (await isStale(task.generationId, task.taskType)) {
+      await prisma.generationTask.updateMany({
+        where: { id: task.id, status: "waiting-for-cosyvoice" },
+        data: { status: "cancelled", errorMessage: "superseded while waiting for CosyVoice" },
+      });
+      logTask({ generationId: task.generationId, taskType: task.taskType, jobId: task.jobId, status: "cancelled", error: "superseded while waiting" });
+    } else if (state === "missing") {
+      await recoverTask(task).catch((err) => console.error(`[${WORKER_NAME}] waiting-task recovery threw:`, err));
+    } else {
+      logTask({ generationId: task.generationId, taskType: task.taskType, jobId: task.jobId, status: "waiting", error: `bullmq state=${state}` });
+    }
+  }
+
   console.log(
     `[${WORKER_NAME}] scan complete ` +
       Object.entries(metrics)

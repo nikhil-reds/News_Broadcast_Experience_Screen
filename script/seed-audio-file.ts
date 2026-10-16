@@ -2,8 +2,8 @@
  * Seed one local audio or video file as the newest master audio, then queue it
  * for transcription.
  *
- *   node -r ./scripts/node-userinfo-shim.cjs ./node_modules/tsx/dist/cli.mjs \
- *     scripts/seed-audio-file.ts <path-to-wav>
+ *   node -r ./script/node-userinfo-shim.cjs ./node_modules/tsx/dist/cli.mjs \
+ *     script/seed-audio-file.ts <path-to-wav>
  *
  * Companion to seed-demo-audio.ts, which is pinned to public/demo/demo-audio.wav.
  * This one takes any prepared WAV, so a new clip can be pushed through the

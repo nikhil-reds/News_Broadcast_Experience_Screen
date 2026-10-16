@@ -1,8 +1,8 @@
 /**
  * Re-run translations (and the TTS takes built from them) for a generation
  * ------------------------------------------------------------------------
- *     npx tsx scripts/requeue-translations.ts              # latest generation
- *     npx tsx scripts/requeue-translations.ts <generationId>
+ *     npx tsx script/requeue-translations.ts              # latest generation
+ *     npx tsx script/requeue-translations.ts <generationId>
  *
  * WHY this is needed: every failure path in lib/translation.ts falls back to
  * returning the SOURCE text (`catch -> return text`, and

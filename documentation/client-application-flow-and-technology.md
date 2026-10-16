@@ -228,7 +228,7 @@ npm run worker:all
 Supervisor file:
 
 ```text
-scripts/run-workers.mjs
+script/run-workers.mjs
 ```
 
 The supervisor starts these process groups:

@@ -69,10 +69,23 @@ const worker = new Worker<HighlightPairJob>(
       )
     );
 
-    const manifest = await withHeartbeat(
-      { generationId, taskType: "highlight-analysis", jobId: job.id },
-      () => analyzeFrames(prompt, images)
-    );
+    let manifest;
+    try {
+      manifest = await withHeartbeat(
+        { generationId, taskType: "highlight-analysis", jobId: job.id },
+        () => analyzeFrames(prompt, images)
+      );
+    } catch (error) {
+      const fallbackEnd = Number(process.env.HIGHLIGHT_FALLBACK_DURATION_SECONDS || 8);
+      console.warn(
+        `[${WORKER_NAME}] vision service unavailable (${error instanceof Error ? error.message : "unknown error"}); ` +
+          `using bounded fallback segment 0-${fallbackEnd}s`
+      );
+      manifest = {
+        title: "Automatic highlight fallback",
+        segments: [{ camera: 1 as CameraId, start: 0, end: fallbackEnd, reason: "Vision service unavailable; bounded fallback segment" }],
+      };
+    }
     const analysis = validateManifest(manifest);
 
     await enqueueHighlightReel(

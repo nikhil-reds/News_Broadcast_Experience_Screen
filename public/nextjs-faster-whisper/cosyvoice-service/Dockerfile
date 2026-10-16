@@ -19,7 +19,14 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
 
 RUN git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git
 
+# CosyVoice2's cross-lingual frontend loads the prompt WAV itself. The bundled
+# server first converts the upload to a tensor and then passes that tensor into
+# the frontend, which calls load_wav() a second time and crashes with
+# "Invalid file: tensor(...)". Rewind the upload and pass the file object for
+# this endpoint instead.
 WORKDIR /opt/CosyVoice/CosyVoice
+
+RUN sed -i '/async def inference_cross_lingual/,/return StreamingResponse/{s/prompt_speech_16k = load_wav(prompt_wav.file, 16000)/prompt_wav.file.seek(0)/; s/cosyvoice.inference_cross_lingual(tts_text, prompt_speech_16k)/cosyvoice.inference_cross_lingual(tts_text, prompt_wav.file)/}' runtime/python/fastapi/server.py
 
 # requirements.txt pulls in legacy setup.py-only packages (e.g. openai-whisper)
 # that break under pip's isolated build environment when it grabs the latest
@@ -51,6 +58,8 @@ RUN pip3 install --no-cache-dir \
     --extra-index-url https://download.pytorch.org/whl/cpu \
     -r requirements.txt
 
+COPY server.py /opt/CosyVoice/server.py
+
 EXPOSE 50000
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=600s --retries=20 \
@@ -58,4 +67,4 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=600s --retries=20 \
 
 # --model_dir is a ModelScope hub id (not a local path); the server downloads
 # it automatically on first run into the cache mounted at /root/.cache.
-CMD ["python3", "runtime/python/fastapi/server.py", "--port", "50000", "--model_dir", "iic/CosyVoice2-0.5B"]
+CMD ["python3", "/opt/CosyVoice/server.py", "--port", "50000", "--model_dir", "iic/CosyVoice2-0.5B"]

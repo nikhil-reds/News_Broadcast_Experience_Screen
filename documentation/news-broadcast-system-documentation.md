@@ -82,7 +82,7 @@ The app is not only a visual screen launcher. It also coordinates an asynchronou
 - `lib/video-export.ts`: Final export pipeline with re-timed subtitles.
 - `lib/green-screen.ts`: Background definitions and composite URL conventions.
 - `prisma/schema.prisma`: Database models.
-- `scripts/run-workers.mjs`: Worker process supervisor.
+- `script/run-workers.mjs`: Worker process supervisor.
 
 ## 5. Screen-By-Screen Details
 
@@ -549,4 +549,4 @@ Broadcast Screens
 - Screen 06 is gated on highlight readiness.
 - Screens 07, 11, and 12 use variant publication logic because their output depends on selected background, language, and aspect parameters.
 - Screen 08 previews subtitles live in CSS, while final export burns subtitles into video files.
-- `scripts/run-workers.mjs` starts worker groups in separate OS processes to avoid one stuck FFmpeg-heavy worker starving all other queues.
+- `script/run-workers.mjs` starts worker groups in separate OS processes to avoid one stuck FFmpeg-heavy worker starving all other queues.

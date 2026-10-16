@@ -1,10 +1,10 @@
 /**
  * Translate a generation's transcript in-process, then queue the TTS takes
  * ------------------------------------------------------------------------
- *     npx tsx scripts/retranslate-now.ts              # latest generation
- *     npx tsx scripts/retranslate-now.ts <generationId>
+ *     npx tsx script/retranslate-now.ts              # latest generation
+ *     npx tsx script/retranslate-now.ts <generationId>
  *
- * Unlike scripts/requeue-translations.ts (which hands the work to the
+ * Unlike script/requeue-translations.ts (which hands the work to the
  * translation workers), this does the Gemini call in THIS process and writes
  * the result itself. Use it when the queue path is ambiguous — e.g. more than
  * one `npm run worker:all` is running, so you cannot tell which process

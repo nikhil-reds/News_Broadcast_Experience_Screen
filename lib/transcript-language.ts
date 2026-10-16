@@ -50,8 +50,13 @@ export async function persistTranslation(params: {
   generationId?: string | null;
 }) {
   const { transcriptId, language, langCode, filename, segments, translatedTexts, generationId } = params;
+  // Background transcription passes the MinIO object key directly, while
+  // API/on-demand callers pass `/api/asset/<bucket>/<objectKey>`. Speaker
+  // profiles and TTS jobs are keyed by AudioFile.filename, so normalize both
+  // shapes at this boundary instead of creating profile lookups for a URL.
+  const sourceFilename = filenameFromSourceAudio(filename);
   const flatText = translatedTexts.join(" ");
-  const objectKey = `${filename}.${langCode}.txt`;
+  const objectKey = `${sourceFilename}.${langCode}.txt`;
 
   await uploadObject(
     TRANSCRIPTS_BUCKET,
@@ -100,12 +105,12 @@ export async function persistTranslation(params: {
   // this was called by a background worker or the on-demand cache-fill path.
   if (flatText.trim()) {
     try {
-      const profile = await ensureSpeakerProfile(filename).catch((err: unknown) => {
-        console.error(`Failed to resolve speaker profile for "${filename}": ${errorMessage(err)}`);
+      const profile = await ensureSpeakerProfile(sourceFilename).catch((err: unknown) => {
+        console.error(`Failed to resolve speaker profile for "${sourceFilename}": ${errorMessage(err)}`);
         return null;
       });
-      await enqueueAudioConversion(langCode, translation.id, filename, flatText, generationId, {
-        sourceAudioFilename: filename,
+      await enqueueAudioConversion(langCode, translation.id, sourceFilename, flatText, generationId, {
+        sourceAudioFilename: sourceFilename,
         speakerGender: profile?.gender ?? "unknown",
         referenceAudioBucket: profile?.referenceBucket,
         referenceAudioObjectKey: profile?.referenceObjectKey,

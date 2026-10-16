@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { TTS_AUDIO_BUCKET, getObjectBuffer, uploadObject } from "@/lib/minio";
 import { synthesizeCrossLingual } from "@/lib/cosyvoice";
 import type { AudioConversionJob } from "@/lib/queue";
-import { markTaskProcessing, markTaskCompleted, markTaskFailed } from "@/lib/generation";
+import { markTaskProcessing, markTaskWaitingForCosyVoice, markTaskCompleted, markTaskFailed } from "@/lib/generation";
 import { withHeartbeat } from "@/lib/generation-heartbeat";
 import { ensureSpeakerProfile, type SpeakerGender } from "@/lib/speaker-profile";
 
@@ -23,7 +23,10 @@ export interface AudioConversionWorkerOptions {
  * actually retry a wedged call; see app/worker/watchdog.ts for the
  * stuck-job detector this pairs with.
  */
-export const TTS_TIMEOUT_MS = parseInt(process.env.TTS_TIMEOUT_MS || String(3 * 60 * 1000), 10);
+// The CPU-only CosyVoice2 container needs about 4–5 minutes for the demo
+// transcript. Leave headroom for a cold model and slow host instead of
+// retrying a valid synthesis three times.
+export const TTS_TIMEOUT_MS = parseInt(process.env.TTS_TIMEOUT_MS || String(20 * 60 * 1000), 10);
 
 /**
  * Same AbortController-timeout shape as lib/transcribe.ts's Whisper timeout,
@@ -58,8 +61,9 @@ export function startAudioConversionWorker(
   const worker = new Worker<AudioConversionJob>(
     opts.queue,
     async (job: Job<AudioConversionJob>) => {
+      const jobStartedAt = Date.now();
       const { translationId, filename, langCode, text, generationId } = job.data;
-      await markTaskProcessing(generationId, `tts-${opts.langCode}`, job.id);
+      await markTaskWaitingForCosyVoice(generationId, `tts-${opts.langCode}`, job.id);
       console.log(`[${workerName}] job ${job.id} → synthesizing "${filename}" (${opts.language})`);
 
       const profile =
@@ -76,6 +80,7 @@ export function startAudioConversionWorker(
               );
               return null;
             });
+      console.log(`[${workerName}] speaker profile ready after ${Date.now() - jobStartedAt}ms`);
 
       let voiceMode: "cloned" | "gender-preset" | "default-preset" = "cloned";
       const speakerGender = profile?.gender ?? job.data.speakerGender ?? "unknown";
@@ -93,7 +98,13 @@ export function startAudioConversionWorker(
                   profile.referenceBucket,
                   profile.referenceObjectKey
                 );
-                return await synthesizeCrossLingual(text, promptWav);
+                return await synthesizeCrossLingual(text, promptWav, {
+                  onWaiting: async () => markTaskWaitingForCosyVoice(generationId, `tts-${opts.langCode}`, job.id).then(() => undefined),
+                  onAcquired: async (waitMs) => {
+                    await markTaskProcessing(generationId, `tts-${opts.langCode}`, job.id, { preserveAttempt: true });
+                    console.log(`[${workerName}] acquired CosyVoice lock after ${waitMs}ms`);
+                  },
+                });
               } catch (err: unknown) {
                 voiceMode = speakerGender === "unknown" ? "default-preset" : "gender-preset";
                 console.warn(
@@ -107,6 +118,7 @@ export function startAudioConversionWorker(
             `Speech synthesis timed out after ${Math.round(TTS_TIMEOUT_MS / 60000)} minutes`
           )
       );
+      console.log(`[${workerName}] synthesis stage completed after ${Date.now() - jobStartedAt}ms`);
 
       const objectKey = `${filename}.${langCode}.voice-v2.wav`;
       await uploadObject(TTS_AUDIO_BUCKET, objectKey, synthesizedWav, "audio/wav");
@@ -140,7 +152,7 @@ export function startAudioConversionWorker(
 
       await markTaskCompleted(generationId, `tts-${opts.langCode}`);
 
-      console.log(`[${workerName}] job ${job.id} done → ${url}`);
+      console.log(`[${workerName}] job ${job.id} done in ${Date.now() - jobStartedAt}ms → ${url}`);
       return { langCode, url, objectKey };
     },
     {

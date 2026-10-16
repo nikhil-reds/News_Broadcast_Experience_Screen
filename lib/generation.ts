@@ -137,15 +137,31 @@ export async function upsertTaskPending(
 export async function markTaskProcessing(
   generationId: string | null | undefined,
   taskType: TaskType,
-  jobId?: string
+  jobId?: string,
+  opts?: { preserveAttempt?: boolean }
 ): Promise<number> {
   if (!generationId) return 1;
   const row = await prisma.generationTask.upsert({
     where: { generationId_taskType: { generationId, taskType } },
     create: { generationId, taskType, status: "processing", attempt: 1, jobId, startedAt: new Date() },
-    update: { status: "processing", attempt: { increment: 1 }, jobId, startedAt: new Date() },
+    update: { status: "processing", ...(opts?.preserveAttempt ? {} : { attempt: { increment: 1 } }), jobId, startedAt: new Date(), progressMessage: "Running CosyVoice inference" },
   });
   logTask({ generationId, taskType, jobId, attempt: row.attempt, status: "processing" });
+  return row.attempt;
+}
+
+export async function markTaskWaitingForCosyVoice(
+  generationId: string | null | undefined,
+  taskType: TaskType,
+  jobId?: string
+): Promise<number> {
+  if (!generationId) return 1;
+  const row = await prisma.generationTask.upsert({
+    where: { generationId_taskType: { generationId, taskType } },
+    create: { generationId, taskType, status: "waiting-for-cosyvoice", attempt: 1, jobId, progressMessage: "Waiting for CosyVoice capacity", lastHeartbeatAt: new Date() },
+    update: { status: "waiting-for-cosyvoice", jobId, progressMessage: "Waiting for CosyVoice capacity", lastHeartbeatAt: new Date() },
+  });
+  logTask({ generationId, taskType, jobId, attempt: row.attempt, status: "waiting-for-cosyvoice" });
   return row.attempt;
 }
 

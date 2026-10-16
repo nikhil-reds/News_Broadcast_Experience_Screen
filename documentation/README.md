@@ -18,7 +18,7 @@ npm run worker:video
 npm run seed:demo-audio
 ```
 
-The grouped worker launcher is `scripts/run-workers.mjs`. It starts these
+The grouped worker launcher is `script/run-workers.mjs`. It starts these
 process groups:
 
 ```text
@@ -30,12 +30,12 @@ tts           app/worker/tts.ts
 watchdog      app/worker/watchdog.ts
 ```
 
-On Windows, run workers with the `scripts/node-userinfo-shim.cjs` preload when
+On Windows, run workers with the `script/node-userinfo-shim.cjs` preload when
 `tsx` hits `uv_os_get_passwd`/ENOMEM. The npm worker scripts already preload it
 for the video-heavy workers; for manual `tsx` commands use:
 
 ```powershell
-$env:NODE_OPTIONS='-r ./scripts/node-userinfo-shim.cjs'
+$env:NODE_OPTIONS='-r ./script/node-userinfo-shim.cjs'
 ```
 
 Screen 07 background replacement now uses Robust Video Matting (RVM) first and

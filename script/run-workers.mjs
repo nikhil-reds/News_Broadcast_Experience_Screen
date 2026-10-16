@@ -5,9 +5,9 @@
  * separate OS process and supervises them from one terminal.
  *
  *     npm run worker:all                    # all groups
- *     node scripts/run-workers.mjs video    # just the ffmpeg group
- *     node scripts/run-workers.mjs --except watchdog
- *     node scripts/run-workers.mjs --list
+ *     node script/run-workers.mjs video    # just the ffmpeg group
+ *     node script/run-workers.mjs --except watchdog
+ *     node script/run-workers.mjs --list
  *
  * WHY separate processes instead of app/worker/all.ts (which imports every
  * worker into one process): a stuck/slow ffmpeg export starves the other
@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TSX_CLI = path.join(ROOT, "node_modules", "tsx", "dist", "cli.mjs");
-const USERINFO_SHIM = path.join(ROOT, "scripts", "node-userinfo-shim.cjs");
+const USERINFO_SHIM = path.join(ROOT, "script", "node-userinfo-shim.cjs");
 
 const MAX_RESTARTS = 5;
 const RESTART_WINDOW_MS = 60_000;

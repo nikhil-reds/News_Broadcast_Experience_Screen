@@ -1,5 +1,48 @@
+import { randomUUID } from "node:crypto";
+import { redisConnection } from "@/lib/redis";
+
 const COSYVOICE_API_URL = (process.env.COSYVOICE_API_URL || "http://localhost:9500").replace(/\/$/, "");
 const SAMPLE_RATE = Number(process.env.COSYVOICE_SAMPLE_RATE || 24000);
+const COSYVOICE_LOCK_KEY = "lock:cosyvoice:inference";
+const COSYVOICE_LOCK_TTL_MS = Number(process.env.COSYVOICE_LOCK_TTL_MS || 20 * 60 * 1000);
+const COSYVOICE_LOCK_WAIT_MS = Number(process.env.COSYVOICE_LOCK_WAIT_MS || 20 * 60 * 1000);
+const LOCK_RELEASE_SCRIPT = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+
+async function withCosyVoiceLock<T>(opts: {
+  fn: () => Promise<T>;
+  onWaiting?: () => Promise<void>;
+  onAcquired?: (waitMs: number) => Promise<void>;
+}): Promise<T> {
+  const token = randomUUID();
+  const deadline = Date.now() + COSYVOICE_LOCK_WAIT_MS;
+  const waitStartedAt = Date.now();
+  let waitingNotified = false;
+
+  while (Date.now() < deadline) {
+    const acquired = await redisConnection.set(
+      COSYVOICE_LOCK_KEY,
+      token,
+      "PX",
+      COSYVOICE_LOCK_TTL_MS,
+      "NX"
+    );
+    if (acquired === "OK") {
+      try {
+        await opts.onAcquired?.(Date.now() - waitStartedAt);
+        return await opts.fn();
+      } finally {
+        await redisConnection.eval(LOCK_RELEASE_SCRIPT, 1, COSYVOICE_LOCK_KEY, token).catch(() => {});
+      }
+    }
+    if (!waitingNotified) {
+      waitingNotified = true;
+      await opts.onWaiting?.();
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  throw new Error(`Timed out waiting ${Math.round(COSYVOICE_LOCK_WAIT_MS / 60000)} minutes for CosyVoice capacity`);
+}
 
 /**
  * Wrap raw 16-bit mono PCM bytes (what the CosyVoice FastAPI server's
@@ -31,26 +74,35 @@ function pcmToWav(pcm: Buffer, sampleRate = SAMPLE_RATE): Buffer {
  * Spanish) — it speaks the target text in the cloned voice regardless of
  * language. Returns a playable WAV buffer.
  */
-export async function synthesizeCrossLingual(text: string, promptWav: Buffer): Promise<Buffer> {
-  const form = new FormData();
-  form.append("tts_text", text);
-  form.append("prompt_wav", new Blob([new Uint8Array(promptWav)], { type: "audio/wav" }), "prompt.wav");
+export async function synthesizeCrossLingual(text: string, promptWav: Buffer, lockCallbacks?: {
+  onWaiting?: () => Promise<void>;
+  onAcquired?: (waitMs: number) => Promise<void>;
+}): Promise<Buffer> {
+  return withCosyVoiceLock({ ...lockCallbacks, fn: async () => {
+    const form = new FormData();
+    form.append("tts_text", text);
+    form.append("prompt_wav", new Blob([new Uint8Array(promptWav)], { type: "audio/wav" }), "prompt.wav");
 
-  const controller = new AbortController();
-  // CosyVoice on CPU can be slow; allow up to 5 minutes (same as Whisper/Qwen).
-  const timeoutId = setTimeout(() => controller.abort(), 300000);
-  try {
-    const res = await fetch(`${COSYVOICE_API_URL}/inference_cross_lingual`, {
-      method: "POST",
-      body: form,
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      throw new Error(`CosyVoice HTTP ${res.status}: ${await res.text().catch(() => "")}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), Number(process.env.COSYVOICE_REQUEST_TIMEOUT_MS || 16 * 60 * 1000));
+    const startedAt = Date.now();
+    try {
+      const res = await fetch(`${COSYVOICE_API_URL}/inference_cross_lingual`, {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error(`CosyVoice HTTP ${res.status}: ${await res.text().catch(() => "")}`);
+      }
+      const pcm = Buffer.from(await res.arrayBuffer());
+      console.log(`[cosyvoice] synthesis completed in ${Date.now() - startedAt}ms; pcm=${pcm.length} bytes`);
+      return pcmToWav(pcm);
+    } catch (error) {
+      console.error(`[cosyvoice] synthesis failed after ${Date.now() - startedAt}ms: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    const pcm = Buffer.from(await res.arrayBuffer());
-    return pcmToWav(pcm);
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  }});
 }
