@@ -49,6 +49,9 @@ next-env.d.ts
 # ffmpeg-composited output cached by the Screen 07 green-screen worker
 /public/generated/
 
+# worker health-test reports
+/script/worker-health/results/
+
 
 .claude
 .agents
