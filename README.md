@@ -29,6 +29,17 @@ signal, stops the test process, and writes an ignored report to
 `script/worker-health/results/latest.json`. It validates startup and service
 connectivity; it does not submit production media jobs.
 
+For the worker performance baseline, run:
+
+```bash
+npx tsx script/worker-performance/run-all.ts
+```
+
+This measures per-worker startup latency and runner memory without submitting
+media jobs. Set `WORKER_PERF_RUNS=3` for repeated runs or
+`WORKER_PERF_TIMEOUT_MS=60000` to change the timeout. Results are written to
+`script/worker-performance/results/latest.json` and `latest.csv`.
+
 ## Complete script and worker reference
 
 The following table lists every executable file currently used for worker

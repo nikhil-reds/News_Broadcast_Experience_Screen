@@ -51,6 +51,7 @@ next-env.d.ts
 
 # worker health-test reports
 /script/worker-health/results/
+/script/worker-performance/results/
 
 
 .claude
