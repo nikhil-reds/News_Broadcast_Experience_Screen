@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "worker:all": "node script/run-workers.mjs"
+    "worker:all": "node script/run-workers.mjs",
+    "worker:health": "tsx script/worker-health.ts",
+    "worker:performance": "tsx script/worker-performance/run-workers.ts",
+    "pipeline:performance": "tsx script/worker-performance/run-pipeline.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
