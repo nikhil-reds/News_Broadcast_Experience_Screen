@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "npm run build && npm start",
     "worker:all": "node script/run-workers.mjs",
     "worker:health": "tsx script/worker-health.ts",
     "worker:performance": "tsx script/worker-performance/run-workers.ts",
     "pipeline:performance": "tsx script/worker-performance/run-pipeline.ts",
     "build": "next build --webpack",
-    "start": "next start"
+    "start": "next start",
+    "dev:hot": "next dev --webpack"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

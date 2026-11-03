@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
-import type { AdminTheme } from "@/lib/admin-theme";
 
-export function AdminNavbar({ theme, sidebarOpen, onMenuClick }: { theme: AdminTheme; sidebarOpen: boolean; onMenuClick: () => void }) {
+export function AdminNavbar({ sidebarOpen, onMenuClick }: { sidebarOpen: boolean; onMenuClick: () => void }) {
   return (
     <header className="admin-navbar sticky top-0 z-30 border-b border-admin-border bg-admin-surface/95 backdrop-blur">
       <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
@@ -13,7 +11,6 @@ export function AdminNavbar({ theme, sidebarOpen, onMenuClick }: { theme: AdminT
           <span className="truncate text-sm font-semibold text-admin-text sm:text-base">Amagi Media Labs · News Simulation</span>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
-        <AdminThemeToggle theme={theme} />
         <Link
           href="/admin/studio/camera"
           className="group inline-flex h-11 items-center gap-3 rounded-full bg-white py-1 pl-5 pr-1 text-sm font-medium text-black shadow-[0_8px_28px_rgba(0,0,0,.22)] transition hover:bg-[#f0edf2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"

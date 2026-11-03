@@ -79,6 +79,7 @@ export default function RecordingLooper({
 }) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoFilename, setVideoFilename] = useState<string | null>(null);
+  const [resolvedSessionId, setResolvedSessionId] = useState<string | null>(broadcastSessionId ?? null);
   const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null);
   const [selectedAudioUrl, setSelectedAudioUrl] = useState<string | null>(null);
   const [cues, setCues] = useState<TimedCue[]>([]);
@@ -91,6 +92,31 @@ export default function RecordingLooper({
   const query = recordingSourceQuery(source);
 
   const publication = useScreenPublication<{ videoUrl: string; filename: string }>(screenId ?? null);
+  useEffect(() => {
+    if (broadcastSessionId) {
+      const timer = window.setTimeout(() => setResolvedSessionId(broadcastSessionId), 0);
+      return () => window.clearTimeout(timer);
+    }
+    let cancelled = false;
+    const resolveCurrentSession = async () => {
+      try {
+        const response = await fetch("/api/sessions/current", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled) setResolvedSessionId(data.session?.id ?? null);
+      } catch {
+        // Keep waiting for the current session endpoint.
+      }
+    };
+    const initial = window.setTimeout(() => void resolveCurrentSession(), 0);
+    const timer = window.setInterval(() => void resolveCurrentSession(), 1_000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
+  }, [broadcastSessionId]);
+
   useEffect(() => {
     if (screenId == null) return;
     if (publication.assets?.videoUrl) {
@@ -112,35 +138,17 @@ export default function RecordingLooper({
         // from the same take Screens 4/5 are showing a transcript for,
         // instead of each screen independently taking "whatever's newest"
         // and risking a mismatch if a new take started recording in between.
-        // Falls back to unscoped (old behavior) if there's no session yet —
-        // e.g. recordings uploaded before this concept existed.
-        let sessionId: string | null = broadcastSessionId ?? null;
-        try {
-          if (!sessionId) {
-          const sessionRes = await fetch("/api/sessions/current");
-          if (sessionRes.ok) {
-            const sessionData = await sessionRes.json();
-            sessionId = sessionData.session?.id ?? null;
-          }
-          }
-        } catch {
-          /* fall through to unscoped lookup */
+        // Never fall back to an older unscoped take: Demo and live screens
+        // always follow the current recording session, even while it uploads.
+        if (!resolvedSessionId) {
+          if (!cancelled) { setVideoUrl(null); setVideoFilename(null); }
+          return;
         }
-
-        const params = sessionId ? `${query}&sessionId=${sessionId}` : query;
+        const params = `${query}&sessionId=${encodeURIComponent(resolvedSessionId)}`;
         const res = await fetch(`/api/save-recording?${params}`);
         if (res.ok) {
           const data = await res.json();
-          let list: RecordingItem[] = data.recordings || [];
-          // A brand-new session has no recordings yet (still uploading) —
-          // fall back to the unscoped newest take rather than showing blank.
-          if (list.length === 0 && sessionId && !broadcastSessionId) {
-            const fallbackRes = await fetch(`/api/save-recording?${query}`);
-            if (fallbackRes.ok) {
-              const fallbackData = await fallbackRes.json();
-              list = fallbackData.recordings || [];
-            }
-          }
+          const list: RecordingItem[] = data.recordings || [];
           if (list.length > 0 && !cancelled) {
             setVideoUrl(
               compositeBackgroundId
@@ -148,6 +156,9 @@ export default function RecordingLooper({
                 : list[0].url
             );
             setVideoFilename(list[0].filename);
+          } else if (!cancelled) {
+            setVideoUrl(null);
+            setVideoFilename(null);
           }
         }
       } catch (err) {
@@ -162,7 +173,7 @@ export default function RecordingLooper({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [broadcastSessionId, compositeBackgroundId, query, screenId]);
+  }, [compositeBackgroundId, query, resolvedSessionId, screenId]);
 
   // Match Screen 5's English source: the latest saved original recording,
   // excluding the 16 kHz derivative made for transcription.
@@ -172,7 +183,11 @@ export default function RecordingLooper({
 
     const fetchOriginalAudio = async () => {
       try {
-        const res = await fetch(broadcastSessionId ? `/api/save-audio?sessionId=${encodeURIComponent(broadcastSessionId)}` : "/api/save-audio");
+        if (!resolvedSessionId) {
+          if (!cancelled) setOriginalAudioUrl(null);
+          return;
+        }
+        const res = await fetch(`/api/save-audio?sessionId=${encodeURIComponent(resolvedSessionId)}`);
         if (!res.ok) return;
         const data = await res.json();
         const latest = (data.audioFiles as AudioFileItem[] | undefined)?.find(
@@ -190,11 +205,13 @@ export default function RecordingLooper({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [broadcastSessionId, englishSubtitles, originalAudio]);
+  }, [englishSubtitles, originalAudio, resolvedSessionId]);
 
   useEffect(() => {
-    if (audioLanguage === "en") { setSelectedAudioUrl(null); return; }
-    if (!originalAudioUrl || !voiceId || voiceId === "original") return;
+    if (audioLanguage === "en" || !originalAudioUrl || !voiceId || voiceId === "original") {
+      const resetTimer = window.setTimeout(() => setSelectedAudioUrl(null), 0);
+      return () => window.clearTimeout(resetTimer);
+    }
     let cancelled = false;
     const fetchSelectedAudio = async () => {
       try {

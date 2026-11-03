@@ -2,6 +2,7 @@ export interface ScreenWorkflow {
   sessionId: string;
   revision: number;
   applied: number[];
+  restartAt?: number;
   broadcastAt?: number;
   publishedAt: string | null;
 }

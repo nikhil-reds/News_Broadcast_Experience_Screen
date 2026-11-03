@@ -49,7 +49,7 @@ export function AdminShell({
           />
         ) : null}
         <div className="min-h-dvh min-w-0 flex-1">
-          <AdminNavbar theme={theme} sidebarOpen={sidebarOpen} onMenuClick={() => setSidebarOpen((open) => !open)} />
+          <AdminNavbar sidebarOpen={sidebarOpen} onMenuClick={() => setSidebarOpen((open) => !open)} />
           <main className="admin-content min-h-[calc(100dvh-4rem)] w-full min-w-0 p-4 sm:p-5 lg:p-6">{children}</main>
         </div>
       </div>

@@ -2,7 +2,7 @@
 
 import styles from "./workflow-button.module.css";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { workflowRun, type WorkflowView } from "@/lib/screen-workflow";
 import { flushScreenSelections } from "@/lib/screen-selection-writes";
 import { WorkflowDirtyContext, WorkflowReadyContext } from "@/lib/workflow-ready";
@@ -28,6 +28,11 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
   const [selectionReady, setSelectionReady] = useState(false);
   const [mediaReady, setMediaReady] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const suspendedMedia = useRef<Array<{
+    index: number;
+    muted: boolean;
+    volume: number;
+  }>>([]);
   const inFlight = useRef(false);
   const latest = useRef<WorkflowView | null>(null);
   const applied = view?.state?.applied.includes(screen) ?? false;
@@ -36,6 +41,35 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
   const visible = retained || (active && (screen === 7 || Boolean(view?.ready)));
   const needsVideo = [1, 2, 3, 6, 7, 8, 11, 12].includes(screen);
   const enabled = connected && ((active && Boolean(view?.ready)) || (retained && (dirty || Boolean(error)))) && (!needsVideo || mediaReady) && (![5, 6, 7, 8].includes(screen) || selectionReady) && !busy && !handoff;
+
+  const suspendAudibleMedia = useCallback(() => {
+    const mediaElements = Array.from(contentRef.current?.querySelectorAll<HTMLMediaElement>("audio, video") ?? []);
+    suspendedMedia.current = mediaElements.flatMap((element, index) =>
+      !element.paused && !element.muted && element.volume > 0
+        ? [{ index, muted: element.muted, volume: element.volume }]
+        : []
+    );
+    for (const { index } of suspendedMedia.current) {
+      const element = mediaElements[index];
+      if (!element) continue;
+      element.pause();
+      element.muted = true;
+    }
+  }, []);
+
+  const resumeSuspendedMedia = useCallback(() => {
+    const snapshots = suspendedMedia.current;
+    if (!snapshots.length) return;
+    suspendedMedia.current = [];
+    const mediaElements = Array.from(contentRef.current?.querySelectorAll<HTMLMediaElement>("audio, video") ?? []);
+    for (const { index, muted, volume } of snapshots) {
+      const element = mediaElements[index];
+      if (!element) continue;
+      element.muted = muted;
+      element.volume = volume;
+      void element.play().catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -125,6 +159,10 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
         run: workflowRun(view.state), targets: [], saved: false });
     }
     try {
+      // Stop sound on the screen being handed off. Retained screens restore
+      // exactly the media that was audible on the viewer's next interaction.
+      // Screen 12 is the final published output, so it keeps playing.
+      if (screen <= 11) suspendAudibleMedia();
       if (screen === 5) window.dispatchEvent(new Event("apply-screen-audio"));
       if (screen === 6) window.dispatchEvent(new Event("apply-screen-brightness"));
       if (screen === 7) window.dispatchEvent(new Event("apply-screen-background"));
@@ -159,7 +197,13 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
       {showContent ? (
         <WorkflowReadyContext.Provider value={setSelectionReady}>
           <WorkflowDirtyContext.Provider value={setDirty}>
-            <div ref={contentRef} key={sessionId + ":" + run} inert={busy || Boolean(handoff)}>{children}</div>
+            <div
+              ref={contentRef}
+              key={`${sessionId}:${run}:${view?.state?.restartAt ?? 0}`}
+              inert={busy || Boolean(handoff)}
+              onPointerDownCapture={resumeSuspendedMedia}
+              onKeyDownCapture={resumeSuspendedMedia}
+            >{children}</div>
           </WorkflowDirtyContext.Provider>
         </WorkflowReadyContext.Provider>
       ) : (

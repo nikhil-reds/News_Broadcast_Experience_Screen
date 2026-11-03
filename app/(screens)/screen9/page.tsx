@@ -22,8 +22,13 @@ export default function Screen9Page() {
     const index = AD_INDUSTRIES.findIndex(industry => industry.id === id);
     if (index >= 0) setOnAir(index);
   }, []);
+  const ignorePreviewRemote = useCallback(() => {}, []);
   const saveIndustry = useRealtimeSelection("industry", onRemote);
-  const choose = setPreview;
+  const saveIndustryPreview = useRealtimeSelection("industry-preview", ignorePreviewRemote);
+  const choose = useCallback((index: number) => {
+    setPreview(index);
+    saveIndustryPreview(AD_INDUSTRIES[index].id);
+  }, [saveIndustryPreview]);
 
   useEffect(() => {
     function apply() {

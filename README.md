@@ -8,15 +8,25 @@ Detailed design notes are in [news-broadcast-system-documentation.md](news-broad
 
 ## Supported commands
 
-The project exposes only two npm scripts:
+For the normal multi-screen simulation, run these in separate terminals:
 
 ```bash
 npm run dev
 npm run worker:all
 ```
 
-Run them in separate terminals. The old `script/` utilities, seed commands,
-requeue commands, and individual worker commands have been removed.
+`npm run dev` builds the current source and starts the production server on
+port 3000. The initial build takes longer than a hot-reload startup, but each
+screen stays independent when another tab opens or refreshes. Restart this
+command after changing application code to rebuild and serve the changes.
+
+For code editing with Next.js Fast Refresh, use `npm run dev:hot` instead.
+Hot reload can refresh all connected tabs as shared modules are rebuilt, so
+do not use it for a running multi-screen simulation. Stop the current web
+server before switching modes on the same port.
+
+You can also run `npm run build` and `npm start` separately. Run
+`npm start` only after a successful build of the current source.
 
 To run the worker startup health check without adding another npm script:
 

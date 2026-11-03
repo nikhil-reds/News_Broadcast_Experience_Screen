@@ -55,7 +55,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
   const [
     totalSessions, sessionsToday, sessionsThisWeek, processingSessions, readySessions, failedSessions,
     pendingTasks, processingTasks, completedTasks, failedTasks, cancelledTasks,
-    audioFiles, videoRecordings, transcripts, translations, completedVideoJobs,
+    completedVideoJobs,
     activeScreens, onlineCameras,
   ] = await Promise.all([
     prisma.broadcastSession.count({ where: { createdAt: { gte: periodStart } } }),
@@ -69,10 +69,6 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
     prisma.generationTask.count({ where: { status: "completed", createdAt: { gte: periodStart } } }),
     prisma.generationTask.count({ where: { status: "failed", createdAt: { gte: periodStart } } }),
     prisma.generationTask.count({ where: { status: "cancelled", createdAt: { gte: periodStart } } }),
-    prisma.audioFile.count({ where: { createdAt: { gte: periodStart } } }),
-    prisma.videoRecording.count({ where: { createdAt: { gte: periodStart } } }),
-    prisma.transcript.count({ where: { createdAt: { gte: periodStart } } }),
-    prisma.transcriptTranslation.count({ where: { createdAt: { gte: periodStart } } }),
     prisma.videoJob.count({ where: { status: "completed", createdAt: { gte: periodStart } } }),
     prisma.broadcastScreen.count({ where: { isActive: true } }),
     prisma.cameraFeed.count({ where: { status: "online" } }),
@@ -138,10 +134,6 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
       <section aria-labelledby="media-output-title">
         <h2 id="media-output-title" className={styles.sectionTitle}>Media output</h2>
         <div className={styles.mediaGrid}>
-          <MediaCard title="Audio files" value={audioFiles} detail="Uploaded masters" href="/admin/audio" />
-          <MediaCard title="Video recordings" value={videoRecordings} detail="Camera assets" href="/admin/recordings" />
-          <MediaCard title="Transcripts" value={transcripts} detail="Generated" href="/admin/transcripts" />
-          <MediaCard title="Translations" value={translations} detail="Language outputs" href="/admin/translations" />
           <MediaCard title="Video exports" value={completedVideoJobs} detail="Completed jobs" href="/admin/video-jobs" />
         </div>
       </section>

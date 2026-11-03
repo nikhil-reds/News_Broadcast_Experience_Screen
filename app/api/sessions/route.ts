@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { setCurrentBroadcastSession } from "@/lib/current-broadcast-session";
+import { stopDemo } from "@/lib/demo-control";
 
 /**
  * POST /api/sessions — called once, right when the operator presses the
@@ -11,6 +13,10 @@ export async function POST() {
   const session = await prisma.broadcastSession.create({
     data: { status: "recording" },
   });
+  // A newly shot take becomes the current pipeline immediately. Demo must
+  // never keep an older session on screen once recording starts.
+  await stopDemo("new-recording", false).catch(() => {});
+  await setCurrentBroadcastSession(session.id);
   return NextResponse.json({ session });
 }
 

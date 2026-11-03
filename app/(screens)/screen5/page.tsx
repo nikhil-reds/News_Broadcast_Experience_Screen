@@ -59,6 +59,7 @@ export default function Screen5Page() {
   const skipClick = useRef(false);
   const dragStart = useRef<number | null>(null);
   const wheelTime = useRef(0);
+  const selectionDirtyRef = useRef(false);
   const [voiceId, setVoiceId] = useState<VoiceId>(DEFAULT_VOICE_ID);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +83,11 @@ export default function Screen5Page() {
         body: JSON.stringify({ sessionId, audioLanguage: langCode, voiceId: selectedVoice }),
       });
       if (!response.ok) throw new Error("Unable to save voice selection");
+      const result = await response.json().catch(() => null) as { state?: { version?: number } } | null;
+      if (typeof result?.state?.version === "number") {
+        versionRef.current = Math.max(versionRef.current, result.state.version);
+      }
+      selectionDirtyRef.current = false;
       setSaved({ langCode, voiceId: selectedVoice });
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to save voice selection"); }
   }, [sessionId]);
@@ -92,6 +98,9 @@ export default function Screen5Page() {
     let timer: number | undefined;
     const apply = (state: { audioLanguage?: string; voiceId?: unknown; version?: number } | null) => {
       if (disposed || !state || typeof state.version !== "number" || state.version < versionRef.current) return;
+      // A reconnect may return the last saved language while the operator is
+      // still tuning a new local choice. Keep that local choice until Apply.
+      if (selectionDirtyRef.current) return;
       const index = FALLBACK_LANGUAGES.findIndex(l => l.langCode === state.audioLanguage);
       if (index < 0) return;
       versionRef.current = state.version;
@@ -111,7 +120,7 @@ export default function Screen5Page() {
         if (saved) apply(saved);
         else {
           const index = FALLBACK_LANGUAGES.findIndex(l => l.language === session.selectedAudioLanguage);
-          if (index >= 0) {
+          if (index >= 0 && !selectionDirtyRef.current) {
             setSaved({ langCode: FALLBACK_LANGUAGES[index].langCode, voiceId: DEFAULT_VOICE_ID });
             setHighlightedIndex(index); setActiveIndex(index);
           }
@@ -132,15 +141,17 @@ export default function Screen5Page() {
   }, []);
 
   useEffect(() => {
+    if (!sessionId) return;
     let disposed = false;
-    void selectionFetch("/api/save-audio").then(r => r.json()).then(data => {
+    void selectionFetch(`/api/save-audio?sessionId=${encodeURIComponent(sessionId)}`).then(r => r.json()).then(data => {
       const files: AudioFileItem[] = (data.audioFiles || []).filter((a: AudioFileItem) => a.filename !== "master-audio-16k.wav");
       if (!disposed && files.length) setSelectedUrl(files[0].url);
     }).catch(() => setError("Unable to load source recording"));
     return () => { disposed = true; };
-  }, []);
+  }, [sessionId]);
 
   const moveTo = useCallback((index: number) => {
+    selectionDirtyRef.current = true;
     changedRef.current = true;
     const next = wrapIndex(index, FALLBACK_LANGUAGES.length);
     setHighlightedIndex(next);
@@ -164,10 +175,19 @@ export default function Screen5Page() {
     return () => window.clearTimeout(timer);
   }, [highlightedIndex]);
   useEffect(() => {
-    const commit = () => { void persist(FALLBACK_LANGUAGES[activeIndex].langCode, voiceId); };
+    const commit = () => {
+      const audio = audioRef.current;
+      previewRef.current?.pause();
+      setPreviewPlaying(false);
+      if (audio) {
+        audio.pause();
+        audio.muted = true;
+      }
+      void persist(FALLBACK_LANGUAGES[activeIndex].langCode, voiceId);
+    };
     window.addEventListener("apply-screen-audio", commit);
     return () => window.removeEventListener("apply-screen-audio", commit);
-  }, [activeIndex, voiceId, persist]);
+  }, [activeIndex, activeUrl, voiceId, persist]);
 
   const languageCode = active?.langCode ?? "en";
   const languageName = active?.language ?? "English";
@@ -175,8 +195,10 @@ export default function Screen5Page() {
     if (!selectedUrl) return;
     let cancelled = false;
     let timer: number | undefined;
-    setError(null);
-    setStatus(languageCode === "en" ? "Original recording" : "Preparing voice…");
+    const initialStatus = window.setTimeout(() => {
+      setError(null);
+      setStatus(languageCode === "en" ? "Original recording" : "Preparing voice…");
+    }, 0);
     const get = async () => {
       const response = await selectionFetch(`/api/audio-language?sourceAudio=${encodeURIComponent(selectedUrl)}&voiceId=${voiceId}`);
       const data = await response.json();
@@ -209,18 +231,25 @@ export default function Screen5Page() {
         if (!cancelled) { setLanguages(data.languages); await poll(); }
       } catch (e) { if (!cancelled) { setError(e instanceof Error ? e.message : "Unable to prepare voice"); setStatus("Failed"); } }
     })();
-    return () => { cancelled = true; window.clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(initialStatus);
+      window.clearTimeout(timer);
+    };
   }, [selectedUrl, languageCode, languageName, voiceId, retry]);
 
   useEffect(() => {
-    previewRef.current?.pause(); setPreviewPlaying(false);
+    previewRef.current?.pause();
+    const resetPreview = window.setTimeout(() => setPreviewPlaying(false), 0);
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio) return () => window.clearTimeout(resetPreview);
     audio.pause();
     if (activeUrl) { audio.load(); void audio.play().catch(() => {}); }
+    return () => window.clearTimeout(resetPreview);
   }, [activeUrl]);
 
   function chooseVoice(id: VoiceId) {
+    selectionDirtyRef.current = true;
     previewRef.current?.pause(); audioRef.current?.pause(); setPreviewPlaying(false);
     setVoiceId(id); setError(null);
 

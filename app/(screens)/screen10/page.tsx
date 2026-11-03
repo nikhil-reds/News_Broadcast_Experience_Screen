@@ -26,17 +26,21 @@ const copy: Record<string, [string, string]> = {
 };
 
 export default function Screen10Page() {
-  const [industryId, setIndustryId] = useState(AD_INDUSTRIES[0].id);
+  const [committedIndustryId, setCommittedIndustryId] = useState(AD_INDUSTRIES[0].id);
+  const [previewIndustryId, setPreviewIndustryId] = useState<string | null>(null);
   const [airId, setAirId] = useState("");
   const [previewId, setPreviewId] = useState("");
+  const industryId = previewIndustryId ?? committedIndustryId;
   const industry = getIndustryById(industryId);
   const brands = industry.brands;
   const onAirIndustry = getIndustryById(industryId);
   const air = onAirIndustry.brands.find(brand => brand.id === airId) ?? onAirIndustry.brands[0];
   const preview = brands.find(brand => brand.id === previewId) ?? brands.find(brand => brand.id === air.id) ?? brands[0];
   useWorkflowDirty(preview.id !== (airId || air.id));
-  const updateIndustry = useCallback((id: string) => setIndustryId(id), []);
-  useRealtimeSelection("industry", updateIndustry);
+  const updateCommittedIndustry = useCallback((id: string) => setCommittedIndustryId(id), []);
+  const updatePreviewIndustry = useCallback((id: string) => setPreviewIndustryId(id), []);
+  useRealtimeSelection("industry", updateCommittedIndustry);
+  useRealtimeSelection("industry-preview", updatePreviewIndustry);
   const saveBrand = useRealtimeSelection("brand", setAirId);
 
   useEffect(() => {

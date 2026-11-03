@@ -8,6 +8,7 @@ import { composedFilename, DEFAULT_BACKGROUND_ID } from "@/lib/green-screen";
 import { objectExists, VIDEO_BUCKET } from "@/lib/minio";
 import { activeScreens, workflowRun, type ScreenWorkflow } from "@/lib/screen-workflow";
 import { currentBroadcastSession, setCurrentBroadcastSession } from "@/lib/current-broadcast-session";
+import { getDemoState } from "@/lib/demo-control";
 
 const key = (id: string) => `broadcast:session:${id}:screen-workflow`;
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "no-store" } });
@@ -34,6 +35,9 @@ export async function GET(request: NextRequest) {
   const screen = Number(request.nextUrl.searchParams.get("screen"));
   if (!Number.isInteger(screen) || screen < 1 || screen > 12) return json({ error: "Invalid screen" }, 400);
   try {
+    // Reading the state also enforces the 15-minute deadline and restores the
+    // workflow that was active before Demo started.
+    await getDemoState();
     const session = await currentBroadcastSession();
     if (request.nextUrl.searchParams.get("output") === "1") {
       const state = session && await stateFor(session.id);

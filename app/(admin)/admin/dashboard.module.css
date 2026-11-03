@@ -73,6 +73,7 @@
 .sectionTitle { margin: 2px 0 9px; color: rgba(255,255,255,.42); font-size: 12px; font-weight: 400; letter-spacing: .03em; }
 
 .mediaGrid { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 11px; }
+.mediaGrid > :only-child { grid-column: 1 / -1; }
 .mediaCard { display: block; min-width: 0; overflow: hidden; border-radius: 17px; padding: 14px; transition: border-color .16s ease, transform .16s ease; }
 .mediaCard:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.22); }
 .mediaCardHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
