@@ -27,7 +27,13 @@ export default async function AdminVideoJobDetailPage({
         description={<>Export job for {job.language} / {job.aspect}.</>}
       />
 
-      <AdminSection title="Job Details">
+      {job.outputUrl ? (
+        <Link href={job.outputUrl} className="inline-flex rounded-md bg-admin-primary px-4 py-2 text-sm font-bold text-admin-on-primary">
+          Open output
+        </Link>
+      ) : null}
+      {job.errorMessage && <section className="admin-notice" aria-label="Export error">{job.errorMessage}</section>}
+      <AdminSection title="Job details">
         <DetailGrid>
           <DetailItem label="Status" value={<StatusBadge value={job.status} />} />
           <DetailItem label="Generation" value={job.generation ? `#${job.generation.seq}` : shortId(job.generationId)} />
@@ -36,16 +42,11 @@ export default async function AdminVideoJobDetailPage({
           <DetailItem label="Background" value={job.backgroundId} />
           <DetailItem label="Size" value={formatBytes(job.size)} />
           <DetailItem label="Output Filename" value={job.outputFilename ?? "None"} />
-          <DetailItem label="Error" value={job.errorMessage ?? "None"} />
           <DetailItem label="Updated" value={formatDate(job.updatedAt)} />
         </DetailGrid>
       </AdminSection>
 
-      {job.outputUrl ? (
-        <Link href={job.outputUrl} className="inline-flex rounded-md bg-admin-primary px-4 py-2 text-sm font-bold text-admin-on-primary">
-          Open output
-        </Link>
-      ) : null}
+
     </div>
   );
 }

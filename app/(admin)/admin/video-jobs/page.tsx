@@ -5,8 +5,12 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { formatBytes, formatDate, shortId } from "@/lib/admin-format";
 import { prisma } from "@/lib/prisma";
 
-export default async function AdminVideoJobsPage() {
+export default async function AdminVideoJobsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+  const { status } = await searchParams;
+  const filters = ["queued", "processing", "completed", "failed"];
+  const selected = status && filters.includes(status) ? status : undefined;
   const jobs = await prisma.videoJob.findMany({
+    where: selected ? { status: selected } : undefined,
     orderBy: { updatedAt: "desc" },
     take: 50,
   });
@@ -14,6 +18,11 @@ export default async function AdminVideoJobsPage() {
   return (
     <div className="space-y-4">
       <AdminPageHeader title="Video Jobs" description="Final export renders for language, aspect, and background variants." />
+      <nav className="admin-filters" aria-label="Filter by status">
+        {[undefined, ...filters].map((value) => (
+          <Link key={value ?? "all"} aria-current={selected === value ? "page" : undefined} href={value ? `/admin/video-jobs?status=${value}` : "/admin/video-jobs"}>{value ?? "All"}</Link>
+        ))}
+      </nav>
       <AdminTable headers={["Reel", "Generation", "Language", "Aspect", "Background", "Status", "Size", "Output", "Updated"]} empty={jobs.length === 0}>
         {jobs.map((job) => (
           <tr key={job.id}>

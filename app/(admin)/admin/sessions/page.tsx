@@ -5,8 +5,12 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { formatDate } from "@/lib/admin-format";
 import { prisma } from "@/lib/prisma";
 
-export default async function AdminSessionsPage() {
+export default async function AdminSessionsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+  const { status } = await searchParams;
+  const filters = ["ready","processing","failed"];
+  const selected = status && filters.includes(status) ? status : undefined;
   const sessions = await prisma.broadcastSession.findMany({
+    where: selected ? { pipelineStatus: selected } : undefined,
     orderBy: { createdAt: "desc" },
     take: 50,
   });
@@ -14,6 +18,11 @@ export default async function AdminSessionsPage() {
   return (
     <div className="space-y-4">
       <AdminPageHeader title="Sessions" description="Recording generations and selected output settings." />
+      <nav className="admin-filters" aria-label="Filter by status">
+        {[undefined, ...filters].map((value) => (
+          <Link key={value ?? "all"} aria-current={selected === value ? "page" : undefined} href={value ? `/admin/sessions?status=${value}` : "/admin/sessions"}>{value ?? "All"}</Link>
+        ))}
+      </nav>
       <AdminTable
         headers={["Seq", "Status", "Pipeline", "Background", "Subtitle", "Audio", "Brightness", "Started", "Ended"]}
         empty={sessions.length === 0}

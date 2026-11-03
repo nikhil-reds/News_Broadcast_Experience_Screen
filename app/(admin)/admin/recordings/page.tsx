@@ -14,7 +14,7 @@ export default async function AdminRecordingsPage() {
   return (
     <div className="space-y-4">
       <AdminPageHeader title="Recordings" description="Camera and studio video files stored for each generation." />
-      <AdminTable headers={["Filename", "Session", "Type", "Size", "Created", "Asset"]} empty={recordings.length === 0}>
+      <AdminTable defaultGroup={1} headers={["Filename", "Session", "Type", "Size", "Created", "Asset"]} empty={recordings.length === 0}>
         {recordings.map((recording) => (
           <tr key={recording.id}>
             <Td>{recording.filename}</Td>
@@ -23,8 +23,8 @@ export default async function AdminRecordingsPage() {
             <Td>{formatBytes(recording.size)}</Td>
             <Td>{formatDate(recording.createdAt)}</Td>
             <Td>
-              <Link href={recording.url} className="font-semibold text-admin-accent">
-                View
+              <Link aria-label={`Play ${recording.filename}`} href={recording.url} className="font-semibold text-admin-accent">
+                Play recording
               </Link>
             </Td>
           </tr>

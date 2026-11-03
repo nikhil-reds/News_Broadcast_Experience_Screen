@@ -20,12 +20,12 @@ export default async function AdminScreensPage() {
         {screens.map((screen) => (
           <tr key={screen.id}>
             <Td>Screen {screen.screenId}</Td>
-            <Td>{shortId(screen.currentGenerationId)}</Td>
+            <Td><span title={screen.currentGenerationId ?? undefined}>{screen.currentGenerationId ?? "Unpublished"}</span></Td>
             <Td>{shortId(screen.pendingGenerationId)}</Td>
             <Td><StatusBadge value={screen.pendingStatus} /></Td>
             <Td>{screen.pendingFailureReason ?? "None"}</Td>
             <Td>
-              <Link href={`/screen${screen.screenId}`} className="font-semibold text-admin-accent">
+              <Link aria-label={`Open screen ${screen.screenId}`} href={`/screen${screen.screenId}`} className="font-semibold text-admin-accent">
                 Open
               </Link>
             </Td>

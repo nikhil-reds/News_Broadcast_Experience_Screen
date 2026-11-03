@@ -54,7 +54,7 @@ export default async function AdminSessionDetailPage({
         <AdminTable headers={["Filename", "Type", "Size", "Created"]} empty={session.videoRecordings.length === 0}>
           {session.videoRecordings.map((recording) => (
             <tr key={recording.id}>
-              <Td>{recording.filename}</Td>
+              <Td><Link className="text-admin-accent" href={recording.url}>{recording.filename}</Link></Td>
               <Td>{recording.contentType ?? "Unknown"}</Td>
               <Td>{formatBytes(recording.size)}</Td>
               <Td>{formatDate(recording.createdAt)}</Td>

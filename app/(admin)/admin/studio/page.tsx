@@ -1,5 +1,5 @@
-import StudioPage from "@/app/(main)/main/page";
+import { redirect } from "next/navigation";
 
-export default async function AdminStudioPage() {
-  return <StudioPage />;
+export default function AdminStudioRedirect() {
+  redirect("/broadcast");
 }

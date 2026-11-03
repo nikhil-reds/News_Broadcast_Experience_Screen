@@ -15,7 +15,7 @@ export default async function AdminTranscriptsPage() {
 
   return (
     <div className="space-y-4">
-      <AdminPageHeader title="Transcripts" description="Speech-to-text output and segment counts." />
+      <AdminPageHeader title="Transcripts" description="Find a transcript by source or generation. Open its details to read the full text." />
       <AdminTable headers={["Language", "Source", "Generation", "Duration", "Segments", "Engine", "Preview", "Created"]} empty={transcripts.length === 0}>
         {transcripts.map((transcript) => (
           <tr key={transcript.id}>
