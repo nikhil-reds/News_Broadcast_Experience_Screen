@@ -1,32 +1,26 @@
 [
   {
-    "id": "newsroom-blue",
-    "label": "Newsroom Blue",
-    "image": "/backgrounds/newsroom-blue.jpg",
-    "thumb": "/backgrounds/thumbs/newsroom-blue.jpg"
+    "id": "bg-newsroom-1920x1080",
+    "label": "Newsroom",
+    "image": "/backgrounds/bg-newsroom-1920x1080.png",
+    "thumb": "/backgrounds/bg-newsroom-1920x1080.png"
   },
   {
-    "id": "city-skyline",
-    "label": "City Skyline",
-    "image": "/backgrounds/city-skyline.jpg",
-    "thumb": "/backgrounds/thumbs/city-skyline.jpg"
+    "id": "bg-markets-1920x1080",
+    "label": "Markets",
+    "image": "/backgrounds/bg-markets-1920x1080.png",
+    "thumb": "/backgrounds/bg-markets-1920x1080.png"
   },
   {
-    "id": "world-map",
-    "label": "World Map",
-    "image": "/backgrounds/world-map.jpg",
-    "thumb": "/backgrounds/thumbs/world-map.jpg"
+    "id": "bg-sports-1920x1080",
+    "label": "Sports",
+    "image": "/backgrounds/bg-sports-1920x1080.png",
+    "thumb": "/backgrounds/bg-sports-1920x1080.png"
   },
   {
-    "id": "sunrise-studio",
-    "label": "Sunrise Studio",
-    "image": "/backgrounds/sunrise-studio.jpg",
-    "thumb": "/backgrounds/thumbs/sunrise-studio.jpg"
-  },
-  {
-    "id": "corporate-grey",
-    "label": "Corporate Grey",
-    "image": "/backgrounds/corporate-grey.jpg",
-    "thumb": "/backgrounds/thumbs/corporate-grey.jpg"
+    "id": "bg-weather-1920x1080",
+    "label": "Weather",
+    "image": "/backgrounds/bg-weather-1920x1080.png",
+    "thumb": "/backgrounds/bg-weather-1920x1080.png"
   }
 ]
