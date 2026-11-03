@@ -1,3 +1,6 @@
+import type { ExportAudioLanguage } from "./export-settings";
+import { DEFAULT_VOICE_ID, CHATTERBOX_REVISION, isVoiceId, voiceTaskType, type VoiceId } from "./voice-profiles";
+import { voiceCacheKey } from "./voice-cache";
 import { Queue } from "bullmq";
 import { redisConnection } from "@/lib/redis";
 import { markTaskFailed, upsertTaskPending } from "@/lib/generation";
@@ -62,6 +65,8 @@ export interface HighlightPairJob {
   cam2Filename: string;
   cam3Filename: string;
   generationId?: string | null;
+  /** Distinct derived-reel revision; keeps the prior published reel intact until this run succeeds. */
+  revision?: string;
 }
 
 const globalForHighlightAnalysisQueue = globalThis as unknown as {
@@ -96,9 +101,10 @@ export async function enqueueHighlightAnalysis(
   cam1Filename: string,
   cam2Filename: string,
   cam3Filename: string,
-  generationId?: string | null
+  generationId?: string | null,
+  revision?: string
 ) {
-  const jobId = `highlight-analysis-${cam1Filename}`;
+  const jobId = `highlight-analysis-${cam1Filename}${revision ? `-${revision}` : ""}`;
   const existing = await highlightAnalysisQueue.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
@@ -111,10 +117,11 @@ export async function enqueueHighlightAnalysis(
     cam2Filename,
     cam3Filename,
     generationId,
+    revision,
   });
   return highlightAnalysisQueue.add(
     "analyze",
-    { cam1Filename, cam2Filename, cam3Filename, generationId },
+    { cam1Filename, cam2Filename, cam3Filename, generationId, revision },
     { jobId }
   );
 }
@@ -126,6 +133,8 @@ export interface HighlightRenderJob extends HighlightPairJob {
   title: string;
   segments: { camera: 1 | 2 | 3; start: number; end: number; reason: string }[];
   audio: Record<number, boolean>;
+  selectionMode?: "ai" | "fallback";
+  fallbackReason?: string;
 }
 
 const globalForHighlightQueue = globalThis as unknown as {
@@ -159,10 +168,11 @@ export async function enqueueHighlightReel(
   cam1Filename: string,
   cam2Filename: string,
   cam3Filename: string,
-  analysis: { title: string; segments: HighlightRenderJob["segments"]; audio: Record<number, boolean> },
-  generationId?: string | null
+  analysis: { title: string; segments: HighlightRenderJob["segments"]; audio: Record<number, boolean>; selectionMode?: "ai" | "fallback"; fallbackReason?: string },
+  generationId?: string | null,
+  revision?: string
 ) {
-  const jobId = `highlight-${cam1Filename}`;
+  const jobId = `highlight-${cam1Filename}${revision ? `-${revision}` : ""}`;
   const existing = await highlightQueue.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
@@ -176,10 +186,11 @@ export async function enqueueHighlightReel(
     cam3Filename,
     ...analysis,
     generationId,
+    revision,
   });
   return highlightQueue.add(
     "build-reel",
-    { cam1Filename, cam2Filename, cam3Filename, ...analysis, generationId },
+    { cam1Filename, cam2Filename, cam3Filename, ...analysis, generationId, revision },
     { jobId }
   );
 }
@@ -281,6 +292,8 @@ export async function enqueueTranslations(
 
 /** Job payload: synthesize speech for one language's already-persisted translation. */
 export interface AudioConversionJob {
+  voiceId?: VoiceId;
+  modelRevision?: string;
   translationId: string;
   filename: string;
   langCode: string;
@@ -339,34 +352,41 @@ export async function enqueueAudioConversion(
   text: string,
   generationId?: string | null,
   voice?: {
+    voiceId?: VoiceId;
+    modelRevision?: string;
     sourceAudioFilename?: string;
     speakerGender?: "male" | "female" | "unknown";
     referenceAudioBucket?: string;
     referenceAudioObjectKey?: string;
-  }
+  },
+  retry = false
 ) {
   const entry = AUDIO_LANGUAGES.find((l) => l.langCode === langCode);
   if (!entry) throw new Error(`No audio-conversion queue for langCode "${langCode}"`);
   const q = audioConversionQueues.get(entry.queue)!;
-  const jobId = `audio-${AUDIO_CONVERSION_JOB_VERSION}-${langCode}-${filename}`;
+  const voiceId = voice?.voiceId ?? DEFAULT_VOICE_ID;
+  if (!isVoiceId(voiceId)) throw new Error("Invalid voice profile");
+  const modelRevision = CHATTERBOX_REVISION;
+  const jobId = `audio-${translationId}-${langCode}-${voiceCacheKey(text, voiceId)}`;
   const existing = await q.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
-    if (state === "completed" || state === "failed") {
-      await existing.remove().catch(() => {});
-    }
+    if (state !== "completed" && !(state === "failed" && retry)) return existing;
+    await existing.remove();
   }
-  await upsertTaskPending(generationId, `tts-${langCode}`, jobId, {
+  await upsertTaskPending(generationId, voiceTaskType(langCode, voiceId), jobId, {
     langCode,
     translationId,
     filename,
     text,
     ...voice,
+    voiceId,
+    modelRevision,
     generationId,
   });
   return q.add(
     "synthesize",
-    { translationId, filename, langCode, text, generationId, ...voice },
+    { translationId, filename, langCode, text, generationId, ...voice, voiceId, modelRevision },
     { jobId }
   );
 }
@@ -516,6 +536,9 @@ export async function enqueueAllBackgroundsForSource(sourceFilename: string, gen
 export const VIDEO_EXPORT_QUEUE = "video-export";
 
 export interface VideoExportJob {
+  exportKey: string;
+  audioLanguage: ExportAudioLanguage;
+  voiceId: VoiceId | "original";
   videoJobId: string;
   reelFilename: string;
   sourceAudio: string;
@@ -551,16 +574,15 @@ if (process.env.NODE_ENV !== "production") {
 export async function enqueueVideoExport(job: VideoExportJob) {
   // generationId baked in (not just reelFilename) so a superseded generation's
   // export job can never collide with/short-circuit a new generation's job id.
-  const jobId = `export-${job.aspect}-${job.language}-${job.backgroundId}-${job.generationId ?? "legacy"}-${job.reelFilename}`;
+  const jobId = `export-${job.exportKey}`;
   const existing = await videoExportQueue.getJob(jobId);
   if (existing) {
     const state = await existing.getState();
-    if (state === "completed" || state === "failed") {
-      await existing.remove().catch(() => {});
-    }
+    if (state !== "completed" && state !== "failed") return existing;
+    await existing.remove();
   }
   if (job.generationId && job.screenId) {
-    await upsertTaskPending(job.generationId, `video-export-${job.screenId}`, jobId, { ...job });
+    await upsertTaskPending(job.generationId, `video-export-${job.screenId}-${job.exportKey.slice(0, 12)}`, jobId, { ...job });
   }
   return videoExportQueue.add("compose", job, { jobId });
 }
@@ -594,10 +616,15 @@ export function getQueueForTaskType(
     return entry ? translationQueues.get(entry.queue) : undefined;
   }
   if (taskType.startsWith("tts-")) {
-    const langCode = taskType.slice("tts-".length);
+    const langCode = taskType.slice("tts-".length).split("-")[0];
     const entry = AUDIO_LANGUAGES.find((l) => l.langCode === langCode);
     return entry ? audioConversionQueues.get(entry.queue) : undefined;
   }
 
   return undefined;
+}
+
+export function flowQueues() {
+  return [transcriptionQueue, highlightAnalysisQueue, highlightQueue, greenScreenQueue,
+    videoExportQueue, ...translationQueues.values(), ...audioConversionQueues.values()];
 }
