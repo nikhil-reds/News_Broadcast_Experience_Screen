@@ -36,11 +36,11 @@ body {
 }
 
 .landing-page {
-  min-height: 100vh;
+  min-height: 100svh;
   display: grid;
   place-items: center;
   overflow: hidden;
-  padding: 48px;
+  padding: clamp(24px, 5vw, 80px);
   color: #f8f7ff;
   background: transparent;
   position: relative;
@@ -72,9 +72,9 @@ body {
   pointer-events: none;
 }
 
-.landing-copy { position: relative; width: min(900px, 100%); }
+.landing-copy { position: relative; width: min(1080px, 100%); min-width: 0; }
 .landing-kicker { margin: 0 0 28px; color: #a39aff; font-size: 12px; font-weight: 700; letter-spacing: 3px; }
-.landing-copy h1 { max-width: 760px; margin: 0; font-size: clamp(76px, 13vw, 180px); line-height: .86; letter-spacing: -.09em; font-weight: 700; }
+.landing-copy h1 { max-width: 900px; margin: 0; font-size: clamp(72px, 13vw, 180px); line-height: .86; letter-spacing: -.09em; font-weight: 700; text-wrap: balance; }
 .landing-description { max-width: 470px; margin: 38px 0 0; color: #c6c7dc; font-size: clamp(18px, 2vw, 24px); line-height: 1.45; letter-spacing: -.02em; }
 
 .admin-theme-light .studio-preview { background: #fff; color: #0f172a; }
@@ -104,8 +104,6 @@ body {
 .admin-theme-light .screen-navigation-matrix .text-slate-500 { color: #94a3b8 !important; }
 .admin-theme-light .screen-navigation-matrix .bg-radial { opacity: .08; }
 .admin-theme-light .screen-navigation-matrix .group:hover .text-white { color: #312e81 !important; }
-.admin-theme:has(.control-room-preview) main:has(.control-room-preview) { max-width: none; padding: 0; }
-.admin-theme:has(.control-room-preview) .control-room-preview > main { padding: clamp(1rem, 2.5vw, 2.5rem); }
 @media (prefers-color-scheme: dark) {
   .admin-theme-system .control-room-preview { color: #f8fafc; }
 }
@@ -120,10 +118,18 @@ body {
 }
 
 @media (max-width: 640px) {
-  .landing-page { padding: 28px; place-items: end start; padding-bottom: 80px; }
-  .landing-kicker { font-size: 10px; letter-spacing: 2px; }
-  .landing-copy h1 { font-size: clamp(72px, 22vw, 120px); }
-  .landing-description { margin-top: 28px; font-size: 18px; }
+  .landing-page {
+    place-items: end start;
+    padding: 28px max(24px, 7vw) max(64px, calc(48px + env(safe-area-inset-bottom)));
+  }
+  .landing-kicker { margin-bottom: 24px; font-size: 10px; letter-spacing: 2px; }
+  .landing-copy h1 { max-width: 100%; font-size: clamp(58px, 18vw, 96px); line-height: .88; letter-spacing: -.085em; }
+  .landing-description { max-width: 34rem; margin-top: 26px; font-size: clamp(17px, 4.8vw, 19px); }
+}
+
+@media (min-width: 641px) and (max-width: 1100px) {
+  .landing-page { padding: clamp(36px, 6vw, 64px); }
+  .landing-copy h1 { font-size: clamp(88px, 14vw, 140px); }
 }
 
 /* SignalDesk newsroom dashboard */
