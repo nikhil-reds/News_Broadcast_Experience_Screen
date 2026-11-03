@@ -76,6 +76,10 @@ model VideoRecording {
 /// timestamps. Also carries the operator's Screen 07/08 selections so Screens
 /// 11/12 know which background and subtitle language to bake into the export.
 model BroadcastSession {
+  retentionManaged Boolean @default(true)
+  recordingSavedAt DateTime?
+  retiredAt DateTime?
+  assets FlowAsset[]
   id                       String    @id @default(uuid())
   /// Human-friendly "Generation #N" number for logs/UI — this row IS the
   /// generation record for one full camera1+camera2+camera3+audio recording
@@ -222,7 +226,7 @@ model TranscriptTranslation {
   updatedAt    DateTime   @updatedAt
 
   segments TranscriptTranslationSegment[]
-  audio    TranslationAudio?
+  audio    TranslationAudio[]
 
   @@unique([transcriptId, language])
   @@index([generationId])
@@ -233,7 +237,7 @@ model TranscriptTranslation {
 model TranslationAudio {
   id            String                @id @default(uuid())
   translation   TranscriptTranslation @relation(fields: [translationId], references: [id], onDelete: Cascade)
-  translationId String                @unique
+  translationId String
   generationId  String?
   generation    BroadcastSession?     @relation(fields: [generationId], references: [id])
   language      String
@@ -243,12 +247,18 @@ model TranslationAudio {
   url           String
   size          Int
   engine        String                @default("CosyVoice2-0.5B")
+  variantKey    String                @default("legacy")
+  voiceId       String                @default("legacy-cloned")
+  modelRevision String                @default("legacy")
+  referenceHash String                @default("")
   voiceMode     String                @default("default-preset") // "cloned" | "gender-preset" | "default-preset"
   speakerGender String                @default("unknown")
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
 
   @@index([generationId])
+  @@unique([translationId, variantKey])
+  @@index([translationId, voiceId])
   @@map("translation_audio")
 }
 
@@ -313,6 +323,12 @@ model VideoJob {
   id            String   @id @default(uuid())
   reelFilename  String
   sourceAudio   String
+  exportKey     String   @unique @default(uuid())
+  audioLanguage String   @default("en")
+  voiceId       String   @default("original")
+  modelRevision String   @default("legacy")
+  dubAudioKey   String?
+  dubManifestKey String?
   /// Which recording cycle this export renders from — lets the video-export
   /// worker detect a superseded generation before publishing, and lets
   /// cleanup find every export tied to an old generation.
@@ -334,7 +350,7 @@ model VideoJob {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  @@unique([reelFilename, language, aspect, backgroundId])
+  @@index([reelFilename, language, aspect, backgroundId])
   @@index([generationId])
   @@map("video_jobs")
 }
@@ -354,4 +370,16 @@ model AdCampaign {
   updatedAt   DateTime @updatedAt
 
   @@map("ad_campaigns")
+}
+
+/// Durable ownership journal, including partial/failed generated uploads.
+model FlowAsset {
+  id String @id @default(uuid())
+  generationId String
+  generation BroadcastSession @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  bucket String
+  objectKey String
+  @@unique([bucket, objectKey])
+  @@index([generationId])
+  @@map("flow_assets")
 }
