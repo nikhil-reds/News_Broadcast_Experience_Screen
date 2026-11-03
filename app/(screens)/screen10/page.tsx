@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AD_INDUSTRIES, getIndustryById } from "@/lib/ad-catalog";
+import { abroSans } from "@/lib/abro-sans";
+import { poppins } from "@/lib/poppins";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 import { useWorkflowDirty } from "@/lib/workflow-ready";
 import shared from "../screen9/industry.module.css";
@@ -61,11 +63,11 @@ export default function Screen10Page() {
     };
   }, [brands, preview.id, saveBrand]);
 
-  return <main className={shared.stage}>
+  return <main className={`${poppins.className} ${shared.stage}`}>
     <div className={shared.badge}><i aria-hidden="true" />Ad break<span>{air.name} on air</span></div>
     <Link href="/screen9" className={styles.industry} aria-label={"Industry selection: " + industry.name}>‹　{industry.name}</Link>
     <header className={shared.header}>
-      <h1>Choose a brand</h1>
+      <h1 className={abroSans.className}>Choose a brand</h1>
       <p aria-live="polite">{copy[preview.id]?.[1] ?? preview.name}</p>
     </header>
     <section className={styles.cards} aria-label={industry.name + " brands"}>

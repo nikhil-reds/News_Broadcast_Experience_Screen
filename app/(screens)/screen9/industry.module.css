@@ -1,6 +1,4 @@
-@font-face {font-family:IndustryAbro;src:url("/fonts/AbroSans/OpenType-TT/AbroSans-Regular.ttf") format("truetype");font-weight:400;font-display:swap}
-@font-face {font-family:IndustryAbro;src:url("/fonts/AbroSans/OpenType-TT/AbroSans-Thin.ttf") format("truetype");font-weight:100;font-display:swap}
-.stage {position:relative;min-height:100svh;box-sizing:border-box;padding:clamp(84px,13vh,145px) 24px 110px;color:white;font-family:IndustryAbro,sans-serif;background:radial-gradient(ellipse 40% 36% at 42% 58%,#191934 0%,transparent 100%),radial-gradient(ellipse 30% 34% at 66% 60%,#2b1425,transparent),#000}
+.stage {position:relative;min-height:100svh;box-sizing:border-box;padding:clamp(84px,13vh,145px) 24px 110px;color:white;background:radial-gradient(ellipse 40% 36% at 42% 58%,#191934 0%,transparent 100%),radial-gradient(ellipse 30% 34% at 66% 60%,#2b1425,transparent),#000}
 .badge {position:absolute;top:24px;left:20px;display:flex;align-items:center;gap:10px;padding:11px 16px;border:1px solid #ffffff1c;border-radius:999px;background:#17171999;font-size:18px}
 .badge span {border-left:1px solid #ffffff33;padding-left:12px;color:#ffffffbc;font-size:14px}
 .badge i,.marker i {width:8px;height:8px;border-radius:50%;background:#f65f50;box-shadow:0 0 0 3px #f65f5033}

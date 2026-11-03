@@ -4,6 +4,7 @@ import styles from "./workflow-button.module.css";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { workflowRun, type WorkflowView } from "@/lib/screen-workflow";
+import { poppins } from "@/lib/poppins";
 import { flushScreenSelections } from "@/lib/screen-selection-writes";
 import { WorkflowDirtyContext, WorkflowReadyContext } from "@/lib/workflow-ready";
 
@@ -220,6 +221,7 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
           {error || (applying && minimumElapsed && waiting.length ? `Waiting for Screen ${waiting.join(" and ")}…` : applying || confirmed ? "" : !connected ? "Connecting to screens…" : busy ? "Saving…" : active && !enabled ? "Preparing content…" : "")}
         </p>
         <button type="button" onClick={apply} disabled={!enabled || Boolean(showApplied)} aria-busy={busy || applying}
+          style={screen === 9 || screen === 10 ? { fontFamily: poppins.style.fontFamily } : undefined}
           className={`${styles.button} ${screen <= 10 ? styles.applyButton : ""} ${applying ? styles.applying : ""} ${showApplied ? styles.applied : ""}`}>
           <span aria-live="polite">{screen === 12 ? (applied ? "Published" : "Publish") : screen === 11 ? (applied ? "Broadcasted" : "Broadcast") : (showApplied ? "Applied" : applying ? "Applying…" : "Apply")}</span>
           <span className={styles.icon} aria-hidden="true">

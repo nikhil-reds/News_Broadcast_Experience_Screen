@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AD_INDUSTRIES } from "@/lib/ad-catalog";
+import { abroSans } from "@/lib/abro-sans";
+import { poppins } from "@/lib/poppins";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 import { useWorkflowDirty } from "@/lib/workflow-ready";
 import styles from "./industry.module.css";
@@ -53,10 +55,10 @@ export default function Screen9Page() {
     };
   }, [selected, onAir, saveIndustry, choose]);
 
-  return <main className={styles.stage}>
+  return <main className={`${poppins.className} ${styles.stage}`}>
     <div className={styles.badge}><i aria-hidden="true" />Ad break<span>{AD_INDUSTRIES[onAir].name} on air</span></div>
     <header className={styles.header}>
-      <h1>Choose an industry</h1>
+      <h1 className={abroSans.className}>Choose an industry</h1>
       <p aria-live="polite">{details[AD_INDUSTRIES[selected].id].description}</p>
     </header>
     <section className={styles.cards} aria-label="Advertisement industry">

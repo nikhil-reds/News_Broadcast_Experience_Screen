@@ -1,6 +1,6 @@
 .industry { position:absolute; top:24px; left:50%; transform:translateX(-50%); border-radius:999px; padding:8px 16px; background:#161619aa; border:1px solid #ffffff20; font-size:14px; color:#ddd; }
 .cards { display:flex; justify-content:center; gap:clamp(14px,1.8vw,28px); width:min(94%,1480px); margin:clamp(28px,6.4vh,70px) auto 0; }
 .cards .card { flex:1 1 0; max-width:clamp(210px,28vw,365px); align-items:center; text-align:center; justify-content:flex-end; min-height:clamp(205px,min(26vw,45vh),340px); }
-.monogram { display:grid; place-items:center; width:clamp(68px,10vw,128px); aspect-ratio:1; margin:auto; border-radius:28%; border:1px solid #ffffff24; background:#ffffff0c; font:600 clamp(32px,4.4vw,62px)/1 Arial,sans-serif; }
+.monogram { display:grid; place-items:center; width:clamp(68px,10vw,128px); aspect-ratio:1; margin:auto; border-radius:28%; border:1px solid #ffffff24; background:#ffffff0c; font-weight:600; font-size:clamp(32px,4.4vw,62px); line-height:1; }
 .card[aria-pressed=true] .monogram { background:#f2f2f2; border-color:#ddd; color:#080808; }
 @media(max-width:800px){.cards{flex-wrap:wrap}.cards .card{flex:0 1 44%;min-height:172px}.industry{position:static;display:table;margin:0 auto 18px;transform:none}.monogram{width:65px}}
