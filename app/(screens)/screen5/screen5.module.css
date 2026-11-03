@@ -1,6 +1,4 @@
-@font-face { font-family: "Screen5 Abro"; src: url("/fonts/AbroSans/OpenType-TT/AbroSans-Regular.ttf") format("truetype"); font-weight:400; font-display:swap; }
-@font-face { font-family: "Screen5 Abro"; src: url("/fonts/AbroSans/OpenType-TT/AbroSans-Thin.ttf") format("truetype"); font-weight:100; font-display:swap; }
-.stage { position:relative; height:100svh; min-height:540px; overflow:hidden; background:#000; color:#fff; font-family:"Screen5 Abro",sans-serif; isolation:isolate; }
+.stage { position:relative; height:100svh; min-height:540px; overflow:hidden; background:#000; color:#fff; isolation:isolate; }
 .stage::before { content:""; position:absolute; inset:0; pointer-events:none; background:radial-gradient(60% 50% at 50% -10%,#ffffff12,transparent 70%); }
 .header { position:relative; z-index:2; display:flex; align-items:center; justify-content:space-between; padding:24px; gap:16px; }
 .badge { display:inline-flex; align-items:center; gap:10px; border-radius:999px; padding:0 16px; height:44px; background:#16161888; border:1px solid #ffffff15; font-size:18px; }

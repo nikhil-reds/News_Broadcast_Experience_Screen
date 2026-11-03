@@ -7,6 +7,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+import { abroSans } from "@/lib/abro-sans";
 import styles from "./transcription.module.css";
 
 interface TranscriptSegment {
@@ -531,7 +532,7 @@ export default function Screen4Page() {
       )}
 
       <header className={styles.header}>
-        <span className={styles.identity}><i />Audio to text</span>
+        <span className={`${abroSans.className} ${styles.identity}`}><i />Audio to text</span>
         <div className={styles.status}>
           <span><i />{clock}</span>
           <span>English · {segments.length ? "Transcribed" : "Preparing"}</span>
