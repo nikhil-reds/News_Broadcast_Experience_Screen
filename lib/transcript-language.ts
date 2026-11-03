@@ -1,3 +1,4 @@
+import { withFlowWork } from "@/lib/flow-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { TRANSCRIPTS_BUCKET, uploadObject } from "@/lib/minio";
 import { TRANSLATION_MODEL, translateSegmentTexts } from "@/lib/translation";
@@ -49,6 +50,9 @@ export async function persistTranslation(params: {
   translatedTexts: string[];
   generationId?: string | null;
 }) {
+  const source = await prisma.transcript.findUnique({ where: { id: params.transcriptId } });
+  return withFlowWork(source?.generationId, async () => {
+  params = { ...params, generationId: source!.generationId };
   const { transcriptId, language, langCode, filename, segments, translatedTexts, generationId } = params;
   // Background transcription passes the MinIO object key directly, while
   // API/on-demand callers pass `/api/asset/<bucket>/<objectKey>`. Speaker
@@ -121,6 +125,7 @@ export async function persistTranslation(params: {
   }
 
   return translation;
+  });
 }
 
 /**

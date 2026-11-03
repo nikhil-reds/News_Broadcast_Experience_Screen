@@ -1,3 +1,4 @@
+import { withFlowWork } from "@/lib/flow-lifecycle";
 import { prisma } from "@/lib/prisma";
 import {
   AUDIO_BUCKET,
@@ -157,6 +158,10 @@ export async function runWhisper(
  * persist Transcript + segments to Postgres.
  */
 export async function transcribeAndStore(filename: string): Promise<TranscribeResult> {
+  const audio = await prisma.audioFile.findUnique({ where: { filename } });
+  return withFlowWork(audio?.sessionId, () => transcribeAndStoreInFlow(filename));
+}
+async function transcribeAndStoreInFlow(filename: string): Promise<TranscribeResult> {
   // AudioFile.sessionId IS the generationId for this chain (set by
   // POST /api/save-audio when the recording was uploaded) — look it up
   // up front so the "processing" mark below is scoped to the right
