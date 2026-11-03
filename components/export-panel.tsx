@@ -1,225 +1,165 @@
 "use client";
-
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ExportAspect } from "@/lib/video-export";
+import { EXPORT_AUDIO_LABELS, isExportAudioLanguage, type ExportAudioLanguage } from "@/lib/export-settings";
+import { isVoiceId, voiceProfile, type VoiceId } from "@/lib/voice-profiles";
 
-interface RecordingItem {
-  filename: string;
-  url: string;
-  createdAt: string;
-}
-interface AudioFileItem {
-  filename: string;
-  url: string;
-  createdAt: string;
-}
+interface RecordingItem { filename: string; url: string; sessionId?: string | null; }
 interface VideoJob {
-  id: string;
-  status: "queued" | "processing" | "completed" | "failed";
-  outputUrl: string | null;
-  errorMessage: string | null;
+  id: string; status: "queued" | "processing" | "completed" | "failed";
+  outputUrl: string | null; errorMessage: string | null;
+  audioLanguage?: string; voiceId?: string;
 }
-
-const LANGUAGES = ["English", "German", "Hindi", "French", "Spanish"];
-const FLAGS: Record<string, string> = {
-  English: "🇬🇧",
-  German: "🇩🇪",
-  Hindi: "🇮🇳",
-  French: "🇫🇷",
-  Spanish: "🇪🇸",
-};
-const POLL_MS = 3000;
-const REELS_REFETCH_MS = 5000;
-
 export interface ExportPanelState {
-  status: "idle" | "queued" | "processing" | "completed" | "failed";
-  videoUrl: string | null;
-  /** The selected highlight reel's own URL — shown until an export finishes. */
-  reelUrl: string | null;
-  error: string | null;
-  reelFilename: string;
-  sourceAudio: string;
-  language: string;
-  setReelFilename: (v: string) => void;
-  setSourceAudio: (v: string) => void;
-  setLanguage: (v: string) => void;
-  reels: RecordingItem[];
-  audioFiles: AudioFileItem[];
-  generate: () => void;
-  isBusy: boolean;
+  status: "idle" | VideoJob["status"]; videoUrl: string | null; downloadUrl: string | null;
+  error: string | null; reelFilename: string; sourceAudio: string; language: string;
+  audioLanguage: ExportAudioLanguage; voiceId: VoiceId | "original"; selectionLoaded: boolean;
+  setReelFilename: (v: string) => void; setSourceAudio: (v: string) => void; setLanguage: (v: string) => void;
+  reels: RecordingItem[]; audioFiles: RecordingItem[]; generate: () => void; isBusy: boolean;
 }
-
-/** Shared data/polling logic behind Screen 11 (portrait) and Screen 12 (landscape). */
 export function useExportPanel(aspect: ExportAspect): ExportPanelState {
   const [reels, setReels] = useState<RecordingItem[]>([]);
-  const [audioFiles, setAudioFiles] = useState<AudioFileItem[]>([]);
+  const [audioFiles, setAudioFiles] = useState<RecordingItem[]>([]);
   const [reelFilename, setReelFilename] = useState("");
   const [sourceAudio, setSourceAudio] = useState("");
-  const [language, setLanguage] = useState("English");
+  const [language, updateLanguage] = useState("English");
+  const [audioLanguage, setAudioLanguage] = useState<ExportAudioLanguage>("en");
+  const [voiceId, setVoiceId] = useState<VoiceId | "original">("original");
+  const [selectionLoaded, setSelectionLoaded] = useState(false);
   const [job, setJob] = useState<VideoJob | null>(null);
+  const captionTouched = useRef(false);
+  const requestKey = JSON.stringify([reelFilename, sourceAudio, language, aspect, audioLanguage, voiceId]);
+  const currentKey = useRef(requestKey); currentKey.current = requestKey;
+  const jobKey = useRef("");
+  const visibleJob = jobKey.current === requestKey ? job : null;
 
-  // Refetches periodically so a reel/recording that lands after this screen
-  // is already open shows up without a reload — but only *defaults* the
-  // selection the first time each list is non-empty, via the `prev ||`
-  // guard below, so it never stomps a director's manual dropdown choice.
   useEffect(() => {
     let cancelled = false;
-    const fetchLists = async () => {
+    let inFlight = false;
+    const refresh = async () => {
+      if (inFlight) return; inFlight = true;
       try {
-        const [reelsRes, audioRes] = await Promise.all([
-          fetch("/api/save-recording?kind=highlight"),
-          fetch("/api/save-audio"),
+        const [reelsRes, audioRes, sessionRes] = await Promise.all([
+          fetch("/api/save-recording?kind=highlight"), fetch("/api/save-audio"), fetch("/api/sessions/current"),
         ]);
         if (cancelled) return;
         if (reelsRes.ok) {
-          const data = await reelsRes.json();
-          const list: RecordingItem[] = data.recordings || [];
-          setReels(list);
-          if (list.length > 0) setReelFilename((prev) => prev || list[0].filename);
+          const list = (await reelsRes.json()).recordings || [];
+          setReels(list); if (list.length) setReelFilename(v => v || list[0].filename);
         }
         if (audioRes.ok) {
-          const data = await audioRes.json();
-          const list: AudioFileItem[] = (data.audioFiles || []).filter(
-            (a: AudioFileItem) => a.filename !== "master-audio-16k.wav"
-          );
-          setAudioFiles(list);
-          if (list.length > 0) setSourceAudio((prev) => prev || list[0].url);
+          const list = ((await audioRes.json()).audioFiles || []).filter((a: RecordingItem) => a.filename !== "master-audio-16k.wav");
+          setAudioFiles(list); if (list.length) setSourceAudio(v => v || list[0].url);
         }
-      } catch {
-        /* leave selects empty — director can retry once recordings exist */
-      }
+        if (sessionRes.ok) {
+          const session = (await sessionRes.json()).session;
+          let selection = null;
+          if (session) {
+            const res = await fetch(`/api/audio-language/selection?sessionId=${encodeURIComponent(session.id)}`);
+            if (res.ok) selection = (await res.json()).state;
+          }
+          if (cancelled) return;
+          const savedCode = Object.entries(EXPORT_AUDIO_LABELS).find(([, label]) => label === session?.selectedAudioLanguage)?.[0];
+          const code: ExportAudioLanguage = isExportAudioLanguage(selection?.audioLanguage) ? selection.audioLanguage : isExportAudioLanguage(savedCode) ? savedCode : "en";
+          setAudioLanguage(code);
+          setVoiceId(code === "en" ? "original" : isVoiceId(selection?.voiceId) ? selection.voiceId : "indian-male-01");
+          if (!captionTouched.current) updateLanguage(EXPORT_AUDIO_LABELS[code]);
+          setSelectionLoaded(true);
+        }
+      } finally { inFlight = false; }
     };
-    fetchLists();
-    const interval = setInterval(fetchLists, REELS_REFETCH_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
+    void refresh().catch(() => {});
+    const timer = window.setInterval(() => void refresh().catch(() => {}), 3000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
 
-  // Poll while a job is in flight.
   useEffect(() => {
-    if (!job || job.status === "completed" || job.status === "failed") return;
-    const timer = setTimeout(async () => {
+    if (!visibleJob?.id || ["completed", "failed"].includes(visibleJob.status)) return;
+    let cancelled = false;
+    const id = visibleJob.id, key = requestKey;
+    const poll = async () => {
       try {
-        const res = await fetch(`/api/video-export/${job.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setJob(data.videoJob);
-        }
-      } catch {
-        /* try again on the next tick */
-      }
-    }, POLL_MS);
-    return () => clearTimeout(timer);
-  }, [job]);
+        const res = await fetch(`/api/video-export/${id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && currentKey.current === key) setJob(data.videoJob);
+      } catch {}
+    };
+    const timer = window.setInterval(() => void poll(), 2000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [visibleJob?.id, visibleJob?.status, requestKey]);
 
   const generate = useCallback(() => {
-    if (!reelFilename || !sourceAudio || !language) return;
-    (async () => {
-      setJob({ id: "", status: "queued", outputUrl: null, errorMessage: null });
+    if (!reelFilename || !sourceAudio || !selectionLoaded) return;
+    const key = requestKey;
+    jobKey.current = key;
+    setJob({ id: "", status: "queued", outputUrl: null, errorMessage: null });
+    void (async () => {
       try {
         const res = await fetch("/api/video-export", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reelFilename, sourceAudio, language, aspect }),
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reelFilename, sourceAudio, language, aspect, audioLanguage, voiceId }),
         });
         const data = await res.json();
-        if (res.ok && data.videoJob) {
-          setJob(data.videoJob);
-        } else {
-          setJob({ id: "", status: "failed", outputUrl: null, errorMessage: data.error || "Failed to start export" });
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Failed to start export";
-        setJob({ id: "", status: "failed", outputUrl: null, errorMessage: message });
+        if (!res.ok) throw new Error(data.error || "Unable to start export");
+        if (currentKey.current === key) setJob(data.videoJob);
+      } catch (error) {
+        if (currentKey.current === key) setJob({ id: "", status: "failed", outputUrl: null,
+          errorMessage: error instanceof Error ? error.message : "Unable to start export" });
       }
     })();
-  }, [reelFilename, sourceAudio, language, aspect]);
+  }, [reelFilename, sourceAudio, language, aspect, audioLanguage, voiceId, selectionLoaded, requestKey]);
 
-  const status = job?.status ?? "idle";
-  return {
-    status,
-    videoUrl: job?.outputUrl ?? null,
-    reelUrl: reels.find((r) => r.filename === reelFilename)?.url ?? null,
-    error: job?.errorMessage ?? null,
-    reelFilename,
-    sourceAudio,
-    language,
-    setReelFilename,
-    setSourceAudio,
-    setLanguage,
-    reels,
-    audioFiles,
-    generate,
-    isBusy: status === "queued" || status === "processing",
+  return { status: visibleJob?.status ?? "idle", videoUrl: visibleJob?.status === "completed" ? visibleJob.outputUrl : null,
+    downloadUrl: visibleJob?.status === "completed" ? `/api/video-export/${visibleJob.id}/download` : null,
+    error: visibleJob?.errorMessage ?? null, reelFilename, sourceAudio, language, audioLanguage, voiceId, selectionLoaded,
+    setReelFilename: value => {
+      setReelFilename(value);
+      const reel = reels.find(r => r.filename === value);
+      const audio = reel?.sessionId ? audioFiles.find(a => a.sessionId === reel.sessionId) : undefined;
+      if (audio) setSourceAudio(audio.url);
+    },
+    setSourceAudio, setLanguage: value => { captionTouched.current = true; updateLanguage(value); },
+    reels, audioFiles, generate, isBusy: visibleJob?.status === "queued" || visibleJob?.status === "processing",
   };
 }
-
-/** The controls row: reel/audio/language selects + Generate button + status line. */
 export function ExportControls({ panel }: { panel: ExportPanelState }) {
-  return (
-    <div className="w-full max-w-4xl space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <select
-          value={panel.reelFilename}
-          onChange={(e) => panel.setReelFilename(e.target.value)}
-          className="bg-slate-900 text-slate-200 text-xs px-3 py-2 rounded-lg border border-slate-800 focus:outline-none focus:border-amber-500 font-mono"
-        >
-          {panel.reels.length === 0 && <option value="">No highlight reels found</option>}
-          {panel.reels.map((r) => (
-            <option key={r.filename} value={r.filename}>
-              {r.filename}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={panel.sourceAudio}
-          onChange={(e) => panel.setSourceAudio(e.target.value)}
-          className="bg-slate-900 text-slate-200 text-xs px-3 py-2 rounded-lg border border-slate-800 focus:outline-none focus:border-amber-500 font-mono"
-        >
-          {panel.audioFiles.length === 0 && <option value="">No audio recordings found</option>}
-          {panel.audioFiles.map((a) => (
-            <option key={a.filename} value={a.url}>
-              {a.filename}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={panel.language}
-          onChange={(e) => panel.setLanguage(e.target.value)}
-          className="bg-slate-900 text-slate-200 text-xs px-3 py-2 rounded-lg border border-slate-800 focus:outline-none focus:border-amber-500 font-mono"
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l} value={l}>
-              {FLAGS[l]} {l}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <button
-          onClick={panel.generate}
-          disabled={panel.isBusy || !panel.reelFilename || !panel.sourceAudio}
-          className={`px-5 py-2 rounded-lg font-bold text-sm transition ${
-            panel.isBusy || !panel.reelFilename || !panel.sourceAudio
-              ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-              : "bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-950"
-          }`}
-        >
-          {panel.isBusy ? "Rendering…" : "Generate Export"}
-        </button>
-
-        <span className="text-xs font-mono text-slate-400">
-          {panel.status === "queued" && "Queued — waiting for the export worker…"}
-          {panel.status === "processing" && "Burning subtitles and encoding…"}
-          {panel.status === "completed" && "✓ Export ready"}
-          {panel.status === "failed" && `Error: ${panel.error}`}
-        </span>
-      </div>
+  const inputClass = "mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-3 text-sm text-white";
+  return <div className="space-y-5">
+    <div className="rounded-xl border border-cyan-700/50 bg-cyan-950/30 p-4" aria-live="polite">
+      <p className="text-sm text-cyan-200">Export audio</p>
+      <p className="mt-1 text-xl font-semibold">{panel.selectionLoaded
+        ? `${EXPORT_AUDIO_LABELS[panel.audioLanguage]} · ${panel.voiceId === "original" ? "Original recording" : voiceProfile(panel.voiceId).label}`
+        : "Loading selected voice…"}</p>
+      <a href="/screen5" className="mt-2 inline-block text-sm text-cyan-300 underline">Change language or voice on Screen 5</a>
+      <p className="mt-2 text-sm text-slate-300">Each export keeps the settings selected when you generate it.</p>
     </div>
-  );
+    <div className="grid gap-4 md:grid-cols-3">
+      <label className="text-sm">Highlight reel<select aria-label="Highlight reel" className={inputClass} value={panel.reelFilename}
+        onChange={e => panel.setReelFilename(e.target.value)}>
+        {!panel.reels.length && <option value="">No highlight reels found</option>}
+        {panel.reels.map(r => <option key={r.filename} value={r.filename}>{r.filename}</option>)}
+      </select></label>
+      <label className="text-sm">Source recording<select aria-label="Source recording" className={inputClass} value={panel.sourceAudio}
+        onChange={e => panel.setSourceAudio(e.target.value)}>
+        {!panel.audioFiles.length && <option value="">No recordings found</option>}
+        {panel.audioFiles.map(a => <option key={a.filename} value={a.url}>{a.filename}</option>)}
+      </select></label>
+      <label className="text-sm">Subtitle language<select aria-label="Subtitle language" className={inputClass} value={panel.language}
+        onChange={e => panel.setLanguage(e.target.value)}>
+        {Object.values(EXPORT_AUDIO_LABELS).map(l => <option key={l}>{l}</option>)}
+      </select></label>
+    </div>
+    <div className="flex flex-wrap items-center gap-4">
+      <button type="button" onClick={panel.generate} disabled={panel.isBusy || !panel.selectionLoaded || !panel.reelFilename || !panel.sourceAudio}
+        className="rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white disabled:opacity-50">{panel.isBusy ? "Rendering…" : "Generate export"}</button>
+      <p aria-live="polite" className="text-sm text-slate-300">
+        {panel.status === "queued" && "Queued for local rendering"}
+        {panel.status === "processing" && "Creating selected speech and encoding video"}
+        {panel.status === "completed" && "Export ready"}
+      </p>
+      {panel.error && <p role="alert" className="text-sm text-rose-300">{panel.error}</p>}
+    </div>
+  </div>;
 }
+
