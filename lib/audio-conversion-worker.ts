@@ -1,195 +1,72 @@
+import { flowProcessor } from "@/lib/flow-lifecycle";
 import { Worker, type Job } from "bullmq";
 import { redisConnection } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
-import { TTS_AUDIO_BUCKET, getObjectBuffer, uploadObject } from "@/lib/minio";
-import { synthesizeCrossLingual } from "@/lib/cosyvoice";
+import { TTS_AUDIO_BUCKET, uploadObject } from "@/lib/minio";
+import { concatWav, synthesizeChatterbox, type ChatterboxLanguage } from "@/lib/chatterbox";
+import { splitTtsText } from "@/lib/tts-chunking";
 import type { AudioConversionJob } from "@/lib/queue";
-import { markTaskProcessing, markTaskWaitingForCosyVoice, markTaskCompleted, markTaskFailed } from "@/lib/generation";
+import { markTaskProcessing, markTaskCompleted, markTaskFailed } from "@/lib/generation";
 import { withHeartbeat } from "@/lib/generation-heartbeat";
-import { ensureSpeakerProfile, type SpeakerGender } from "@/lib/speaker-profile";
+import { attachWorkerHealth } from "@/lib/worker-health";
+import { DEFAULT_VOICE_ID, CHATTERBOX_REVISION, isVoiceId, voiceProfile, voiceTaskType } from "@/lib/voice-profiles";
+import { voiceCacheKey } from "@/lib/voice-cache";
 
-export interface AudioConversionWorkerOptions {
-  /** Queue name, e.g. "german-audio". */
-  queue: string;
-  /** Human language name, e.g. "German" (used only for logging here). */
-  language: string;
-  /** Short suffix used in the saved MinIO object key, e.g. "de". */
-  langCode: string;
-}
+export interface AudioConversionWorkerOptions { queue: string; language: string; langCode: string; }
+export const TTS_TIMEOUT_MS = Number(process.env.TTS_TIMEOUT_MS || 20 * 60 * 1000);
 
-/**
- * Bounds the CosyVoice TTS call so a hung request throws instead of sitting
- * forever. A throw here is what lets BullMQ's existing attempts/backoff
- * actually retry a wedged call; see app/worker/watchdog.ts for the
- * stuck-job detector this pairs with.
- */
-// The CPU-only CosyVoice2 container needs about 4–5 minutes for the demo
-// transcript. Leave headroom for a cold model and slow host instead of
-// retrying a valid synthesis three times.
-export const TTS_TIMEOUT_MS = parseInt(process.env.TTS_TIMEOUT_MS || String(20 * 60 * 1000), 10);
-
-/**
- * Same AbortController-timeout shape as lib/transcribe.ts's Whisper timeout,
- * adapted for synthesizeGeminiSpeech()'s underlying CosyVoice call, which
- * doesn't expose its own AbortSignal to callers — races it against a timer
- * instead so a hung call still throws a clear, bounded error.
- */
-function withTimeout<T>(fn: () => Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  return new Promise<T>((resolve, reject) => {
-    controller.signal.addEventListener("abort", () => reject(new Error(timeoutMessage)));
-    fn().then(resolve, reject);
-  }).finally(() => clearTimeout(timeoutId));
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "unknown error";
-}
-
-/**
- * Shared factory for the per-language TTS workers. Each consumes jobs from
- * its own queue — one already-persisted translation per job — synthesizes
- * the translated text with the original English speaker reference when
- * available. Gemini remains the fallback only when voice cloning cannot run.
- */
-export function startAudioConversionWorker(
-  opts: AudioConversionWorkerOptions
-): Worker<AudioConversionJob> {
+export function startAudioConversionWorker(opts: AudioConversionWorkerOptions): Worker<AudioConversionJob> {
   const workerName = `${opts.queue}-worker`;
-
-  const worker = new Worker<AudioConversionJob>(
-    opts.queue,
-    async (job: Job<AudioConversionJob>) => {
-      const jobStartedAt = Date.now();
-      const { translationId, filename, langCode, text, generationId } = job.data;
-      await markTaskWaitingForCosyVoice(generationId, `tts-${opts.langCode}`, job.id);
-      console.log(`[${workerName}] job ${job.id} → synthesizing "${filename}" (${opts.language})`);
-
-      const profile =
-        job.data.referenceAudioObjectKey && job.data.referenceAudioBucket
-          ? {
-              gender: (job.data.speakerGender ?? "unknown") as SpeakerGender,
-              referenceBucket: job.data.referenceAudioBucket,
-              referenceObjectKey: job.data.referenceAudioObjectKey,
-            }
-          : await ensureSpeakerProfile(job.data.sourceAudioFilename || filename).catch((err: unknown) => {
-              console.warn(
-                `[${workerName}] speaker profile unavailable for "${filename}"; ` +
-                  `using preset fallback: ${errorMessage(err)}`
-              );
-              return null;
-            });
-      console.log(`[${workerName}] speaker profile ready after ${Date.now() - jobStartedAt}ms`);
-
-      let voiceMode: "cloned" | "gender-preset" | "default-preset" = "cloned";
-      const speakerGender = profile?.gender ?? job.data.speakerGender ?? "unknown";
-
-      const synthesizedWav = await withHeartbeat(
-        { generationId, taskType: `tts-${opts.langCode}`, jobId: job.id },
-        () =>
-          withTimeout(
-            async () => {
-              try {
-                if (!profile) {
-                  throw new Error("No speaker reference profile available");
-                }
-                const promptWav = await getObjectBuffer(
-                  profile.referenceBucket,
-                  profile.referenceObjectKey
-                );
-                return await synthesizeCrossLingual(text, promptWav, {
-                  onWaiting: async () => markTaskWaitingForCosyVoice(generationId, `tts-${opts.langCode}`, job.id).then(() => undefined),
-                  onAcquired: async (waitMs) => {
-                    await markTaskProcessing(generationId, `tts-${opts.langCode}`, job.id, { preserveAttempt: true });
-                    console.log(`[${workerName}] acquired CosyVoice lock after ${waitMs}ms`);
-                  },
-                });
-              } catch (err: unknown) {
-                voiceMode = speakerGender === "unknown" ? "default-preset" : "gender-preset";
-                console.warn(
-                  `[${workerName}] voice clone failed for "${filename}" (${opts.language}); ` +
-                    `falling back to ${voiceMode}: ${errorMessage(err)}`
-                );
-                throw err;
-              }
-            },
-            TTS_TIMEOUT_MS,
-            `Speech synthesis timed out after ${Math.round(TTS_TIMEOUT_MS / 60000)} minutes`
-          )
-      );
-      console.log(`[${workerName}] synthesis stage completed after ${Date.now() - jobStartedAt}ms`);
-
-      const objectKey = `${filename}.${langCode}.voice-v2.wav`;
-      await uploadObject(TTS_AUDIO_BUCKET, objectKey, synthesizedWav, "audio/wav");
-      const url = `/api/asset/${TTS_AUDIO_BUCKET}/${encodeURIComponent(objectKey)}`;
-
-      await prisma.translationAudio.upsert({
-        where: { translationId },
-        create: {
-          translationId,
-          generationId,
-          language: opts.language,
-          langCode,
-          bucket: TTS_AUDIO_BUCKET,
-          objectKey,
-          url,
-          size: synthesizedWav.length,
-          engine: "CosyVoice2-0.5B",
-          voiceMode,
-          speakerGender,
-        },
-        update: {
-          generationId,
-          objectKey,
-          url,
-          size: synthesizedWav.length,
-          engine: "CosyVoice2-0.5B",
-          voiceMode,
-          speakerGender,
-        },
-      });
-
-      await markTaskCompleted(generationId, `tts-${opts.langCode}`);
-
-      console.log(`[${workerName}] job ${job.id} done in ${Date.now() - jobStartedAt}ms → ${url}`);
-      return { langCode, url, objectKey };
-    },
-    {
-      name: workerName,
-      connection: redisConnection,
-      concurrency: 1,
-      // A little above the CosyVoice call's own timeout so a genuinely slow
-      // (not stuck) synthesis's lock doesn't expire mid-call — see the
-      // watchdog plan's note on lockDuration vs. BullMQ's native
-      // stalled-job reclaim.
-      lockDuration: TTS_TIMEOUT_MS + 2 * 60 * 1000,
+  const worker = new Worker<AudioConversionJob>(opts.queue, flowProcessor(async (job: Job<AudioConversionJob>) => {
+    const { translationId, text, generationId, langCode } = job.data;
+    const voiceId = job.data.voiceId ?? DEFAULT_VOICE_ID;
+    if (!isVoiceId(voiceId)) throw new Error("Invalid voice profile");
+    if (langCode !== opts.langCode) throw new Error("Language/queue mismatch");
+    if (job.data.modelRevision && job.data.modelRevision !== CHATTERBOX_REVISION) throw new Error("Stale model job");
+    const profile = voiceProfile(voiceId);
+    const variantKey = voiceCacheKey(text, voiceId);
+    const taskType = voiceTaskType(langCode, voiceId);
+    await markTaskProcessing(generationId, taskType, job.id);
+    const existing = await prisma.translationAudio.findUnique({
+      where: { translationId_variantKey: { translationId, variantKey } },
+    });
+    if (existing) {
+      await markTaskCompleted(generationId, taskType);
+      return { langCode, voiceId, url: existing.url, objectKey: existing.objectKey };
     }
-  );
-
-  worker.on("ready", () => {
-    console.log(`[${workerName}] ready and listening on queue "${opts.queue}"`);
+    const wav = await withHeartbeat({ generationId, taskType, jobId: job.id }, async () => {
+      const chunks: Buffer[] = [];
+      for (const chunk of splitTtsText(text, Number(process.env.TTS_MAX_SENTENCES_PER_CHUNK || 3))) {
+        chunks.push(await synthesizeChatterbox(chunk, langCode as ChatterboxLanguage, voiceId));
+      }
+      return concatWav(chunks);
+    });
+    // Guard against overwriting a newer translation with an older text variant.
+    const translation = await prisma.transcriptTranslation.findUnique({ where: { id: translationId } });
+    if (!translation || translation.text !== text) throw new Error("Translation changed during synthesis; request again");
+    const objectKey = `${translationId}.${langCode}.${voiceId}.${variantKey}.wav`;
+    await uploadObject(TTS_AUDIO_BUCKET, objectKey, wav, "audio/wav");
+    const url = `/api/asset/${TTS_AUDIO_BUCKET}/${encodeURIComponent(objectKey)}`;
+    const data = {
+      generationId, language: opts.language, langCode, bucket: TTS_AUDIO_BUCKET,
+      objectKey, url, size: wav.length, engine: "Chatterbox-Multilingual-V3",
+      voiceMode: "local-preset", speakerGender: profile.gender, voiceId,
+      modelRevision: CHATTERBOX_REVISION, referenceHash: profile.referenceHash,
+    };
+    await prisma.translationAudio.upsert({
+      where: { translationId_variantKey: { translationId, variantKey } },
+      create: { translationId, variantKey, ...data }, update: data,
+    });
+    await markTaskCompleted(generationId, taskType);
+    return { langCode, voiceId, url, objectKey };
+  }), { name: workerName, connection: redisConnection, concurrency: 1, lockDuration: TTS_TIMEOUT_MS + 120000 });
+  worker.on("ready", () => console.log(`[${workerName}] local V3 voice worker ready`));
+  worker.on("failed", async (job, error) => {
+    const id = isVoiceId(job?.data.voiceId) ? job.data.voiceId : DEFAULT_VOICE_ID;
+    await markTaskFailed(job?.data.generationId, voiceTaskType(opts.langCode, id), error.message,
+      job?.attemptsMade ?? 1, job?.opts?.attempts ?? 3, job?.id);
   });
-  worker.on("active", (job) => {
-    console.log(`[${workerName}] processing job ${job.id} (${job.data.filename})`);
-  });
-  worker.on("completed", (job) => {
-    console.log(`[${workerName}] ✅ completed job ${job.id}`);
-  });
-  worker.on("failed", async (job, err) => {
-    console.error(`[${workerName}] ❌ job ${job?.id} failed: ${err.message}`);
-    await markTaskFailed(
-      job?.data?.generationId,
-      `tts-${opts.langCode}`,
-      err.message,
-      job?.attemptsMade ?? 1,
-      job?.opts?.attempts ?? 3,
-      job?.id
-    );
-  });
-  worker.on("error", (err) => {
-    console.error(`[${workerName}] worker error: ${err.message}`);
-  });
-
-  return worker;
+  worker.on("error", (error) => console.error(`[${workerName}]`, error));
+  return attachWorkerHealth(worker, { workerName, queueName: opts.queue, model: "Chatterbox Multilingual V3 local voices" });
 }
+
