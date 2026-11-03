@@ -1,13 +1,20 @@
 "use client";
 
+import { abroSans } from "@/lib/abro-sans";
+import { poppins } from "@/lib/poppins";
+import styles from "@/components/studio-controls.module.css";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import CameraStudioCard from "@/components/camera-studio-card";
 import AudioStudioCard from "@/components/audio-studio-card";
 import { useCameraRecorder } from "@/lib/use-camera-recorder";
 
+
+
 type CameraRecorder = ReturnType<typeof useCameraRecorder>;
 
 export default function CameraPage() {
+  const [isMicActive, setIsMicActive] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   // --- Camera States ---
   const camera1 = useCameraRecorder(1, { captureAudio: true });
@@ -54,45 +61,15 @@ export default function CameraPage() {
     refreshVideoDevices();
   };
 
-  // Mount effects to initialize cameras
+  // Sources stay off until the operator explicitly enables them.
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      const primaryDeviceId = await camera1.startCamera();
-      const inputs = await refreshVideoDevices();
-      if (cancelled) return;
-
-      const secondary = inputs.find((d) => d.deviceId !== primaryDeviceId);
-      if (secondary) {
-        await camera2.startCamera(secondary.deviceId);
-      } else {
-        camera2.setError(
-          "No second camera detected. Connect one, then pick it in the list below."
-        );
-      }
-
-      const tertiary = inputs.find((d) => d.deviceId !== primaryDeviceId && d.deviceId !== secondary?.deviceId);
-      if (tertiary) {
-        await camera3.startCamera(tertiary.deviceId);
-      } else {
-        camera3.setError(
-          "No third camera detected. Connect one, then pick it in the list below."
-        );
-      }
-    })();
-
-    camera1.fetchSaved();
-    camera2.fetchSaved();
-    camera3.fetchSaved();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const timer = window.setTimeout(() => { void refreshVideoDevices(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refreshVideoDevices]);
 
   const startAllRecording = async () => {
+    if (isStarting) return;
+    setIsStarting(true);
     // One session id for this take, shared by all 3 cameras + audio so the
     // backend can tell when all 4 uploads for THIS take have landed instead
     // of guessing from filename timestamps.
@@ -108,6 +85,7 @@ export default function CameraPage() {
       console.error("Failed to create broadcast session:", err);
     }
     if (!sessionId) {
+      setIsStarting(false);
       setStartError("Could not create a recording session, so recording did not start. Check the server and try again.");
       return;
     }
@@ -119,16 +97,16 @@ export default function CameraPage() {
     camera3.setSessionId(sessionId);
     audioTriggersRef.current?.setSessionId(sessionId);
 
-    if (!camera1.isRecorderRunning()) camera1.startRecording();
-    if (!camera2.isRecorderRunning()) camera2.startRecording();
-    if (!camera3.isRecorderRunning()) camera3.startRecording();
-    if (audioTriggersRef.current && !audioTriggersRef.current.isRecording()) {
+    if (camera1.isCameraActive && !camera1.isRecorderRunning()) camera1.startRecording();
+    if (camera2.isCameraActive && !camera2.isRecorderRunning()) camera2.startRecording();
+    if (camera3.isCameraActive && !camera3.isRecorderRunning()) camera3.startRecording();
+    if (isMicActive && audioTriggersRef.current && !audioTriggersRef.current.isRecording()) {
       audioTriggersRef.current.start();
     }
+    setIsStarting(false);
   };
 
   const endAllRecording = () => {
-    if (!window.confirm("End the recording for all cameras and audio?")) return;
     camera1.endRecording();
     camera2.endRecording();
     camera3.endRecording();
@@ -148,87 +126,33 @@ export default function CameraPage() {
 
   const isAnyRecording = camera1.isRecording || camera2.isRecording || camera3.isRecording || isAudioRecording;
 
+  const readyCount = [camera1.isCameraActive, camera2.isCameraActive, camera3.isCameraActive, isMicActive].filter(Boolean).length;
+  const isSaving = camera1.isSaving || camera2.isSaving || camera3.isSaving;
+
   return (
-    <div className="admin-theme admin-theme-dark relative min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      <div aria-hidden="true" className="mesh-bg mesh-grid pointer-events-none fixed inset-0 z-0" />
-      {/* Page Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-6 py-4 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-              Amagi Media Labs - News simulation.
-            </h1>
-            <p className="text-xs text-slate-400">
-              Multi-Camera & Audio Studio Control: manage and record live feeds for Camera 01, Camera 02, Camera 03, and Master Audio
-            </p>
-          </div>
+    <main className={`${poppins.className} ${styles.page}`}>
+      <div className={styles.content}>
+        <header className={styles.header}>
+          <div><h1 className={`${abroSans.className} admin-title`}>Studio</h1><p className="admin-page-description">Capture cameras and master audio for a session</p></div>
+          <span className={styles.summary} role="status"><i className={styles.dot} />{readyCount} of 4 sources ready</span>
+        </header>
+        {startError && <p role="alert" className={styles.error}>{startError}</p>}
+        <div className={styles.cameraGrid}>
+          {[camera1, camera2, camera3].map((camera) => (
+            <CameraStudioCard key={camera.cameraId} recorder={camera} devices={videoDevices} onSelectDevice={handleSelectDevice(camera)} showSavedRecordings={false} studioStyle />
+          ))}
         </div>
-      </header>
-
-      {/* Cameras & Audio Grid */}
-      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8 flex flex-col justify-between">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-          {/* ================= CAMERA 01 ================= */}
-          <CameraStudioCard
-            recorder={camera1}
-            devices={videoDevices}
-            onSelectDevice={handleSelectDevice(camera1)}
-          />
-
-          {/* ================= CAMERA 02 ================= */}
-          <CameraStudioCard
-            recorder={camera2}
-            devices={videoDevices}
-            onSelectDevice={handleSelectDevice(camera2)}
-          />
-
-          {/* ================= CAMERA 03 ================= */}
-          <CameraStudioCard
-            recorder={camera3}
-            devices={videoDevices}
-            onSelectDevice={handleSelectDevice(camera3)}
-          />
-
-          {/* ================= AUDIO STUDIO CARD ================= */}
-          <div className="w-full">
-            <AudioStudioCard
-              showButtons={false}
-              onRegisterTriggers={(triggers) => {
-                audioTriggersRef.current = triggers;
-              }}
-              onRecordingChange={(recording) => {
-                setIsAudioRecording(recording);
-              }}
-            />
-          </div>
+        <AudioStudioCard studioStyle showButtons={false} showSavedAudioFiles={false} onActiveChange={setIsMicActive}
+          onRegisterTriggers={(triggers) => { audioTriggersRef.current = triggers; }}
+          onRecordingChange={setIsAudioRecording}
+        />
+        <div className={styles.bottomActions}>
+          {readyCount === 0 && !isAnyRecording && <p className={styles.hint}>Turn on a camera or the microphone to start recording.</p>}
+          <button type="button" className={`${styles.button} ${styles.recordButton}`} onClick={isAnyRecording ? endAllRecording : startAllRecording} disabled={!isAnyRecording && (readyCount === 0 || isStarting || isSaving)}>
+            <i className={styles.recordDot} />{isAnyRecording ? "End recording" : isStarting ? "Starting…" : isSaving ? "Saving…" : "Start recording"}
+          </button>
         </div>
-
-        {/* Global Recording Controls */}
-        <div className="flex flex-col items-center gap-4 pt-8">
-          {startError ? (
-            <p role="alert" className="max-w-xl rounded-xl border border-rose-800 bg-rose-950/60 px-4 py-3 text-center text-sm text-rose-200">
-              {startError}
-            </p>
-          ) : null}
-          {isAnyRecording ? (
-            <button
-              onClick={endAllRecording}
-              className="px-8 py-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-lg transition shadow-xl shadow-rose-950/50 flex items-center gap-3 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <span className="w-3.5 h-3.5 rounded-full bg-white animate-pulse" />
-              End Recording
-            </button>
-          ) : (
-            <button
-              onClick={startAllRecording}
-              className="px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-lg transition shadow-xl shadow-indigo-950/50 flex items-center gap-3 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <span className="w-3.5 h-3.5 rounded-full bg-indigo-300 animate-pulse" />
-              Start Recording
-            </button>
-          )}
-        </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }

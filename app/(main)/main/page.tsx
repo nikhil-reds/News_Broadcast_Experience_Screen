@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { composedOutputUrl } from "@/lib/green-screen";
+import { DEFAULT_BACKGROUND_ID, composedOutputUrl } from "@/lib/green-screen";
 
 interface DeviceConfig {
   name: string;
@@ -151,7 +151,7 @@ export default function MultiDevicePreviewPage() {
         const data = await res.json();
         const latest = data.recordings?.[0] as { filename?: string } | undefined;
         if (latest?.filename && !cancelled) {
-          setCompositeUrl(composedOutputUrl("newsroom-blue", latest.filename));
+          setCompositeUrl(composedOutputUrl(DEFAULT_BACKGROUND_ID, latest.filename));
         }
       } catch {
         // Preserve the last successfully loaded preview.
