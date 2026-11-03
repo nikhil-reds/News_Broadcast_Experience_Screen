@@ -57,3 +57,8 @@ next-env.d.ts
 .claude
 .agents
 .windsurf
+
+logs/
+*.log
+__pycache__/
+*.pyc
