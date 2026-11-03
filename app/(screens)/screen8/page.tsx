@@ -8,6 +8,7 @@ import { composedOutputUrl } from "@/lib/green-screen";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 import { useSelectedBackground } from "@/lib/use-selected-background";
 import { useSelectedBrightness } from "@/lib/use-selected-brightness";
+import { abroSans } from "@/lib/abro-sans";
 
 interface TimedCue {
   start: number;
@@ -255,7 +256,7 @@ export default function Screen8Page() {
 
   return (
     <div className={styles.stage}>
-      <div className={styles.badge}><i aria-hidden="true" />Subtitles<span>{air === "Off" ? "Off air" : air + " on air"}</span></div>
+      <div className={styles.badge}><i aria-hidden="true" /><strong className={`${abroSans.className} font-normal`}>Subtitles</strong><span>{air === "Off" ? "Off air" : air + " on air"}</span></div>
       <div className={styles.preview} role="status"><i aria-hidden="true" />{comparing ? "On air now" : selected === "Off" ? "Previewing no subtitles" : "Previewing " + selected}</div>
       <nav className={styles.rail} aria-label="Subtitle language">
         {LANGUAGES.map(item => <button key={item.code} type="button" aria-pressed={selected === item.label} onClick={() => setPreview(item.label)}>
@@ -287,7 +288,7 @@ export default function Screen8Page() {
               style={{ filter: `brightness(${brightness}%)` }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm font-mono">
+              <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm">
               No highlight reel yet — record all 3 cameras to generate one.
             </div>
           )}

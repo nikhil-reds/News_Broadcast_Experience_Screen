@@ -1,11 +1,6 @@
-@font-face {
-  font-family: TranscriptionAbro;
-  src: url("/fonts/AbroSans/OpenType-TT/AbroSans-Regular.ttf") format("truetype");
-  font-display: swap;
-}
 .stage {
   position: relative; height: 100svh; overflow: hidden; isolation: isolate;
-  font: 400 16px/1.3 TranscriptionAbro, sans-serif; color: white; background: black;
+  font-weight: 400; font-size: 16px; line-height: 1.3; color: white; background: black;
   border: 1px solid #ffffff12; border-radius: 30px;
 }
 .texture {

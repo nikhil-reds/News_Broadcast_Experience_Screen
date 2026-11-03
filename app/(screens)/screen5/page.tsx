@@ -2,6 +2,7 @@
 import { useWorkflowDirty, useWorkflowReady } from "@/lib/workflow-ready";
 import { selectionFetch } from "@/lib/screen-selection-writes";
 import { DEFAULT_VOICE_ID, VOICE_PROFILES, isVoiceId, voiceProfile, type VoiceId } from "@/lib/voice-profiles";
+import { abroSans } from "@/lib/abro-sans";
 
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -278,7 +279,7 @@ export default function Screen5Page() {
       </div>
     </header>
     <section className={styles.hero} aria-label="Selected language">
-      <h1 key={selectedLanguage.langCode} className={styles.name}>{selectedLanguage.language}</h1>
+      <h1 key={selectedLanguage.langCode} className={`${abroSans.className} ${styles.name}`}>{selectedLanguage.language}</h1>
       <p className={styles.native} lang={selectedLanguage.langCode}>{nativeNames[selectedLanguage.langCode]}</p>
       <p className={styles.description}>{lines[selectedLanguage.langCode]}</p>
       <button className={styles.listen} type="button" onClick={previewVoice} disabled={highlightedIndex !== activeIndex || (languageCode !== "en" && !activeUrl)}>
