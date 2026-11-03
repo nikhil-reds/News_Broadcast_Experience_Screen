@@ -63,7 +63,7 @@ export default function Screen12HighlightPlayer() {
   }, [playoutSequence.length, scene.durationMs]);
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-black font-sans text-slate-100">
+    <div className="relative h-screen w-full overflow-hidden bg-black text-slate-100">
       {scene.image && (
         <div key={`${brandId}:${scene.id}`} className="absolute inset-0 z-0 animate-in fade-in duration-700">
           <Image src={scene.image} alt={scene.alt ?? "Sponsored advertisement"} fill className="object-fill" priority />
