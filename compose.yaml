@@ -94,6 +94,8 @@ services:
     platform: linux/amd64
     build:
       context: ./public/nextjs-faster-whisper/cosyvoice-service
+    environment:
+      COSYVOICE_DEVICE: ${COSYVOICE_DEVICE:-auto}
     ports:
       - "9500:50000"
     volumes:
@@ -107,6 +109,82 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Isolated CUDA candidate. Keep the CPU service above running while this
+  # image is built and benchmarked; switch traffic only after validation.
+  cosyvoice-gpu:
+    platform: linux/amd64
+    build:
+      context: ./public/nextjs-faster-whisper/cosyvoice-service
+      dockerfile: Dockerfile.gpu
+    environment:
+      COSYVOICE_DEVICE: cuda
+    ports:
+      - "9501:50000"
+    gpus: all
+    volumes:
+      - cosyvoice-gpu-models:/root/.cache
+      - ./public/nextjs-faster-whisper/cosyvoice-service/server.py:/opt/CosyVoice/server.py:ro
+    command: ["python3", "/opt/CosyVoice/server.py", "--port", "50000", "--model_dir", "iic/CosyVoice2-0.5B"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:50000/health', timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      start_period: 600s
+      retries: 20
+    restart: unless-stopped
+
+  chatterbox:
+    profiles: ["cpu-tts"]
+    image: news-chatterbox-v3-local:5de7a54
+    build:
+      context: ./public/chatterbox-service
+      dockerfile: Dockerfile.v3
+    environment:
+      CHATTERBOX_DEVICE: cpu
+      CHATTERBOX_MODEL_DIR: /root/.cache/huggingface/hub/models--ResembleAI--chatterbox/snapshots/5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    ports: ["127.0.0.1:9600:9601"]
+    volumes: ["chatterbox-gpu-models:/root/.cache/huggingface:ro"]
+    networks: [audio-local]
+    restart: unless-stopped
+
+  chatterbox-gpu:
+    image: news-chatterbox-v3-local:5de7a54
+    build:
+      context: ./public/chatterbox-service
+      dockerfile: Dockerfile.v3
+    environment:
+      CHATTERBOX_DEVICE: cuda
+      CHATTERBOX_MODEL_DIR: /root/.cache/huggingface/hub/models--ResembleAI--chatterbox/snapshots/5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    expose: ["9601"]
+    gpus: all
+    volumes: ["chatterbox-gpu-models:/root/.cache/huggingface:ro"]
+    networks: [audio-local]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9601/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      start_period: 120s
+      retries: 10
+    restart: unless-stopped
+
+  chatterbox-local-api:
+    image: nginx:1.28-alpine
+    ports: ["127.0.0.1:9601:9601"]
+    volumes: ["./public/chatterbox-service/local-proxy.conf:/etc/nginx/conf.d/default.conf:ro"]
+    networks: [default, audio-local]
+    depends_on:
+      chatterbox-gpu:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  audio-local:
+    internal: true
+
 volumes:
   whisper-models:
   qwen-models:
@@ -114,3 +192,7 @@ volumes:
   minio-data:
   redis-data:
   cosyvoice-models:
+  cosyvoice-gpu-models:
+  chatterbox-models:
+  chatterbox-gpu-models:
+
