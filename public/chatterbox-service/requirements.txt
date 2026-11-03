@@ -1,0 +1,6 @@
+chatterbox-tts==0.1.4
+torchvision==0.21.0
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+soundfile==0.13.1

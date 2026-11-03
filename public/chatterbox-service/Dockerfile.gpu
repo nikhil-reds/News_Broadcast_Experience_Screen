@@ -1,0 +1,18 @@
+FROM pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+# chatterbox-tts 0.1.4 declares Torch 2.6, but the RTX 5080 needs the
+# CUDA 12.8 Torch 2.7.1 runtime already supplied by this base image.
+RUN sed '/^chatterbox-tts/d;/^torchvision/d' requirements.txt > /tmp/requirements-runtime.txt \
+    && pip install --no-cache-dir -r /tmp/requirements-runtime.txt \
+    && pip install --no-cache-dir --no-deps chatterbox-tts==0.1.4 torchvision==0.22.1 \
+    && pip install --no-cache-dir \
+      librosa==0.11.0 s3tokenizer==0.3.0 transformers==4.46.3 \
+      diffusers==0.29.0 resemble-perth==1.0.1 conformer==0.3.2 \
+      safetensors==0.5.3 pkuseg==0.0.25 pykakasi==2.3.0 gradio==5.44.1
+COPY server.py .
+EXPOSE 9601
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "9601"]

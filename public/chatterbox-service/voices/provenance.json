@@ -1,0 +1,14 @@
+{
+  "indian-male-01": {
+    "sourceBucket": "speaker-reference",
+    "sourceObjectKey": "master-audio-2026-09-15T11-08-31-814Z.wav.voice-reference.v1.wav",
+    "sha256": "6064365011d6f5910804abba0d4d0cbf51fffb42e456ce401c23b19e93a39aaa"
+  },
+  "indian-female-01": {
+    "sourceBucket": "speaker-reference",
+    "sourceObjectKey": "master-audio-2026-09-02T13-15-12-455Z.wav.voice-reference.v1.wav",
+    "sha256": "9c7b33b970b816982900a3b86e90590fe7834b7d07b45f5061a16e7c609efb6d"
+  },
+  "preparation": "FFmpeg loudnorm I=-20 TP=-3 LRA=7; 24kHz mono PCM16",
+  "selection": "User selected these existing local references on 2026-10-26. Voice labels are configuration, not verified demographic classifications."
+}
