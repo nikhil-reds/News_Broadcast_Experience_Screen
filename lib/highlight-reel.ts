@@ -23,6 +23,7 @@ import {
   probeStreamDurations,
 } from "@/lib/ffmpeg";
 import { highlightFilenameFor, type CameraId } from "@/lib/camera-recordings";
+import { QWEN_VL_MODEL } from "@/lib/local-vision";
 export interface HighlightSegment {
   camera: CameraId;
   start: number;
@@ -34,6 +35,8 @@ export interface HighlightAnalysisResult {
   title: string;
   segments: HighlightSegment[];
   audio: Record<CameraId, boolean>;
+  selectionMode?: "ai" | "fallback";
+  fallbackReason?: string;
 }
 
 
@@ -109,12 +112,19 @@ export async function renderHighlightReel(
   analysis: HighlightAnalysisResult,
   generationId?: string | null,
   opts?: {
+    /** Versioned reruns do not overwrite the previously published reel. */
+    revision?: string;
     /** Bound each ffmpeg pass and kill+reject it if it runs longer than this. */
     timeoutMs?: number;
     onHeartbeat?: (pid: number) => void;
   }
 ): Promise<HighlightReelResult> {
-  const { title, segments, audio } = analysis;
+  const { title, segments, audio, selectionMode = "ai", fallbackReason } = analysis;
+  const selectedCameras = new Set(segments.map((segment) => segment.camera));
+  const missingCameras = ([1, 2, 3] as const).filter((camera) => !selectedCameras.has(camera));
+  if (missingCameras.length > 0) {
+    throw new Error(`highlight manifest missing camera coverage: ${missingCameras.join(",")}`);
+  }
   const { timeoutMs, onHeartbeat } = opts || {};
   const workDir = await mkdtemp(join(tmpdir(), "highlight-render-"));
 
@@ -201,7 +211,7 @@ export async function renderHighlightReel(
       clips.push(clip);
     }
 
-    const reelFilename = highlightFilenameFor(cam1Filename);
+    const reelFilename = highlightFilenameFor(cam1Filename, opts?.revision);
     const reelPath = join(workDir, "highlight.mp4");
     await concatClips(clips, "highlight.mp4", workDir, undefined, timeoutMs, onHeartbeat);
     const finalDurations = await probeStreamDurations(reelPath);
@@ -238,7 +248,9 @@ export async function renderHighlightReel(
         JSON.stringify(
           {
             title,
-            model: "local-vision",
+            model: QWEN_VL_MODEL,
+            selectionMode,
+            fallbackReason: fallbackReason ?? null,
             sessionId: generationId ?? null,
             masterAudio: masterAudio
               ? {
@@ -281,7 +293,7 @@ export async function renderHighlightReel(
       durationSeconds: Number(durationSeconds.toFixed(2)),
       segments,
       title,
-      model: "local-vision",
+      model: QWEN_VL_MODEL,
     };
   } finally {
     await rm(workDir, { recursive: true, force: true });
