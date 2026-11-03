@@ -14,7 +14,7 @@ export function brightnessStateKey(sessionId: string) {
 }
 
 export function isBrightness(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 100;
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 200;
 }
 
 /** Replaces the one saved brightness value for a session and publishes it. */

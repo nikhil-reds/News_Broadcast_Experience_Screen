@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchCurrentSession } from "@/lib/current-session";
 
-const MIN_BRIGHTNESS = 1;
-const MAX_BRIGHTNESS = 100;
+const MIN_BRIGHTNESS = 0;
+const MAX_BRIGHTNESS = 200;
 const BRIGHTNESS_POLL_MS = 3000;
 const WS_RECONNECT_MS = 2000;
 
@@ -17,7 +17,7 @@ function isBrightness(value: unknown): value is number {
 }
 
 export function useSelectedBrightness() {
-  const [brightness, setBrightness] = useState(MAX_BRIGHTNESS);
+  const [brightness, setBrightness] = useState(100);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const lastVersionRef = useRef(0);
