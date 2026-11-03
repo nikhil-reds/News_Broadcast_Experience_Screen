@@ -1,3 +1,4 @@
+import { isVoiceId } from "../lib/voice-profiles";
 import { createServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import IORedis from "ioredis";
@@ -20,11 +21,11 @@ import { stateChannel, type SelectionState } from "../lib/selection-state";
 
 type ClientMessage =
   | { type: "audio-language:get"; sessionId: string }
-  | { type: "audio-language:set"; sessionId: string; audioLanguage: string }
+  | { type: "audio-language:set"; sessionId: string; audioLanguage: string; voiceId?: unknown }
   | { type: "brightness:get"; sessionId: string }
   | { type: "brightness:set"; sessionId: string; brightness: number }
-  | { type: `${"background" | "subtitle-language" | "industry" | "brand"}:get`; sessionId: string }
-  | { type: `${"background" | "subtitle-language" | "industry" | "brand"}:set`; sessionId: string; value: string };
+  | { type: `${"background" | "subtitle-language" | "industry" | "industry-preview" | "brand"}:get`; sessionId: string }
+  | { type: `${"background" | "subtitle-language" | "industry" | "industry-preview" | "brand"}:set`; sessionId: string; value: string };
 
 type ClientSocket = WebSocket & { sessionId?: string };
 const port = Number(process.env.AUDIO_LANGUAGE_WS_PORT || 3001);
@@ -95,7 +96,7 @@ wss.on("connection", (socket: ClientSocket) => {
 
     if (message.type === "brightness:set") {
       if (!isBrightness(message.brightness)) {
-        send(socket, { type: "error", error: "Brightness must be an integer from 1 to 100" });
+        send(socket, { type: "error", error: "Brightness must be an integer from 0 to 200" });
         return;
       }
       try {
@@ -108,7 +109,7 @@ wss.on("connection", (socket: ClientSocket) => {
       return;
     }
 
-    const selectionMatch = message.type.match(/^(background|subtitle-language|industry|brand):(get|set)$/);
+    const selectionMatch = message.type.match(/^(background|subtitle-language|industry|industry-preview|brand):(get|set)$/);
     if (selectionMatch) {
       const [, kind, action] = selectionMatch as [string, keyof typeof realtimeSelections, "get" | "set"];
       const definition = realtimeSelections[kind];
@@ -119,13 +120,13 @@ wss.on("connection", (socket: ClientSocket) => {
       return;
     }
 
-    if (message.type !== "audio-language:set" || !isAudioLanguageCode(message.audioLanguage)) {
+    if (message.type !== "audio-language:set" || (!isAudioLanguageCode(message.audioLanguage) || (message.voiceId !== undefined && !isVoiceId(message.voiceId)))) {
       send(socket, { type: "error", error: "Invalid audio language" });
       return;
     }
 
     try {
-      const state = await saveAudioLanguageState(message.sessionId, message.audioLanguage);
+      const state = await saveAudioLanguageState(message.sessionId, message.audioLanguage, isVoiceId(message.voiceId) ? message.voiceId : undefined);
       send(socket, { type: "audio-language:saved", state });
     } catch (error) {
       console.error("Unable to save audio-language state:", error);
