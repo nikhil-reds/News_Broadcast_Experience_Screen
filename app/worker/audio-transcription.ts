@@ -1,3 +1,4 @@
+import { flowProcessor } from "@/lib/flow-lifecycle";
 /**
  * Audio Transcription Worker
  * ---------------------------
@@ -17,6 +18,7 @@ import { redisConnection } from "@/lib/redis";
 import { TRANSCRIPTION_QUEUE, type TranscriptionJob } from "@/lib/queue";
 import { transcribeAndStore, WHISPER_TIMEOUT_MS } from "@/lib/transcribe";
 import { markTaskFailed } from "@/lib/generation";
+import { attachWorkerHealth } from "@/lib/worker-health";
 
 const WORKER_NAME = "audio-transcription-worker";
 // A little above Whisper's own timeout so a genuinely slow (not stuck) clip's
@@ -26,7 +28,7 @@ const LOCK_DURATION_MS = WHISPER_TIMEOUT_MS + 2 * 60 * 1000;
 
 const worker = new Worker<TranscriptionJob>(
   TRANSCRIPTION_QUEUE,
-  async (job: Job<TranscriptionJob>) => {
+  flowProcessor(async (job: Job<TranscriptionJob>) => {
     const { filename } = job.data;
     console.log(`[${WORKER_NAME}] job ${job.id} → transcribing "${filename}"`);
 
@@ -45,7 +47,7 @@ const worker = new Worker<TranscriptionJob>(
       segments: result.segments.length,
       sttEngine: result.sttEngine,
     };
-  },
+  }),
   {
     name: WORKER_NAME,
     connection: redisConnection,
@@ -53,6 +55,7 @@ const worker = new Worker<TranscriptionJob>(
     lockDuration: LOCK_DURATION_MS,
   }
 );
+attachWorkerHealth(worker, { workerName: WORKER_NAME, queueName: TRANSCRIPTION_QUEUE, model: process.env.WHISPER_MODEL || "faster-whisper-small" });
 
 worker.on("ready", () => {
   console.log(`[${WORKER_NAME}] ready and listening on queue "${TRANSCRIPTION_QUEUE}"`);
