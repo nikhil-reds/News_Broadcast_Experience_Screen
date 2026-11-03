@@ -1,3 +1,4 @@
+import { isVoiceId } from "@/lib/voice-profiles";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAudioLanguageState,
@@ -32,16 +33,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const { sessionId, audioLanguage } = body as { sessionId?: unknown; audioLanguage?: unknown };
+  const { sessionId, audioLanguage, voiceId } = body as { sessionId?: unknown; audioLanguage?: unknown; voiceId?: unknown };
 
   if (!validSessionId(sessionId)) {
     return NextResponse.json({ error: "Valid sessionId is required" }, { status: 400 });
   }
-  if (!isAudioLanguageCode(audioLanguage)) {
+  if (!isAudioLanguageCode(audioLanguage) || (voiceId !== undefined && !isVoiceId(voiceId))) {
     return NextResponse.json({ error: "Invalid audio language" }, { status: 400 });
   }
 
-  const state = await saveAudioLanguageState(sessionId, audioLanguage);
+  const state = await saveAudioLanguageState(sessionId, audioLanguage, isVoiceId(voiceId) ? voiceId : undefined);
   await prisma.broadcastSession.update({
     where: { id: sessionId },
     data: { selectedAudioLanguage: languageLabel(audioLanguage) },
