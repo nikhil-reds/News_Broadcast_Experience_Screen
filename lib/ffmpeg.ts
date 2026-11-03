@@ -554,6 +554,35 @@ export async function composeMattedForegroundBackground(opts: {
   ], undefined, timeoutMs, onHeartbeat);
 }
 
+/** Build atempo stages within FFmpeg's quality-preserving 0.5–2 range. */
+export function dubTempoFilter(ratio: number): string {
+  if (!Number.isFinite(ratio) || ratio <= 0) throw new Error("Invalid dub timing ratio");
+  const stages: number[] = [];
+  while (ratio > 2) { stages.push(2); ratio /= 2; }
+  while (ratio < 0.5) { stages.push(0.5); ratio /= 0.5; }
+  stages.push(ratio);
+  return stages.map(value => `atempo=${value.toFixed(8)}`).join(",");
+}
+
+/** Preserve the edit's duration and pauses; time-stretch speech without changing pitch. */
+export async function fitDubTrack(opts: {
+  clips: Array<{ path: string; start: number; end: number; duration: number }>;
+  duration: number; output: string; onHeartbeat?: (pid: number) => void;
+}) {
+  if (!opts.clips.length || !Number.isFinite(opts.duration) || opts.duration <= 0) throw new Error("No valid dub timeline");
+  const args = ["-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-t", opts.duration.toFixed(6), "-i", "anullsrc=r=24000:cl=mono"];
+  const filters: string[] = [];
+  for (const [i, clip] of opts.clips.entries()) {
+    const slot = clip.end - clip.start;
+    if (slot <= 0 || clip.start < 0 || clip.end > opts.duration + 0.001) throw new Error("Invalid dub cue bounds");
+    args.push("-i", clip.path);
+    filters.push(`[${i + 1}:a]aresample=24000,${dubTempoFilter(clip.duration / slot)},apad,atrim=duration=${slot.toFixed(6)},asetpts=PTS-STARTPTS,adelay=${Math.round(clip.start * 1000)}:all=1[d${i}]`);
+  }
+  filters.push(`[0:a]${opts.clips.map((_, i) => `[d${i}]`).join("")}amix=inputs=${opts.clips.length + 1}:duration=first:dropout_transition=0:normalize=0[out]`);
+  args.push("-filter_complex", filters.join(";"), "-map", "[out]", "-t", opts.duration.toFixed(6), "-ac", "1", "-ar", "24000", "-c:a", "pcm_s16le", opts.output);
+  await run(FFMPEG_BIN, args, undefined, 10 * 60 * 1000, opts.onHeartbeat);
+}
+
 export interface SubtitleOverlay {
   /** PNG path, relative to `cwd` — same rationale as `concatClips`'s `clips`. */
   pngPath: string;
@@ -578,6 +607,10 @@ export interface SubtitleOverlay {
  */
 export async function composeFinalExport(opts: {
   input: string;
+  replacementAudio?: string;
+  duration?: number;
+  audioLanguage?: string;
+  voiceLabel?: string;
   output: string;
   width: number;
   height: number;
@@ -608,7 +641,9 @@ export async function composeFinalExport(opts: {
   // Input index of the main reel video/audio — shifts by one when a
   // background image occupies index 0.
   const mainIndex = backgroundImage ? 1 : 0;
-  const subtitleStartIndex = mainIndex + 1;
+  const replacementAudioIndex = mainIndex + 1;
+  if (opts.replacementAudio) args.push("-i", opts.replacementAudio);
+  const subtitleStartIndex = mainIndex + 1 + (opts.replacementAudio ? 1 : 0);
 
   for (const sub of subtitles) {
     args.push("-loop", "1", "-i", sub.pngPath);
@@ -654,7 +689,7 @@ export async function composeFinalExport(opts: {
     "-map",
     `[${lastLabel}]`,
     "-map",
-    `${mainIndex}:a?`,
+    opts.replacementAudio ? `${replacementAudioIndex}:a:0` : `${mainIndex}:a?`,
     "-c:v",
     "libx264",
     "-preset",
@@ -669,6 +704,10 @@ export async function composeFinalExport(opts: {
     "192k",
     "-movflags",
     "+faststart",
+    ...(opts.duration ? ["-t", opts.duration.toFixed(6)] : []),
+    "-metadata:s:a:0", `language=${opts.audioLanguage || "eng"}`,
+    "-metadata:s:a:0", `handler_name=${opts.voiceLabel || "Original recording"}`,
+    "-metadata", `comment=${opts.voiceLabel || "Original recording"}`,
     output
   );
 
