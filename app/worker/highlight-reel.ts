@@ -1,3 +1,4 @@
+import { flowProcessor } from "@/lib/flow-lifecycle";
 /**
  * Highlight Reel Render Worker (stage 2 of 2)
  * --------------------------------------------
@@ -22,6 +23,7 @@ import { enqueueAllBackgroundsForSource, HIGHLIGHT_QUEUE, type HighlightRenderJo
 import { renderHighlightReel, FFMPEG_HIGHLIGHT_TIMEOUT_MS } from "@/lib/highlight-reel";
 import { markTaskProcessing, markTaskCompleted, markTaskFailed } from "@/lib/generation";
 import { startHeartbeat } from "@/lib/generation-heartbeat";
+import { attachWorkerHealth } from "@/lib/worker-health";
 
 const WORKER_NAME = "highlight-reel-worker";
 // A little above the ffmpeg pass's own timeout so a genuinely slow (not
@@ -31,8 +33,8 @@ const LOCK_DURATION_MS = FFMPEG_HIGHLIGHT_TIMEOUT_MS + 2 * 60 * 1000;
 
 const worker = new Worker<HighlightRenderJob>(
   HIGHLIGHT_QUEUE,
-  async (job: Job<HighlightRenderJob>) => {
-    const { cam1Filename, cam2Filename, cam3Filename, title, segments, audio, generationId } = job.data;
+  flowProcessor(async (job: Job<HighlightRenderJob>) => {
+    const { cam1Filename, cam2Filename, cam3Filename, title, segments, audio, selectionMode, fallbackReason, generationId, revision } = job.data;
     await markTaskProcessing(generationId, "highlight-reel", job.id);
     console.log(
       `[${WORKER_NAME}] job ${job.id} → cutting "${cam1Filename}" + "${cam2Filename}" + "${cam3Filename}" ` +
@@ -50,9 +52,12 @@ const worker = new Worker<HighlightRenderJob>(
           title,
           segments,
           audio: audio as Record<1 | 2 | 3, boolean>,
+        selectionMode,
+        fallbackReason,
         },
         generationId,
         {
+          revision,
           timeoutMs: FFMPEG_HIGHLIGHT_TIMEOUT_MS,
           onHeartbeat: (pid) => heartbeat.touch(undefined, `ffmpeg pid ${pid}`),
         }
@@ -81,7 +86,7 @@ const worker = new Worker<HighlightRenderJob>(
       segments: result.segments.length,
       model: result.model,
     };
-  },
+  }),
   {
     name: WORKER_NAME,
     connection: redisConnection,
@@ -90,6 +95,7 @@ const worker = new Worker<HighlightRenderJob>(
     lockDuration: LOCK_DURATION_MS,
   }
 );
+attachWorkerHealth(worker, { workerName: WORKER_NAME, queueName: HIGHLIGHT_QUEUE });
 
 worker.on("ready", () => {
   console.log(`[${WORKER_NAME}] ready and listening on queue "${HIGHLIGHT_QUEUE}"`);
