@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Valid sessionId is required" }, { status: 400 });
   }
   if (!isBrightness(brightness)) {
-    return NextResponse.json({ error: "Brightness must be an integer from 1 to 100" }, { status: 400 });
+    return NextResponse.json({ error: "Brightness must be an integer from 0 to 200" }, { status: 400 });
   }
 
   const state = await saveBrightnessState(sessionId, brightness);
