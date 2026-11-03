@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ALLOWED_BUCKETS, presignedGetUrl } from "@/lib/minio";
+import { ALLOWED_BUCKETS } from "@/lib/minio";
 
 /**
  * Stable asset access: GET /api/asset/<bucket>/<objectKey>
- * Generates a short-lived MinIO presigned URL and 302-redirects to it so the
- * browser streams the object directly from MinIO (supports range requests for
- * <audio>/<video> seeking) while credentials stay server-side.
+ * Routes media through the same-origin range proxy. A MinIO presigned URL
+ * contains the server's `localhost:9000`, which works on the PC but makes a
+ * phone try to connect to itself rather than the PC.
  */
 export async function GET(
   _req: NextRequest,
@@ -23,8 +23,14 @@ export async function GET(
   }
 
   try {
-    const url = await presignedGetUrl(bucket, objectKey, 3600);
-    return NextResponse.redirect(url, 302);
+    const safeKey = (key || []).map((part) => encodeURIComponent(part)).join("/");
+    // Relative Location deliberately preserves the public host the browser
+    // used (for example 10.190.55.126 on a hotspot), rather than Next dev's
+    // internal 0.0.0.0 listener address.
+    return new NextResponse(null, {
+      status: 307,
+      headers: { Location: `/api/asset-stream/${encodeURIComponent(bucket)}/${safeKey}` },
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: "Asset not found", details: err.message },
