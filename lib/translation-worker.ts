@@ -1,3 +1,4 @@
+import { flowProcessor } from "@/lib/flow-lifecycle";
 import { Worker, type Job } from "bullmq";
 import { redisConnection } from "@/lib/redis";
 import { translateSegmentTexts } from "@/lib/translation";
@@ -5,6 +6,8 @@ import { persistTranslation } from "@/lib/transcript-language";
 import type { TranslationJob } from "@/lib/queue";
 import { markTaskProcessing, markTaskCompleted, markTaskFailed } from "@/lib/generation";
 import { withHeartbeat } from "@/lib/generation-heartbeat";
+import crypto from "node:crypto";
+import { attachWorkerHealth } from "@/lib/worker-health";
 
 export interface TranslationWorkerOptions {
   /** Queue name, e.g. "german-transcript". */
@@ -26,6 +29,26 @@ export const TRANSLATION_TIMEOUT_MS = parseInt(
   process.env.TRANSLATION_TIMEOUT_MS || String(3 * 60 * 1000),
   10
 );
+
+const QWEN_MUTEX_KEY = "news-broadcast:qwen-translation-mutex";
+const QWEN_MUTEX_TTL_MS = TRANSLATION_TIMEOUT_MS + 60_000;
+
+async function withQwenMutex<T>(fn: () => Promise<T>): Promise<T> {
+  const token = crypto.randomUUID();
+  while (!(await redisConnection.set(QWEN_MUTEX_KEY, token, "PX", QWEN_MUTEX_TTL_MS, "NX"))) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  try {
+    return await fn();
+  } finally {
+    await redisConnection.eval(
+      "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+      1,
+      QWEN_MUTEX_KEY,
+      token
+    );
+  }
+}
 
 /**
  * Same AbortController-timeout shape as lib/transcribe.ts's Whisper timeout,
@@ -56,12 +79,12 @@ export function startTranslationWorker(opts: TranslationWorkerOptions): Worker<T
 
   const worker = new Worker<TranslationJob>(
     opts.queue,
-    async (job: Job<TranslationJob>) => {
+    flowProcessor(async (job: Job<TranslationJob>) => {
       const { filename, transcriptId, segments, generationId } = job.data;
       await markTaskProcessing(generationId, `translation-${opts.langCode}`, job.id);
       console.log(`[${workerName}] job ${job.id} → translating "${filename}" to ${opts.language}`);
 
-      const translatedTexts = await withHeartbeat(
+      const translatedTexts = await withQwenMutex(() => withHeartbeat(
         { generationId, taskType: `translation-${opts.langCode}`, jobId: job.id },
         () =>
           withTimeout(
@@ -69,7 +92,7 @@ export function startTranslationWorker(opts: TranslationWorkerOptions): Worker<T
             TRANSLATION_TIMEOUT_MS,
             `Qwen translation timed out after ${Math.round(TRANSLATION_TIMEOUT_MS / 60000)} minutes`
           )
-      );
+      ));
 
       const translation = await persistTranslation({
         transcriptId,
@@ -85,7 +108,7 @@ export function startTranslationWorker(opts: TranslationWorkerOptions): Worker<T
 
       console.log(`[${workerName}] job ${job.id} done → ${translation.url}`);
       return { langCode: opts.langCode, url: translation.url, objectKey: translation.objectKey };
-    },
+    }),
     {
       name: workerName,
       connection: redisConnection,
@@ -121,5 +144,5 @@ export function startTranslationWorker(opts: TranslationWorkerOptions): Worker<T
     console.error(`[${workerName}] worker error: ${err.message}`);
   });
 
-  return worker;
+  return attachWorkerHealth(worker, { workerName, queueName: opts.queue, model: process.env.QWEN_MODEL || "Qwen" });
 }
