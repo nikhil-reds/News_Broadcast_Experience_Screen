@@ -1,23 +1,28 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import styles from "./studio-controls.module.css";
 import { CAMERA_LABEL, CAMERA_SCREEN_PATH } from "@/lib/camera-recordings";
 import { formatSize, formatTime } from "@/lib/format";
 import type { CameraRecorder } from "@/lib/use-camera-recorder";
 
 interface CameraStudioCardProps {
+  studioStyle?: boolean;
   recorder: CameraRecorder;
   /** Every video input on the machine, so an operator can re-point a card. */
   devices: MediaDeviceInfo[];
   onSelectDevice: (deviceId: string) => void;
   showRecordingControls?: boolean;
+  showSavedRecordings?: boolean;
 }
 
 export default function CameraStudioCard({
+  studioStyle = false,
   recorder,
   devices,
   onSelectDevice,
   showRecordingControls = false,
+  showSavedRecordings = true,
 }: CameraStudioCardProps) {
   const {
     cameraId,
@@ -31,6 +36,41 @@ export default function CameraStudioCard({
     lastSaved,
     saved,
   } = recorder;
+
+  const [chosenDevice, setChosenDevice] = useState("");
+  const [isEnabling, setIsEnabling] = useState(false);
+  const enable = async () => {
+    setIsEnabling(true);
+    try { await recorder.startCamera(chosenDevice || activeDeviceId || devices[0]?.deviceId); }
+    finally { setIsEnabling(false); }
+  };
+
+  if (studioStyle) return (
+    <section className={styles.card} aria-label={`Camera ${cameraId}`}>
+      <div className={styles.cardHeading}>
+        <div><h2>Camera {cameraId}</h2><p>Loops on <a href={CAMERA_SCREEN_PATH[cameraId]}>{CAMERA_SCREEN_PATH[cameraId]}</a></p></div>
+        <span className={styles.badge}><i className={styles.dot} />{isRecording ? `REC ${formatTime(recordingTime)}` : isCameraActive ? "On" : "Off"}</span>
+      </div>
+      <div className={styles.cameraPreview}>
+        <video ref={videoRef} autoPlay playsInline muted className={isCameraActive ? styles.video : styles.hiddenVideo} />
+        {!isCameraActive && <div className={styles.placeholder}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>
+          <span>Camera off</span>
+        </div>}
+      </div>
+      <div className={styles.controls}>
+        <select aria-label={`Camera ${cameraId} input`} className={styles.select} value={chosenDevice || activeDeviceId || devices[0]?.deviceId || ""} disabled={isRecording || isEnabling || devices.length === 0}
+          onChange={(event) => { setChosenDevice(event.target.value); if (isCameraActive) onSelectDevice(event.target.value); }}>
+          {devices.length === 0 && <option value="">Camera 1</option>}
+          {devices.map((device, i) => <option key={device.deviceId} value={device.deviceId}>{device.label || `Camera ${i + 1}`}</option>)}
+        </select>
+        <button type="button" className={styles.button} disabled={isRecording || isSaving || isEnabling} onClick={isCameraActive ? recorder.stopCamera : enable}>{isEnabling ? "Starting…" : isCameraActive ? "Turn off" : "Turn on"}</button>
+      </div>
+      {error && <p className={styles.error} role="alert">{error}</p>}
+      {isSaving && <p className={styles.note} role="status">Saving recording…</p>}
+      {lastSaved && <p className={styles.note} role="status">Recording saved · {formatSize(lastSaved.size)}</p>}
+    </section>
+  );
 
   return (
     <section className="space-y-6 bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl">
@@ -162,7 +202,7 @@ export default function CameraStudioCard({
       )}
 
       {/* Saved Videos List */}
-      <div className="space-y-3 pt-2">
+      {showSavedRecordings && <div className="space-y-3 pt-2">
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
           Recent {CAMERA_LABEL[cameraId]} Recordings ({saved.length})
         </h3>
@@ -189,7 +229,7 @@ export default function CameraStudioCard({
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </section>
   );
 }

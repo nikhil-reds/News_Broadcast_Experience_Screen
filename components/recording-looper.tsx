@@ -42,6 +42,8 @@ interface TimedCue {
  */
 export default function RecordingLooper({
   source,
+  startedAt,
+  sessionId: broadcastSessionId,
   muted = true,
   originalAudio = false,
   frame,
@@ -51,7 +53,11 @@ export default function RecordingLooper({
   subtitleLanguage = "English",
   brightness = 100,
   compositeBackgroundId,
+  audioLanguage = "en",
+  voiceId = "original",
 }: {
+  startedAt?: number;
+  sessionId?: string;
   source: RecordingSource;
   muted?: boolean;
   /** Use Screen 5's newest original recording instead of the video's audio track. */
@@ -68,10 +74,13 @@ export default function RecordingLooper({
   brightness?: number;
   /** Use a fixed green-screen composite instead of the raw recording. */
   compositeBackgroundId?: string;
+  audioLanguage?: string;
+  voiceId?: string;
 }) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoFilename, setVideoFilename] = useState<string | null>(null);
   const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null);
+  const [selectedAudioUrl, setSelectedAudioUrl] = useState<string | null>(null);
   const [cues, setCues] = useState<TimedCue[]>([]);
   const [videoTime, setVideoTime] = useState(0);
   const [soundBlocked, setSoundBlocked] = useState(false);
@@ -105,12 +114,14 @@ export default function RecordingLooper({
         // and risking a mismatch if a new take started recording in between.
         // Falls back to unscoped (old behavior) if there's no session yet —
         // e.g. recordings uploaded before this concept existed.
-        let sessionId: string | null = null;
+        let sessionId: string | null = broadcastSessionId ?? null;
         try {
+          if (!sessionId) {
           const sessionRes = await fetch("/api/sessions/current");
           if (sessionRes.ok) {
             const sessionData = await sessionRes.json();
             sessionId = sessionData.session?.id ?? null;
+          }
           }
         } catch {
           /* fall through to unscoped lookup */
@@ -123,7 +134,7 @@ export default function RecordingLooper({
           let list: RecordingItem[] = data.recordings || [];
           // A brand-new session has no recordings yet (still uploading) —
           // fall back to the unscoped newest take rather than showing blank.
-          if (list.length === 0 && sessionId) {
+          if (list.length === 0 && sessionId && !broadcastSessionId) {
             const fallbackRes = await fetch(`/api/save-recording?${query}`);
             if (fallbackRes.ok) {
               const fallbackData = await fallbackRes.json();
@@ -151,7 +162,7 @@ export default function RecordingLooper({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [compositeBackgroundId, query, screenId]);
+  }, [broadcastSessionId, compositeBackgroundId, query, screenId]);
 
   // Match Screen 5's English source: the latest saved original recording,
   // excluding the 16 kHz derivative made for transcription.
@@ -161,7 +172,7 @@ export default function RecordingLooper({
 
     const fetchOriginalAudio = async () => {
       try {
-        const res = await fetch("/api/save-audio");
+        const res = await fetch(broadcastSessionId ? `/api/save-audio?sessionId=${encodeURIComponent(broadcastSessionId)}` : "/api/save-audio");
         if (!res.ok) return;
         const data = await res.json();
         const latest = (data.audioFiles as AudioFileItem[] | undefined)?.find(
@@ -179,13 +190,31 @@ export default function RecordingLooper({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [englishSubtitles, originalAudio]);
+  }, [broadcastSessionId, englishSubtitles, originalAudio]);
+
+  useEffect(() => {
+    if (audioLanguage === "en") { setSelectedAudioUrl(null); return; }
+    if (!originalAudioUrl || !voiceId || voiceId === "original") return;
+    let cancelled = false;
+    const fetchSelectedAudio = async () => {
+      try {
+        const response = await fetch(`/api/audio-language?sourceAudio=${encodeURIComponent(originalAudioUrl)}&voiceId=${encodeURIComponent(voiceId)}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const entry = data.languages?.find((item: { langCode?: string }) => item.langCode === audioLanguage);
+        if (!cancelled) setSelectedAudioUrl(entry?.ready ? entry.url ?? null : null);
+      } catch { if (!cancelled) setSelectedAudioUrl(null); }
+    };
+    void fetchSelectedAudio();
+    const timer = window.setInterval(() => void fetchSelectedAudio(), 3000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [audioLanguage, originalAudioUrl, voiceId]);
 
   // Screen 8's subtitle endpoint maps transcript cues to the edited reel
   // timeline, so captions follow the video cuts instead of the source
   // recording's unedited timestamps.
   useEffect(() => {
-    if (!englishSubtitles || !videoFilename || !originalAudioUrl) {
+    if (subtitleLanguage === "Off" || !englishSubtitles || !videoFilename || !originalAudioUrl) {
       const resetTimer = window.setTimeout(() => setCues([]), 0);
       return () => window.clearTimeout(resetTimer);
     }
@@ -214,15 +243,35 @@ export default function RecordingLooper({
   useEffect(() => {
     if (!videoUrl || !videoRef.current) return;
     videoRef.current.play().catch(() => {
-      if (!muted) setSoundBlocked(true);
+      if (!muted) {
+        setSoundBlocked(true);
+        const video = videoRef.current;
+        if (video) { video.muted = true; void video.play().catch(() => {}); }
+      }
     });
 
-    if (!originalAudio || !originalAudioUrl || !audioRef.current) return;
+    const playbackAudioUrl = audioLanguage === "en" ? originalAudioUrl : selectedAudioUrl;
+    if (!(originalAudio || audioLanguage !== "en") || !playbackAudioUrl || !audioRef.current) return;
     audioRef.current
       .play()
       .then(() => setSoundBlocked(false))
       .catch(() => setSoundBlocked(true));
-  }, [videoUrl, originalAudioUrl, muted, originalAudio]);
+  }, [audioLanguage, videoUrl, originalAudioUrl, selectedAudioUrl, muted, originalAudio]);
+
+  useEffect(() => {
+    if (startedAt === undefined || !videoUrl) return;
+    const align = () => {
+      const elapsed = Math.max(0, Date.now() - startedAt) / 1000;
+      for (const media of [videoRef.current, audioRef.current]) {
+        if (!media || media.seeking || !Number.isFinite(media.duration) || media.duration <= 0) continue;
+        const target = elapsed % media.duration;
+        if (Math.abs(media.currentTime - target) > 0.25) media.currentTime = target;
+      }
+    };
+    align();
+    const timer = window.setInterval(align, 250);
+    return () => window.clearInterval(timer);
+  }, [startedAt, videoUrl]);
 
   const outerClass =
     containerClassName ??
@@ -234,8 +283,9 @@ export default function RecordingLooper({
 
   const retrySoundOnClick = () => {
     if (!soundBlocked) return;
+    if (videoRef.current) videoRef.current.muted = muted;
     videoRef.current?.play().catch(() => {});
-    if (originalAudio) {
+    if (originalAudio || audioLanguage !== "en") {
       audioRef.current
         ?.play()
         .then(() => setSoundBlocked(false))
@@ -270,17 +320,17 @@ export default function RecordingLooper({
           className="w-full h-full object-cover"
           style={{ filter: `brightness(${brightness}%)` }}
         />
-        {originalAudio && <audio ref={audioRef} src={originalAudioUrl || undefined} autoPlay loop />}
+        {(originalAudio || audioLanguage !== "en") && <audio ref={audioRef} src={(audioLanguage === "en" ? originalAudioUrl : selectedAudioUrl) || undefined} autoPlay loop />}
         {activeCue && (
-          <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex justify-center">
-            <p className="max-w-[90%] rounded-lg bg-black/70 px-4 py-2 text-center text-xl font-extrabold leading-snug text-white [text-shadow:0_2px_4px_rgba(0,0,0,0.8)]">
+          <div className="pointer-events-none absolute bottom-[clamp(0.3rem,2vmin,1rem)] left-[clamp(0.3rem,2vmin,1rem)] right-[clamp(0.3rem,2vmin,1rem)] flex max-h-[35%] justify-center overflow-hidden">
+            <p className="max-w-[94%] overflow-hidden rounded-[clamp(0.3rem,1.5vmin,0.5rem)] bg-black/70 px-[clamp(0.4rem,2vmin,1rem)] py-[clamp(0.25rem,1.2vmin,0.5rem)] text-center text-[clamp(0.5625rem,2.8vmin,1.25rem)] font-extrabold leading-[1.18] text-white [text-shadow:0_2px_4px_rgba(0,0,0,0.8)]">
               {activeCue.text}
             </p>
           </div>
         )}
         {soundBlocked && (
           <div className="absolute bottom-6 right-6 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs font-mono text-slate-200">
-            🔊 Click to enable original audio
+            🔊 Click to enable selected audio
           </div>
         )}
         {screenId != null && publication.status === "preparing" && (

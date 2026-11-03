@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import styles from "./studio-controls.module.css";
 import { formatSize, formatTime } from "@/lib/format";
 
 interface SavedAudio {
@@ -11,6 +12,8 @@ interface SavedAudio {
 }
 
 interface AudioStudioCardProps {
+  studioStyle?: boolean;
+  onActiveChange?: (active: boolean) => void;
   onRegisterTriggers?: (triggers: {
     start: () => void;
     end: () => void;
@@ -19,13 +22,20 @@ interface AudioStudioCardProps {
   }) => void;
   onRecordingChange?: (recording: boolean) => void;
   showButtons?: boolean;
+  showSavedAudioFiles?: boolean;
 }
 
 export default function AudioStudioCard({
+  studioStyle = false,
+  onActiveChange,
   onRegisterTriggers,
   onRecordingChange,
   showButtons = true,
+  showSavedAudioFiles = true,
 }: AudioStudioCardProps) {
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [chosenDevice, setChosenDevice] = useState("");
+  const [isEnabling, setIsEnabling] = useState(false);
   // --- Audio States ---
   const [isAudioRecording, setIsAudioRecording] = useState<boolean>(false);
   const [audioRecordingTime, setAudioRecordingTime] = useState<number>(0);
@@ -104,25 +114,27 @@ export default function AudioStudioCard({
       } else {
         setAudioError(data.error || "Failed to save audio file.");
       }
-    } catch (err: any) {
-      setAudioError("Audio save error: " + err.message);
+    } catch (err: unknown) {
+      setAudioError("Audio save error: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsAudioSaving(false);
     }
   };
 
   // ================= AUDIO CAPTURE LOGIC =================
-  const enableMicrophone = async () => {
+  const enableMicrophone = async (deviceId?: string) => {
     setAudioError(null);
     try {
       if (audioStreamRef.current) {
         return audioStreamRef.current;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: deviceId ? { deviceId: { exact: deviceId } } : true });
       audioStreamRef.current = stream;
 
       // Audio Level Visualizer
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) throw new Error("Audio monitoring is unavailable in this browser.");
+      const audioContext = new AudioContextClass();
       audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
@@ -156,9 +168,9 @@ export default function AudioStudioCard({
       updateVolume();
       setIsMicActive(true);
       return stream;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Microphone activation error:", err);
-      setAudioError("Microphone access failed: " + err.message);
+      setAudioError("Microphone access failed: " + (err instanceof Error ? err.message : String(err)));
       setIsMicActive(false);
       return null;
     }
@@ -206,9 +218,9 @@ export default function AudioStudioCard({
       audioTimerRef.current = setInterval(() => {
         setAudioRecordingTime((prev) => prev + 1);
       }, 1000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Audio recording error:", err);
-      setAudioError("Audio recording failed: " + err.message);
+      setAudioError("Audio recording failed: " + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -223,14 +235,14 @@ export default function AudioStudioCard({
 
   // Mount effects
   useEffect(() => {
-    fetchSavedAudioFiles();
+    const timer = window.setTimeout(() => { void fetchSavedAudioFiles(); }, 0);
 
     return () => {
+      window.clearTimeout(timer);
       stopAudioRecordingStream();
       if (audioTimerRef.current) clearInterval(audioTimerRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Register external control hooks if callback provided
@@ -245,13 +257,56 @@ export default function AudioStudioCard({
         },
       });
     }
-  }, [onRegisterTriggers]);
+  });
 
   useEffect(() => {
     if (onRecordingChange) {
       onRecordingChange(isAudioRecording);
     }
   }, [isAudioRecording, onRecordingChange]);
+
+  useEffect(() => { onActiveChange?.(isMicActive); }, [isMicActive, onActiveChange]);
+  useEffect(() => {
+    if (!studioStyle) return;
+    let cancelled = false;
+    const refresh = async () => {
+      const devices = await navigator.mediaDevices?.enumerateDevices().catch(() => []);
+      if (!cancelled) setAudioDevices((devices ?? []).filter((device) => device.kind === "audioinput" && device.deviceId));
+    };
+    void refresh();
+    navigator.mediaDevices?.addEventListener("devicechange", refresh);
+    return () => { cancelled = true; navigator.mediaDevices?.removeEventListener("devicechange", refresh); };
+  }, [studioStyle, isMicActive]);
+  const turnOn = async (deviceId = chosenDevice) => {
+    setIsEnabling(true);
+    try { await enableMicrophone(deviceId || undefined); }
+    finally { setIsEnabling(false); }
+  };
+
+  if (studioStyle) return (
+    <section className={`${styles.card} ${styles.microphone}`} aria-label="Studio microphone">
+      <div className={styles.cardHeading}>
+        <div className={styles.micTitle}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>
+          <div><h2>Studio microphone</h2><p>Master audio · Saved to the audio bucket</p></div>
+        </div>
+        <span className={styles.badge}><i className={styles.dot}/>{isAudioRecording ? `REC ${formatTime(audioRecordingTime)}` : isMicActive ? "On" : "Off"}</span>
+      </div>
+      <div className={styles.micControls}>
+        <div className={styles.meter} role="meter" aria-label="Microphone level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={audioLevel}>
+          {Array.from({length: 48}, (_, i) => <span key={i} style={{height: isMicActive ? `${Math.max(3, waveformValues[i % waveformValues.length] * .4)}px` : "3px", background: isMicActive && i < audioLevel / 100 * 48 ? "#b6a5d8" : undefined}} />)}
+        </div>
+        <select className={styles.select} aria-label="Microphone input" value={chosenDevice} disabled={isAudioRecording || isEnabling} onChange={(event) => { const id = event.target.value; setChosenDevice(id); if (isMicActive) { stopAudioRecordingStream(); void turnOn(id); } }}>
+          <option value="">Microphone 1</option>
+          {audioDevices.map((device, i) => <option key={device.deviceId} value={device.deviceId}>{device.label || `Microphone ${i + 1}`}</option>)}
+        </select>
+        <button type="button" className={styles.button} disabled={isAudioRecording || isAudioSaving || isEnabling} onClick={isMicActive ? stopAudioRecordingStream : () => turnOn()}>{isEnabling ? "Starting…" : isMicActive ? "Turn off" : "Turn on"}</button>
+      </div>
+      {audioError && <p className={styles.error} role="alert">{audioError}</p>}
+      {isAudioSaving && <p className={styles.note} role="status">Saving audio…</p>}
+      {lastSavedAudio && <p className={styles.note} role="status">Audio saved · {formatSize(lastSavedAudio.size)}</p>}
+    </section>
+  );
 
   return (
     <section className="lg:col-span-2 space-y-6 bg-slate-900/40 p-6 rounded-2xl border border-slate-800/80 backdrop-blur-md shadow-2xl">
@@ -278,7 +333,7 @@ export default function AudioStudioCard({
       )}
 
       {/* Audio Waveform / Volume Meter Display */}
-      <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950 p-6 flex flex-col items-center justify-center gap-6 min-h-[220px]">
+      <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950 p-6 flex flex-col items-center justify-center gap-6 min-h-[132px]">
         {isMicActive ? (
           <>
             {/* Wave UI Visualizer */}
@@ -313,7 +368,7 @@ export default function AudioStudioCard({
           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-4 text-center">
             <p className="text-sm font-medium text-slate-300 mb-3">Microphone Feed Inactive</p>
             <button
-              onClick={enableMicrophone}
+              onClick={() => enableMicrophone()}
               className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-950/50 hover:scale-[1.02] active:scale-[0.98] transition"
             >
               Enable Microphone
@@ -374,7 +429,7 @@ export default function AudioStudioCard({
       )}
 
       {/* Saved Audio List */}
-      <div className="space-y-3 pt-2">
+      {showSavedAudioFiles && <div className="space-y-3 pt-2">
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
           Saved Audio Files ({savedAudioFiles.length})
         </h3>
@@ -404,7 +459,7 @@ export default function AudioStudioCard({
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </section>
   );
 }
