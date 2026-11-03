@@ -1,8 +1,12 @@
 "use client";
+import { useWorkflowDirty, useWorkflowReady } from "@/lib/workflow-ready";
+import { selectionFetch } from "@/lib/screen-selection-writes";
+import { DEFAULT_VOICE_ID, VOICE_PROFILES, isVoiceId, voiceProfile, type VoiceId } from "@/lib/voice-profiles";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./screen5.module.css";
-import { fetchCurrentSession, patchSession } from "@/lib/current-session";
+import { fetchCurrentSession } from "@/lib/current-session";
 
 interface AudioFileItem {
   filename: string;
@@ -21,14 +25,10 @@ interface AudioLanguageEntry {
   speakerGender?: string;
   voiceMode?: string;
   fallback?: boolean;
+  voiceId?: VoiceId;
+  status?: string;
+  error?: string | null;
 }
-
-type WheelItem = {
-  id: string;
-  label: string;
-  isReady: boolean;
-  isOriginal: boolean;
-};
 
 const FALLBACK_LANGUAGES: AudioLanguageEntry[] = [
   ["English", "en"],
@@ -48,475 +48,241 @@ const FALLBACK_LANGUAGES: AudioLanguageEntry[] = [
 const COMMIT_DELAY_MS = 400;
 const POLL_MS = 3000;
 const WS_RECONNECT_MS = 2000;
-const SCREEN_BACKGROUND =
-  "radial-gradient(circle at 50% 30%, rgba(15, 43, 157, 0.52), #020617 68%)";
-const FACE_BACKGROUND =
-  "linear-gradient(135deg, #2717b6 0%, #6d1aa8 46%, #c01875 100%)";
-const AUDIO_LANGUAGE_BY_LABEL = new Map(
-  FALLBACK_LANGUAGES.map((language) => [language.language, language.langCode])
-);
-
-async function saveAudioLanguageSelection(sessionId: string, audioLanguage: string, label: string) {
-  await fetch("/api/audio-language/selection", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId, audioLanguage }),
-  });
-  await patchSession(sessionId, { selectedAudioLanguage: label });
-}
-
-function wrapIndex(index: number, length: number) {
-  return ((index % length) + length) % length;
-}
-
-function getNextRotation(currentRotation: number, targetIndex: number, total: number) {
-  const step = 360 / total;
-  const target = -targetIndex * step;
-  const normalized = currentRotation % 360;
-  const delta = ((((target - normalized) % 360) + 540) % 360) - 180;
-  return currentRotation + delta;
-}
-
-function WheelStopButton({
-  item,
-  index,
-  rotation,
-  isActive,
-  isHighlighted,
-  total,
-  onSelect,
-}: {
-  item: WheelItem;
-  index: number;
-  rotation: number;
-  isActive: boolean;
-  isHighlighted: boolean;
-  total: number;
-  onSelect: () => void;
-}) {
-  const angle = (360 / total) * index - 90 + rotation;
-  const itemStyle: React.CSSProperties = {
-    display: "grid",
-    placeItems: "center",
-  };
-  const buttonStyle: React.CSSProperties = {
-    transform: `rotate(${angle}deg) translate(var(--radius)) rotate(${-angle}deg)`,
-    minWidth: "clamp(5.25rem, 11vmin, 6.25rem)",
-    padding: "clamp(0.5rem, 1.15vmin, 0.625rem) clamp(0.875rem, 2vmin, 1.25rem)",
-    fontSize: "clamp(0.75rem, 1.55vmin, 0.875rem)",
-    ...(isActive || isHighlighted ? { background: FACE_BACKGROUND } : {}),
-  };
-
-  return (
-    <li
-      className="pointer-events-none absolute inset-0"
-      style={itemStyle}
-    >
-      <button
-        type="button"
-        onClick={onSelect}
-        aria-pressed={isActive}
-        className={`pointer-events-auto whitespace-nowrap rounded-full border font-semibold leading-none text-white transition duration-300 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-cyan-300 ${
-          isActive
-            ? "scale-110 border-white/75 text-white shadow-[0_0_34px_-5px_rgba(192,24,117,0.88)]"
-            : isHighlighted
-              ? "border-white/70 text-white shadow-[0_0_28px_-6px_rgba(192,24,117,0.78)]"
-              : "border-slate-700 bg-slate-950/80 text-slate-300 hover:border-indigo-400 hover:text-white"
-        } ${item.isReady ? "" : "opacity-70"}`}
-        style={buttonStyle}
-      >
-        {item.label}
-      </button>
-    </li>
-  );
-}
-
-function WheelFace({
-  currentLabel,
-}: {
-  currentLabel: string;
-}) {
-  const faceStyle: React.CSSProperties = {
-    display: "grid",
-    placeContent: "center",
-    justifyItems: "center",
-  };
-
-  return (
-    <div
-      className={`relative z-20 rounded-full border border-indigo-500/35 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_22px_54px_-22px_rgba(0,0,0,0.9),0_0_42px_-24px_rgba(34,211,238,0.9)] ${styles.wheelFace}`}
-      style={{
-        ...faceStyle,
-        gap: "0.5rem",
-        background: FACE_BACKGROUND,
-      }}
-    >
-      <em className="text-[10px] not-italic uppercase tracking-[0.22em] text-cyan-200/80">
-        Now browsing
-      </em>
-      <strong className="max-w-32 text-2xl font-extrabold leading-tight text-white sm:max-w-36 sm:text-3xl">
-        {currentLabel}
-      </strong>
-    </div>
-  );
-}
-
-function CircularWheelNavigation({
-  items,
-  highlightedIndex,
-  activeIndex,
-  rotation,
-  onSelect,
-}: {
-  items: WheelItem[];
-  highlightedIndex: number;
-  activeIndex: number;
-  rotation: number;
-  onSelect: (index: number) => void;
-}) {
-  const current = items[activeIndex] ?? items[0];
-  const screenStyle: React.CSSProperties = {
-    display: "grid",
-    placeItems: "center",
-    background: SCREEN_BACKGROUND,
-  };
-  const pointerStyle: React.CSSProperties = {
-    position: "absolute",
-    left: "50%",
-    // Keep the selection marker above the language pill instead of overlapping its label.
-    zIndex: 30,
-    width: 0,
-    height: 0,
-    transform: "translateX(-50%)",
-    borderLeft: "9px solid transparent",
-    borderRight: "9px solid transparent",
-    borderTop: "13px solid #22d3ee",
-    filter: "drop-shadow(0 2px 8px rgba(34, 211, 238, 0.72))",
-  };
-  const liveStyle: React.CSSProperties = {
-    position: "absolute",
-    width: 1,
-    height: 1,
-    clipPath: "inset(50%)",
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-  };
-
-  return (
-    <section
-      className="h-screen w-screen overflow-hidden text-slate-100"
-      style={screenStyle}
-      aria-label="360 degree wheel navigation"
-    >
-      <div className="relative h-full w-full overflow-hidden" style={screenStyle}>
-        <div className={styles.wheelPointer} style={pointerStyle} aria-hidden="true" />
-        <nav
-          className={`relative ${styles.wheelMachine}`}
-          style={{ display: "grid", placeItems: "center" }}
-          aria-label="Language sections"
-        >
-          <ul
-            className={`absolute inset-0 list-none rounded-full border border-indigo-500/35 shadow-[0_0_48px_-30px_rgba(34,211,238,0.9)] ${styles.wheelList}`}
-          >
-            {items.map((item, itemIndex) => (
-              <WheelStopButton
-                key={item.id}
-                item={item}
-                index={itemIndex}
-                total={items.length}
-                rotation={rotation}
-                isActive={itemIndex === activeIndex}
-                isHighlighted={itemIndex === highlightedIndex}
-                onSelect={() => onSelect(itemIndex)}
-              />
-            ))}
-          </ul>
-          <WheelFace currentLabel={current?.label ?? ""} />
-          <p style={liveStyle} aria-live="polite">
-            {current?.label ? `${current.label} selected` : ""}
-          </p>
-        </nav>
-      </div>
-    </section>
-  );
-}
-
+function wrapIndex(index: number, length: number) { return ((index % length) + length) % length; }
 export default function Screen5Page() {
-  const [selectedUrl, setSelectedUrl] = useState<string>("");
+  const [selectedUrl, setSelectedUrl] = useState("");
   const [languages, setLanguages] = useState<AudioLanguageEntry[]>(FALLBACK_LANGUAGES);
-  const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
-  const [activeIndex, setActiveIndex] = useState<number>(0);
-  const [rotation, setRotation] = useState<number>(0);
-  const languagesRef = useRef<AudioLanguageEntry[]>(FALLBACK_LANGUAGES);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const [programmePlaying, setProgrammePlaying] = useState(false);
+  const skipClick = useRef(false);
+  const dragStart = useRef<number | null>(null);
+  const wheelTime = useRef(0);
+  const [voiceId, setVoiceId] = useState<VoiceId>(DEFAULT_VOICE_ID);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState("Choose a language");
+  const [retry, setRetry] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const shouldPlayOnReadyRef = useRef<boolean>(false);
-  const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimerRef = useRef<number | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
-  const lastVersionRef = useRef<number>(0);
-  const persistOnCommitRef = useRef(false);
-  const pendingLanguageRef = useRef<string | null>(null);
-  const savedLanguageRef = useRef<string>("en");
-
-  const items = useMemo<WheelItem[]>(
-    () =>
-      languages.map((language) => ({
-        id: language.language,
-        label: language.language,
-        isReady: language.ready || language.original,
-        isOriginal: language.original,
-      })),
-    [languages]
-  );
-
+  const previewRef = useRef<HTMLAudioElement | null>(null);
+  const versionRef = useRef(0);
+  const changedRef = useRef(false);
+  const [saved, setSaved] = useState({ langCode: "en", voiceId: DEFAULT_VOICE_ID as VoiceId });
+  useWorkflowDirty(FALLBACK_LANGUAGES[highlightedIndex].langCode !== saved.langCode || voiceId !== saved.voiceId);
   const active = languages[activeIndex] ?? languages[0];
-  const activeUrl = active?.original ? selectedUrl : active?.url || "";
+  const activeUrl = active?.original ? selectedUrl : active?.voiceId === voiceId ? active.url ?? "" : "";
+  useWorkflowReady(Boolean(sessionId && activeUrl) && highlightedIndex === activeIndex && (active?.original || (active?.voiceId === voiceId && active?.ready)));
 
-  useEffect(() => {
-    languagesRef.current = languages;
-  }, [languages]);
-
-  const selectLanguageByCode = useCallback((langCode: string, availableLanguages = languagesRef.current) => {
-    const index = availableLanguages.findIndex((language) => language.langCode === langCode);
-    if (index < 0) return false;
-    setHighlightedIndex(index);
-    setActiveIndex(index);
-    setRotation((currentRotation) => getNextRotation(currentRotation, index, availableLanguages.length));
-    return true;
-  }, []);
-
-  const applyRemoteState = useCallback((state: unknown) => {
-    if (!state || typeof state !== "object") return;
-    const candidate = state as { audioLanguage?: string; version?: number };
-    if (typeof candidate.version !== "number" || candidate.version < lastVersionRef.current) return;
-    if (!candidate.audioLanguage || !selectLanguageByCode(candidate.audioLanguage)) return;
-    lastVersionRef.current = candidate.version;
-    persistOnCommitRef.current = false;
-    pendingLanguageRef.current = null;
-    savedLanguageRef.current = candidate.audioLanguage;
-  }, [selectLanguageByCode]);
-
-  const moveTo = useCallback(
-    (nextIndex: number) => {
-      const total = items.length || 1;
-      const wrappedIndex = wrapIndex(nextIndex, total);
-      shouldPlayOnReadyRef.current = true;
-      setHighlightedIndex(wrappedIndex);
-      setRotation((currentRotation) => getNextRotation(currentRotation, wrappedIndex, total));
-    },
-    [items.length]
-  );
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        moveTo(highlightedIndex - 1);
-      }
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        moveTo(highlightedIndex + 1);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [highlightedIndex, moveTo]);
-
-  useEffect(() => {
-    if (highlightedIndex === activeIndex) return;
-    const timer = window.setTimeout(() => {
-      persistOnCommitRef.current = true;
-      setActiveIndex(highlightedIndex);
-    }, COMMIT_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [highlightedIndex, activeIndex]);
+  const persist = useCallback(async (langCode: string, selectedVoice: VoiceId) => {
+    if (!sessionId) return;
+    try {
+      const response = await selectionFetch("/api/audio-language/selection", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, audioLanguage: langCode, voiceId: selectedVoice }),
+      });
+      if (!response.ok) throw new Error("Unable to save voice selection");
+      setSaved({ langCode, voiceId: selectedVoice });
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to save voice selection"); }
+  }, [sessionId]);
 
   useEffect(() => {
     let disposed = false;
-    const websocketUrl = process.env.NEXT_PUBLIC_AUDIO_LANGUAGE_WS_URL ||
-      `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:3001/ws`;
-
+    let socket: WebSocket | null = null;
+    let timer: number | undefined;
+    const apply = (state: { audioLanguage?: string; voiceId?: unknown; version?: number } | null) => {
+      if (disposed || !state || typeof state.version !== "number" || state.version < versionRef.current) return;
+      const index = FALLBACK_LANGUAGES.findIndex(l => l.langCode === state.audioLanguage);
+      if (index < 0) return;
+      versionRef.current = state.version;
+      const selectedVoice = isVoiceId(state.voiceId) ? state.voiceId : DEFAULT_VOICE_ID;
+      setSaved({ langCode: state.audioLanguage!, voiceId: selectedVoice });
+      setVoiceId(selectedVoice);
+      changedRef.current = false;
+      setHighlightedIndex(index); setActiveIndex(index);
+    };
     const connect = async () => {
       const session = await fetchCurrentSession();
       if (disposed || !session) return;
-      sessionIdRef.current = session.id;
-      savedLanguageRef.current = AUDIO_LANGUAGE_BY_LABEL.get(session.selectedAudioLanguage ?? "") ?? "en";
-      selectLanguageByCode(savedLanguageRef.current);
-      const socket = new WebSocket(websocketUrl);
-      socketRef.current = socket;
-      socket.onopen = () => {
-        socket.send(JSON.stringify({ type: "audio-language:get", sessionId: session.id }));
-        if (pendingLanguageRef.current) {
-          socket.send(JSON.stringify({
-            type: "audio-language:set",
-            sessionId: session.id,
-            audioLanguage: pendingLanguageRef.current,
-          }));
-          pendingLanguageRef.current = null;
-          persistOnCommitRef.current = false;
-        }
-      };
-      socket.onmessage = (event) => {
-        try {
-          const message = JSON.parse(String(event.data)) as { type?: string; state?: unknown };
-          if (message.type === "audio-language:state" || message.type === "audio-language:changed" || message.type === "audio-language:saved") {
-            applyRemoteState(message.state);
+      setSessionId(session.id);
+      const response = await selectionFetch(`/api/audio-language/selection?sessionId=${encodeURIComponent(session.id)}`);
+      if (response.ok) {
+        const saved = (await response.json()).state;
+        if (saved) apply(saved);
+        else {
+          const index = FALLBACK_LANGUAGES.findIndex(l => l.language === session.selectedAudioLanguage);
+          if (index >= 0) {
+            setSaved({ langCode: FALLBACK_LANGUAGES[index].langCode, voiceId: DEFAULT_VOICE_ID });
+            setHighlightedIndex(index); setActiveIndex(index);
           }
-        } catch {
-          // Ignore malformed gateway messages; the next reconnect resynchronizes state.
         }
-      };
-      socket.onclose = () => {
-        if (!disposed) reconnectTimerRef.current = window.setTimeout(connect, WS_RECONNECT_MS);
-      };
-    };
-
-    void connect();
-    return () => {
-      disposed = true;
-      if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
-      socketRef.current?.close();
-    };
-  }, [applyRemoteState, selectLanguageByCode]);
-
-  useEffect(() => {
-    if (!persistOnCommitRef.current || !active) return;
-    pendingLanguageRef.current = active.langCode;
-    if (!sessionIdRef.current) return;
-
-    const socket = socketRef.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      const audioLanguage = pendingLanguageRef.current;
-      persistOnCommitRef.current = false;
-      pendingLanguageRef.current = null;
-      savedLanguageRef.current = audioLanguage;
-      saveAudioLanguageSelection(sessionIdRef.current, audioLanguage, active.language).catch(() => {
-        persistOnCommitRef.current = true;
-        pendingLanguageRef.current = audioLanguage;
-      });
-      return;
-    }
-
-    persistOnCommitRef.current = false;
-    savedLanguageRef.current = pendingLanguageRef.current;
-    socket.send(JSON.stringify({ type: "audio-language:set", sessionId: sessionIdRef.current, audioLanguage: pendingLanguageRef.current }));
-    patchSession(sessionIdRef.current, { selectedAudioLanguage: active.language });
-    pendingLanguageRef.current = null;
-  }, [active]);
-
-  const fetchCatalogue = useCallback(async (sourceAudio: string) => {
-    try {
-      const res = await fetch(
-        `/api/audio-language?sourceAudio=${encodeURIComponent(sourceAudio)}`
-      );
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (Array.isArray(data.languages) && data.languages.length) {
-        setLanguages(data.languages as AudioLanguageEntry[]);
-        const nextLanguages = data.languages as AudioLanguageEntry[];
-        languagesRef.current = nextLanguages;
-        return nextLanguages;
       }
-    } catch {
-      /* keep the wheel usable with fallback languages */
-    }
-    return null;
+      if (disposed) return;
+      const url = process.env.NEXT_PUBLIC_AUDIO_LANGUAGE_WS_URL ||
+        `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:3001/ws`;
+      socket = new WebSocket(url);
+      socket.onopen = () => socket?.send(JSON.stringify({ type: "audio-language:get", sessionId: session.id }));
+      socket.onmessage = event => {
+        try { const message = JSON.parse(String(event.data)); if (message.type?.startsWith("audio-language:")) apply(message.state); } catch {}
+      };
+      socket.onclose = () => { if (!disposed) timer = window.setTimeout(() => void connect().catch(() => {}), WS_RECONNECT_MS); };
+    };
+    void connect().catch(() => setError("Unable to connect to session selection"));
+    return () => { disposed = true; window.clearTimeout(timer); socket?.close(); previewRef.current?.pause(); };
   }, []);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/save-audio");
-        if (!res.ok) return;
-        const data = await res.json();
-        const files: AudioFileItem[] = (data.audioFiles || []).filter(
-          (audio: AudioFileItem) => audio.filename !== "master-audio-16k.wav"
-        );
-        if (files.length > 0) setSelectedUrl(files[0].url);
-      } catch {
-        /* the visual wheel should stay available even without recordings */
-      }
-    })();
+    let disposed = false;
+    void selectionFetch("/api/save-audio").then(r => r.json()).then(data => {
+      const files: AudioFileItem[] = (data.audioFiles || []).filter((a: AudioFileItem) => a.filename !== "master-audio-16k.wav");
+      if (!disposed && files.length) setSelectedUrl(files[0].url);
+    }).catch(() => setError("Unable to load source recording"));
+    return () => { disposed = true; };
   }, []);
 
+  const moveTo = useCallback((index: number) => {
+    changedRef.current = true;
+    const next = wrapIndex(index, FALLBACK_LANGUAGES.length);
+    setHighlightedIndex(next);
+  }, []);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.target as HTMLElement)?.matches("button,select,input")) return;
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault(); moveTo(highlightedIndex + (event.key === "ArrowLeft" ? -1 : 1));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [highlightedIndex, moveTo]);
+  useEffect(() => {
+    if (!changedRef.current) return;
+    const timer = window.setTimeout(() => {
+      changedRef.current = false; setActiveIndex(highlightedIndex);
+
+    }, COMMIT_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [highlightedIndex]);
+  useEffect(() => {
+    const commit = () => { void persist(FALLBACK_LANGUAGES[activeIndex].langCode, voiceId); };
+    window.addEventListener("apply-screen-audio", commit);
+    return () => window.removeEventListener("apply-screen-audio", commit);
+  }, [activeIndex, voiceId, persist]);
+
+  const languageCode = active?.langCode ?? "en";
+  const languageName = active?.language ?? "English";
   useEffect(() => {
     if (!selectedUrl) return;
-    const resetTimer = window.setTimeout(() => {
-      fetchCatalogue(selectedUrl).then((list) => {
-        selectLanguageByCode(savedLanguageRef.current, list ?? languagesRef.current);
-      });
-    }, 0);
-    return () => window.clearTimeout(resetTimer);
-  }, [selectedUrl, fetchCatalogue, selectLanguageByCode]);
-
-  useEffect(() => {
-    if (!selectedUrl || !active || active.original || active.ready) return;
-
     let cancelled = false;
-    let timer: number | null = null;
-
-    (async () => {
-      try {
-        const res = await fetch("/api/audio-language", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sourceAudio: selectedUrl, language: active.language }),
-        });
-        const data = await res.json();
-        if (cancelled) return;
-        if (res.ok && Array.isArray(data.languages)) {
-          setLanguages(data.languages as AudioLanguageEntry[]);
-        }
-      } catch {
-        return;
-      }
-
-      const poll = async () => {
-        if (cancelled) return;
-        const list = await fetchCatalogue(selectedUrl);
-        const entry = list?.find((language) => language.language === active.language);
-        if (entry?.ready) return;
-        timer = window.setTimeout(poll, POLL_MS);
-      };
-
-      timer = window.setTimeout(poll, POLL_MS);
-    })();
-
-    return () => {
-      cancelled = true;
-      if (timer) window.clearTimeout(timer);
+    let timer: number | undefined;
+    setError(null);
+    setStatus(languageCode === "en" ? "Original recording" : "Preparing voice…");
+    const get = async () => {
+      const response = await selectionFetch(`/api/audio-language?sourceAudio=${encodeURIComponent(selectedUrl)}&voiceId=${voiceId}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to load voices");
+      if (cancelled) return null;
+      setLanguages(data.languages);
+      return data.languages.find((l: AudioLanguageEntry) => l.langCode === languageCode) as AudioLanguageEntry;
     };
-  }, [selectedUrl, active, fetchCatalogue]);
+    const poll = async () => {
+      try {
+        const entry = await get();
+        if (cancelled || !entry) return;
+        if (entry.ready) { setStatus(languageCode === "en" ? "Original recording" : "Ready"); return; }
+        if (entry.status === "failed") { setError(entry.error || "Speech generation failed. Retry to try again."); setStatus("Failed"); return; }
+        setStatus(entry.status === "processing" ? "Generating voice…" : "Queued…");
+        timer = window.setTimeout(() => void poll(), POLL_MS);
+      } catch (e) { if (!cancelled) { setError(e instanceof Error ? e.message : "Unable to load voice"); setStatus("Failed"); } }
+    };
+    void (async () => {
+      try {
+        const entry = await get();
+        if (cancelled || !entry) return;
+        if (entry.ready) { setStatus(languageCode === "en" ? "Original recording" : "Ready"); return; }
+        const response = await selectionFetch("/api/audio-language", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sourceAudio: selectedUrl, language: languageName, voiceId, retry: retry > 0 }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to generate voice");
+        if (!cancelled) { setLanguages(data.languages); await poll(); }
+      } catch (e) { if (!cancelled) { setError(e instanceof Error ? e.message : "Unable to prepare voice"); setStatus("Failed"); } }
+    })();
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [selectedUrl, languageCode, languageName, voiceId, retry]);
 
   useEffect(() => {
+    previewRef.current?.pause(); setPreviewPlaying(false);
     const audio = audioRef.current;
-    if (!audio || !activeUrl || !shouldPlayOnReadyRef.current) return;
-
-    audio.currentTime = 0;
-    audio.load();
-    audio.play().catch(() => {
-      /* Browser autoplay policy can still require a fresh user gesture. */
-    });
+    if (!audio) return;
+    audio.pause();
+    if (activeUrl) { audio.load(); void audio.play().catch(() => {}); }
   }, [activeUrl]);
 
-  return (
-    <>
-      <CircularWheelNavigation
-        items={items}
-        highlightedIndex={highlightedIndex}
-        activeIndex={activeIndex}
-        rotation={rotation}
-        onSelect={moveTo}
-      />
-      <audio
-        ref={audioRef}
-        src={activeUrl || undefined}
-        loop
-        preload="auto"
-        className="hidden"
-        aria-hidden="true"
-      />
-    </>
-  );
+  function chooseVoice(id: VoiceId) {
+    previewRef.current?.pause(); audioRef.current?.pause(); setPreviewPlaying(false);
+    setVoiceId(id); setError(null);
+
+  }
+  function previewVoice() {
+    audioRef.current?.pause();
+    if (previewPlaying) { previewRef.current?.pause(); setPreviewPlaying(false); return; }
+    previewRef.current?.pause();
+    const sample = new Audio(languageCode !== "en" && activeUrl ? activeUrl : `/chatterbox-service/voices/${voiceId}.wav`);
+    previewRef.current = sample;
+    sample.onended = () => setPreviewPlaying(false);
+    sample.onpause = () => setPreviewPlaying(false);
+    void sample.play().then(() => setPreviewPlaying(true)).catch(() => { setPreviewPlaying(false); setError("Unable to play voice preview"); });
+  }
+  const selectedLanguage = FALLBACK_LANGUAGES[highlightedIndex];
+  const nativeNames: Record<string, string> = { en: "English", de: "Deutsch", hi: "हिन्दी", fr: "Français", es: "Español" };
+  const gender = voiceProfile(voiceId).gender;
+  const lines: Record<string,string> = { en: "Hello, I’ll be your voice for this broadcast.", de: "Hallo, ich bin Ihre Stimme für diese Sendung.", hi: "नमस्ते, इस प्रसारण में मैं आपकी आवाज़ हूँ।", fr: "Bonjour, je serai votre voix pour cette émission.", es: "Hola, seré tu voz para esta emisión." };
+  return <main className={styles.stage} data-playing={previewPlaying || programmePlaying}>
+    <div className={styles.aurora} aria-hidden="true"><i /><i /><i /></div>
+    <header className={styles.header}>
+      <div className={styles.badge}><span aria-hidden="true" />Multi language</div>
+      <div className={styles.voice} role="group" aria-label="Voice">
+        {VOICE_PROFILES.map(voice => <button key={voice.id} type="button" aria-pressed={voiceId === voice.id}
+          onClick={() => chooseVoice(voice.id)}>{voice.gender === "male" ? "Male" : "Female"}</button>)}
+      </div>
+    </header>
+    <section className={styles.hero} aria-label="Selected language">
+      <h1 key={selectedLanguage.langCode} className={styles.name}>{selectedLanguage.language}</h1>
+      <p className={styles.native} lang={selectedLanguage.langCode}>{nativeNames[selectedLanguage.langCode]}</p>
+      <p className={styles.description}>{lines[selectedLanguage.langCode]}</p>
+      <button className={styles.listen} type="button" onClick={previewVoice} disabled={highlightedIndex !== activeIndex || (languageCode !== "en" && !activeUrl)}>
+        <span className={styles.disc} aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          {previewPlaying ? <rect x="4" y="4" width="8" height="8" rx="1" /> : <path d="M5 2v12l9-6z" />}
+        </svg></span>
+        {previewPlaying ? "Stop preview" : `Hear ${gender} voice`}
+      </button>
+      <div className={styles.status} role="status">
+        {error ? <span className={styles.error}>{error} <button onClick={() => setRetry(n => n + 1)}>Retry</button></span> :
+          status !== "Ready" && status !== "Original recording" ? status : languageCode === "en" && activeUrl ? <button type="button" onClick={() => { previewRef.current?.pause(); const audio = audioRef.current; if (!audio) return; if (audio.paused) void audio.play().catch(() => setError("Unable to play original recording")); else audio.pause(); }}>{programmePlaying ? "Pause" : "Play"} original recording</button> : ""}
+      </div>
+    </section>
+    <nav className={styles.bezel} aria-label="Choose broadcast language"
+      onPointerDown={event => { skipClick.current = false; dragStart.current = event.clientX; }}
+      onPointerUp={event => {
+        if (dragStart.current !== null && Math.abs(event.clientX - dragStart.current) > 40) { skipClick.current = true; moveTo(highlightedIndex + (event.clientX < dragStart.current ? 1 : -1)); }
+        dragStart.current = null;
+      }} onPointerCancel={() => { dragStart.current = null; }}
+      onWheel={event => { if (Date.now() - wheelTime.current > 350 && Math.abs(event.deltaY) > 15) { wheelTime.current = Date.now(); moveTo(highlightedIndex + Math.sign(event.deltaY)); } }}>
+      <div className={styles.ticks} aria-hidden="true">{Array.from({length: 41}, (_, index) => {
+        const x = (index - 20) / 20;
+        return <i key={index} style={{left: `${index * 2.5}%`, top: `${x * x * 60}px`, transform: `rotate(${x * 22}deg)`}} />;
+      })}</div>
+      <div className={styles.needle} aria-hidden="true" />
+      <div className={styles.languages}>{FALLBACK_LANGUAGES.map((language, index) => {
+        const offset = wrapIndex(index - highlightedIndex + 2, FALLBACK_LANGUAGES.length) - 2;
+        return <button key={language.langCode} type="button" aria-pressed={index === highlightedIndex}
+          className={styles.language} onClick={() => { if (!skipClick.current) moveTo(index); skipClick.current = false; }}
+          style={{left: `${50 + offset * 19}%`, top: `${42 + offset * offset * 15}px`, opacity: index === highlightedIndex ? 1 : 0.5}}>{language.language}</button>;
+      })}</div>
+      <span className={styles.hint}>Drag to tune · ← →</span>
+    </nav>
+    <audio ref={audioRef} src={activeUrl || undefined} loop onPlaying={() => setProgrammePlaying(true)} onPause={() => setProgrammePlaying(false)} preload="auto" className={styles.audio} aria-label="Selected language and voice" />
+  </main>;
 }
