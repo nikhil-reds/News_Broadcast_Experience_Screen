@@ -10,6 +10,7 @@ const SUBTITLE_LANGUAGES = [
   { label: "Hindi", code: "hi" },
   { label: "French", code: "fr" },
   { label: "Spanish", code: "es" },
+  { label: "Off", code: "off" },
 ];
 const SUBTITLE_POLL_MS = 3000;
 

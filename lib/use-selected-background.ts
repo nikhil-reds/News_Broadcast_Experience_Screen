@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { GREEN_SCREEN_BACKGROUNDS } from "@/lib/green-screen";
+import { DEFAULT_BACKGROUND_ID, GREEN_SCREEN_BACKGROUNDS } from "@/lib/green-screen";
 import { fetchCurrentSession } from "@/lib/current-session";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 
-const DEFAULT_BACKGROUND_ID = "newsroom-blue";
 const BACKGROUND_POLL_MS = 3000;
 
 function isBackgroundId(value: unknown): value is string {
