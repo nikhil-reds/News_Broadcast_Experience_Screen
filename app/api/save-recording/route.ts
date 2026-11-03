@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { withFlowWork } from "@/lib/flow-lifecycle";
+import { cleanupSupersededGenerations, reconcileSavedFlow } from "@/lib/generation-cleanup";
+import { after, NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { VIDEO_BUCKET, uploadObject } from "@/lib/minio";
 import { CAMERA_FILENAME_PREFIX, HIGHLIGHT_FILENAME_PREFIX, parseCameraId } from "@/lib/camera-recordings";
+import { enqueueHighlightIfSessionComplete } from "@/lib/highlight-pairing";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "unknown error";
@@ -23,6 +26,9 @@ export async function POST(req: NextRequest) {
     const contentType = file.type || (filename.endsWith(".webm") ? "video/webm" : "video/mp4");
     const sessionId = (formData.get("sessionId") as string | null) || null;
 
+    if (!sessionId) return NextResponse.json({ error: "Recording session is required" }, { status: 400 });
+    if (!buffer.length) return NextResponse.json({ error: "Recording is empty" }, { status: 400 });
+    return await withFlowWork(sessionId, async () => {
     // Store in the MinIO `videos` bucket
     await uploadObject(VIDEO_BUCKET, filename, buffer, contentType);
 
@@ -50,6 +56,29 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await reconcileSavedFlow().catch(error => console.error("Flow retention will retry:", error));
+    after(async () => { await cleanupSupersededGenerations().catch(error => console.error("Flow cleanup will retry:", error)); });
+    // Pairing is deliberately checked after the recording row is persisted.
+    // Each camera upload calls this independently; the pairing helper only
+    // queues analysis once all three cameras and the master audio exist.
+    let highlightQueued = false;
+    let highlightQueueReason: string | undefined;
+    try {
+      const pairing = await enqueueHighlightIfSessionComplete(sessionId);
+      highlightQueued = pairing.queued;
+      highlightQueueReason = pairing.reason;
+      console.log(
+        `[save-recording] session=${sessionId ?? "none"} filename=${filename} ` +
+          `highlightQueued=${pairing.queued}${pairing.reason ? ` reason=${pairing.reason}` : ""}`
+      );
+    } catch (pairingError: unknown) {
+      highlightQueueReason = errorMessage(pairingError);
+      console.error(
+        `[save-recording] highlight pairing failed session=${sessionId ?? "none"} ` +
+          `filename=${filename}: ${highlightQueueReason}`
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: "Recording uploaded to MinIO and saved to database",
@@ -58,7 +87,9 @@ export async function POST(req: NextRequest) {
       url,
       size: buffer.length,
       createdAt: record.createdAt.toISOString(),
-      highlightQueued: false,
+      highlightQueued,
+      highlightQueueReason,
+    });
     });
   } catch (error: unknown) {
     console.error("Error saving recording:", error);
@@ -98,7 +129,8 @@ export async function GET(req: NextRequest) {
 
     const recordings = rows.map((r) => ({
       filename: r.filename,
-      url: r.url,
+      // Do not return legacy direct MinIO URLs (`localhost:9000`) to phones.
+      url: `/api/asset/${encodeURIComponent(r.bucket || VIDEO_BUCKET)}/${encodeURIComponent(r.objectKey || r.filename)}`,
       size: r.size,
       createdAt: r.createdAt.toISOString(),
     }));
@@ -108,3 +140,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
   }
 }
+

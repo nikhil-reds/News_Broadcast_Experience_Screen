@@ -1,4 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { enqueueHighlightIfSessionComplete } from "@/lib/highlight-pairing";
+import { withFlowWork } from "@/lib/flow-lifecycle";
+import { cleanupSupersededGenerations, reconcileSavedFlow } from "@/lib/generation-cleanup";
+import { after, NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AUDIO_BUCKET, uploadObject } from "@/lib/minio";
 import { enqueueTranscription } from "@/lib/queue";
@@ -23,6 +26,9 @@ export async function POST(req: NextRequest) {
     const contentType = file.type || "audio/wav";
     const sessionId = (formData.get("sessionId") as string | null) || null;
 
+    if (!sessionId) return NextResponse.json({ error: "Recording session is required" }, { status: 400 });
+    if (!buffer.length) return NextResponse.json({ error: "Recording is empty" }, { status: 400 });
+    return await withFlowWork(sessionId, async () => {
     // Store in the MinIO `audio` bucket
     await uploadObject(AUDIO_BUCKET, filename, buffer, contentType);
 
@@ -50,6 +56,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await reconcileSavedFlow().catch(error => console.error("Flow retention will retry:", error));
+    after(async () => { await cleanupSupersededGenerations().catch(error => console.error("Flow cleanup will retry:", error)); });
+    await enqueueHighlightIfSessionComplete(sessionId).catch(error => console.error("Highlight pairing will retry:", error));
     // Recording is done and stored — enqueue a transcription job for the worker.
     // Best-effort: a Redis/worker outage must not fail the upload.
     let queued = false;
@@ -69,6 +78,7 @@ export async function POST(req: NextRequest) {
       size: buffer.length,
       queuedForTranscription: queued,
       createdAt: record.createdAt.toISOString(),
+    });
     });
   } catch (error: unknown) {
     console.error("Error saving audio:", error);
@@ -92,7 +102,7 @@ export async function GET(req: NextRequest) {
 
     const audioFiles = rows.map((r) => ({
       filename: r.filename,
-      url: r.url,
+      url: `/api/asset/${encodeURIComponent(r.bucket || AUDIO_BUCKET)}/${encodeURIComponent(r.objectKey || r.filename)}`,
       size: r.size,
       createdAt: r.createdAt.toISOString(),
     }));
@@ -102,3 +112,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
   }
 }
+
