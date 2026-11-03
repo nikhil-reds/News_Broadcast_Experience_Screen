@@ -15,7 +15,7 @@ export function isAdminTheme(value: unknown): value is AdminTheme {
 export async function getAdminTheme(): Promise<AdminTheme> {
   const cookieStore = await cookies();
   const value = cookieStore.get(ADMIN_THEME_COOKIE)?.value;
-  return isAdminTheme(value) ? value : "system";
+  return isAdminTheme(value) ? value : "dark";
 }
 
 export async function setAdminThemeCookie(theme: AdminTheme) {
