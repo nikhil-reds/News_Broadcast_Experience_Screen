@@ -1,0 +1,18 @@
+@font-face {font-family:"Background Abro";src:url("/fonts/AbroSans/OpenType-TT/AbroSans-Regular.ttf") format("truetype");font-display:swap}
+.stage {height:100svh;overflow:hidden;background:#030509;color:white;font-family:"Background Abro",sans-serif;touch-action:pan-y}
+.badge,.preview,.rail,.audio,.hint {position:absolute;z-index:20;background:rgba(10,20,30,.64);border:1px solid #ffffff24;backdrop-filter:blur(14px);box-shadow:0 2px 8px #0002}
+.badge,.preview,.audio,.hint {border-radius:999px;display:inline-flex;align-items:center;gap:10px;padding:10px 16px;line-height:1.1}
+.badge {left:20px;top:16px;font-size:18px;min-height:44px}
+.badge span {border-left:1px solid #ffffff40;padding-left:10px;color:#ffffffce;font-size:14px}
+.badge i,.rail i,.preview i {display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff6355;box-shadow:0 0 0 3px #ff635532}
+.preview,.hint {left:50%;transform:translateX(-50%);pointer-events:none;white-space:nowrap}
+.preview {top:16px}.preview i {background:#d181ff;box-shadow:0 0 7px #b969ff}
+.rail {top:70px;left:20px;width:clamp(140px,17.5vw,226px);max-height:calc(100% - 165px);overflow:auto;border-radius:22px;display:grid;gap:10px;padding:12px}
+.rail button {position:relative;overflow:hidden;aspect-ratio:2.25;border-radius:13px;border:2px solid transparent;background:#101826;cursor:pointer;text-align:left}
+.rail button[aria-pressed=true] {border-color:white;box-shadow:0 0 5px #ffffff80}
+.rail img {width:100%;height:100%;object-fit:cover}
+.rail button span {position:absolute;inset:auto 0 0;padding:14px 9px 7px;background:linear-gradient(transparent,#000c);font-size:15px;line-height:1}
+.rail i {margin-right:7px;width:6px;height:6px}.rail b {position:absolute;right:6px;top:6px;background:white;color:#142227;border-radius:50%;width:23px;height:23px;display:grid;place-items:center}
+.audio {bottom:24px;left:20px;max-width:30vw;font-size:14px}.hint {bottom:25px;font-size:14px}
+.stage button:focus-visible {outline:2px solid white;outline-offset:2px}
+@media(max-width:760px){.hint{display:none}.preview{top:68px;left:auto;right:14px;transform:none;font-size:12px}.rail{left:12px;width:130px}.audio{left:12px;max-width:calc(100% - 205px);font-size:12px}}

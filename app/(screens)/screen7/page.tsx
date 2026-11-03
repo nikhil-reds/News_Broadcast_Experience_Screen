@@ -1,4 +1,6 @@
 "use client";
+import styles from "./background.module.css";
+import { useWorkflowDirty, useWorkflowReady } from "@/lib/workflow-ready";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -8,6 +10,7 @@ import {
 import { recordingSourceQuery } from "@/lib/camera-recordings";
 import { fetchCurrentSession, patchSession } from "@/lib/current-session";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
+import { DEFAULT_VOICE_ID, isVoiceId, type VoiceId } from "@/lib/voice-profiles";
 import { useSelectedBrightness } from "@/lib/use-selected-brightness";
 
 type ComposeStatus = "waiting" | "active" | "delayed" | "paused" | "completed" | "fallback-ready" | "failed";
@@ -38,6 +41,7 @@ interface AudioLanguageEntry {
   url: string | null;
   ready: boolean;
   original: boolean;
+  voiceId?: VoiceId;
 }
 
 interface BackgroundStatusResponse {
@@ -99,10 +103,14 @@ export default function Screen7Page() {
   const [warmingIds, setWarmingIds] = useState<Set<string>>(new Set()); // composite keys, rendering quietly
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
+  useWorkflowReady(Boolean(videoSrc) && !pendingId && !errorMessage);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [sourceAudioUrl, setSourceAudioUrl] = useState<string | null>(null);
   const [audioLanguages, setAudioLanguages] = useState<AudioLanguageEntry[]>(FALLBACK_AUDIO_LANGUAGES);
   const [selectedAudioLanguage, setSelectedAudioLanguage] = useState("en");
+  const [voiceId, setVoiceId] = useState<VoiceId>(DEFAULT_VOICE_ID);
+  const voiceRef = useRef<VoiceId>(DEFAULT_VOICE_ID);
+  useEffect(() => { voiceRef.current = voiceId; }, [voiceId]);
   const brightness = useSelectedBrightness();
   // Screen 7 keeps audio separate from the visual composite so Screen 5's
   // selected language can drive playback. Autoplay can still need a gesture.
@@ -114,13 +122,23 @@ export default function Screen7Page() {
   const elapsedTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAt = useRef<number>(0);
   const selectedIdRef = useRef<string | null>(null);
+  // Track user intent separately from the background currently playing.
+  const requestedIdRef = useRef<string | null>(null);
   const chooseBackgroundRef = useRef<(backgroundId: string) => void>(() => {});
   const remoteBackgroundRef = useRef<string | null>(null);
+  const remoteBackgroundVersionRef = useRef(-1);
   const audioSocketRef = useRef<WebSocket | null>(null);
   const audioReconnectTimerRef = useRef<number | null>(null);
   const lastAudioVersionRef = useRef<number>(0);
-  const onRemoteBackground = useCallback((backgroundId: string) => {
+  const [airId, setAirId] = useState(GREEN_SCREEN_BACKGROUNDS[0].id);
+  const [comparing, setComparing] = useState(false);
+  const gesture = useRef<{x:number; timer:number} | null>(null);
+  const onRemoteBackground = useCallback((backgroundId: string, version: number) => {
     if (!GREEN_SCREEN_BACKGROUNDS.some((background) => background.id === backgroundId)) return;
+    if (version <= remoteBackgroundVersionRef.current) return;
+    remoteBackgroundVersionRef.current = version;
+    setAirId(backgroundId);
+    if (requestedIdRef.current === backgroundId) return;
     remoteBackgroundRef.current = backgroundId;
     chooseBackgroundRef.current(backgroundId);
   }, []);
@@ -136,9 +154,11 @@ export default function Screen7Page() {
   useEffect(() => {
     fetchCurrentSession().then((session) => {
       sessionIdRef.current = session?.id ?? null;
-      if (session?.selectedBackgroundId) {
+      if (session?.selectedBackgroundId) setAirId(session.selectedBackgroundId);
+      if (requestedIdRef.current === null && session?.selectedBackgroundId && GREEN_SCREEN_BACKGROUNDS.some((background) => background.id === session.selectedBackgroundId)) {
         setSelectedId(session.selectedBackgroundId);
         selectedIdRef.current = session.selectedBackgroundId;
+        requestedIdRef.current = session.selectedBackgroundId;
       }
       if (session?.selectedAudioLanguage) {
         setSelectedAudioLanguage(AUDIO_LANGUAGE_BY_LABEL.get(session.selectedAudioLanguage) ?? "en");
@@ -150,23 +170,34 @@ export default function Screen7Page() {
     audioLanguages.find((language) => language.langCode === selectedAudioLanguage) ??
     audioLanguages[0] ??
     FALLBACK_AUDIO_LANGUAGES[0];
-  const selectedAudioUrl = selectedAudioEntry?.original
-    ? sourceAudioUrl
-    : selectedAudioEntry?.url || sourceAudioUrl;
+  const english = selectedAudioLanguage === "en";
+  const selectedAudioUrl = english
+    ? null
+    : selectedAudioEntry?.voiceId === voiceId ? selectedAudioEntry.url : null;
   const selectedAudioLabel = selectedAudioEntry?.original
     ? "Original audio"
-    : selectedAudioEntry?.ready && selectedAudioEntry.url
-      ? `${selectedAudioEntry.language} audio`
-      : `Original audio (${selectedAudioEntry?.language ?? "selected"} unavailable)`;
+    : selectedAudioEntry?.ready && selectedAudioEntry.voiceId === voiceId && selectedAudioEntry.url
+      ? `${selectedAudioEntry.language} ${voiceId === "indian-male-01" ? "male" : "female"} audio`
+      : `Preparing ${selectedAudioEntry?.language ?? "selected"} voice`
 
   const playSelectedAudio = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio || !selectedAudioUrl) return;
-    audio
-      .play()
-      .then(() => setSoundBlocked(false))
-      .catch(() => setSoundBlocked(true));
-  }, [selectedAudioUrl]);
+    const video = videoRef.current;
+    if (!video || video.readyState < 2) return;
+    video.muted = !english;
+    const media = english ? video : audioRef.current;
+    if (!media || (!english && (!selectedAudioUrl || video.paused))) return;
+    const current = () => videoRef.current === video && (english ? !video.muted : audioRef.current === media);
+    void media.play().then(() => {
+      if (current()) setSoundBlocked(false);
+    }).catch(error => {
+      if (!current() || error.name !== "NotAllowedError") return;
+      setSoundBlocked(true);
+      if (english) {
+        video.muted = true;
+        void video.play().catch(() => {});
+      }
+    });
+  }, [english, selectedAudioUrl]);
   const persistBackgroundSelection = (backgroundId: string) => {
     if (sessionIdRef.current) {
       patchSession(sessionIdRef.current, { selectedBackgroundId: backgroundId });
@@ -206,9 +237,11 @@ export default function Screen7Page() {
 
   const fetchAudioCatalogue = useCallback(async (sourceAudio: string) => {
     try {
-      const res = await fetch(`/api/audio-language?sourceAudio=${encodeURIComponent(sourceAudio)}`);
+      const requestedVoice = voiceId;
+      const res = await fetch(`/api/audio-language?sourceAudio=${encodeURIComponent(sourceAudio)}&voiceId=${voiceId}`);
       if (!res.ok) return null;
       const data = await res.json();
+      if (voiceRef.current !== requestedVoice) return null;
       if (Array.isArray(data.languages) && data.languages.length) {
         const languages = data.languages as AudioLanguageEntry[];
         setAudioLanguages(languages);
@@ -218,7 +251,7 @@ export default function Screen7Page() {
       /* original audio remains the fallback */
     }
     return null;
-  }, []);
+  }, [voiceId]);
 
   useEffect(() => {
     if (!sourceAudioUrl) return;
@@ -231,7 +264,7 @@ export default function Screen7Page() {
   useEffect(() => {
     if (!sourceAudioUrl) return;
     const active = audioLanguages.find((language) => language.langCode === selectedAudioLanguage);
-    if (!active || active.original || active.ready) return;
+    if (!active || active.original || (active.voiceId === voiceId && active.ready)) return;
 
     let cancelled = false;
     let timer: number | null = null;
@@ -247,18 +280,18 @@ export default function Screen7Page() {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [audioLanguages, fetchAudioCatalogue, selectedAudioLanguage, sourceAudioUrl]);
+  }, [audioLanguages, fetchAudioCatalogue, selectedAudioLanguage, sourceAudioUrl, voiceId]);
 
   useEffect(() => {
     if (!sourceAudioUrl || selectedAudioLanguage === "en") return;
     const active = audioLanguages.find((language) => language.langCode === selectedAudioLanguage);
-    if (!active || active.ready) return;
+    if (!active || (active.voiceId === voiceId && active.ready)) return;
     fetch("/api/audio-language", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sourceAudio: sourceAudioUrl, language: active.language }),
+      body: JSON.stringify({ sourceAudio: sourceAudioUrl, language: active.language, voiceId }),
     }).catch(() => {});
-  }, [audioLanguages, selectedAudioLanguage, sourceAudioUrl]);
+  }, [audioLanguages, selectedAudioLanguage, sourceAudioUrl, voiceId]);
 
   useEffect(() => {
     let disposed = false;
@@ -267,13 +300,14 @@ export default function Screen7Page() {
 
     const applyAudioState = (state: unknown) => {
       if (!state || typeof state !== "object") return;
-      const candidate = state as { audioLanguage?: string; version?: number };
+      const candidate = state as { audioLanguage?: string; voiceId?: unknown; version?: number };
       if (typeof candidate.version !== "number" || candidate.version < lastAudioVersionRef.current) return;
       const audioLanguage = candidate.audioLanguage;
       if (typeof audioLanguage !== "string") return;
       if (!FALLBACK_AUDIO_LANGUAGES.some((language) => language.langCode === audioLanguage)) return;
       lastAudioVersionRef.current = candidate.version;
       setSelectedAudioLanguage(audioLanguage);
+      setVoiceId(isVoiceId(candidate.voiceId) ? candidate.voiceId : DEFAULT_VOICE_ID);
     };
 
     const connect = async () => {
@@ -309,12 +343,39 @@ export default function Screen7Page() {
   }, []);
 
   useEffect(() => {
+    const video = videoRef.current;
     const audio = audioRef.current;
+    if (!video) return;
+    if (english) {
+      playSelectedAudio();
+      return;
+    }
     if (!audio || !selectedAudioUrl) return;
-    audio.currentTime = 0;
-    audio.load();
-    playSelectedAudio();
-  }, [playSelectedAudio, selectedAudioUrl]);
+    const align = () => {
+      if (audio.readyState < 1 || !Number.isFinite(audio.duration)) return;
+      const target = Math.min(video.currentTime, audio.duration);
+      if (Math.abs(audio.currentTime - target) > 0.12) audio.currentTime = target;
+    };
+    const start = () => {
+      align();
+      if (!video.paused && !video.seeking && video.readyState >= 2) playSelectedAudio();
+    };
+    const pause = () => audio.pause();
+    video.addEventListener("playing", start);
+    video.addEventListener("seeked", start);
+    video.addEventListener("timeupdate", align);
+    for (const event of ["pause", "waiting", "seeking"]) video.addEventListener(event, pause);
+    audio.addEventListener("canplay", start);
+    start();
+    return () => {
+      audio.pause();
+      video.removeEventListener("playing", start);
+      video.removeEventListener("seeked", start);
+      video.removeEventListener("timeupdate", align);
+      for (const event of ["pause", "waiting", "seeking"]) video.removeEventListener(event, pause);
+      audio.removeEventListener("canplay", start);
+    };
+  }, [english, playSelectedAudio, selectedAudioUrl, videoSrc]);
 
   // Latest edited highlight reel — the base video this whole screen composites against.
   useEffect(() => {
@@ -396,6 +457,7 @@ export default function Screen7Page() {
     for (const [key, entry] of inFlight.current) {
       if (!entry.silent) settleCompose(key, entry);
     }
+    requestedIdRef.current = selectedIdRef.current;
     setErrorMessage("Stopped waiting. Choose the background again to retry.");
   };
 
@@ -425,7 +487,7 @@ export default function Screen7Page() {
     setVideoSrc(`${url}?t=${Date.now()}`);
     setSelectedId(backgroundId);
     selectedIdRef.current = backgroundId;
-    persistBackgroundSelection(backgroundId);
+    requestedIdRef.current = backgroundId;
     // A successful swap retires whatever went wrong before it — otherwise
     // handleVideoError's "re-rendering it now…" notice outlives the re-render
     // it was describing and sits there over a background that plays fine.
@@ -462,12 +524,12 @@ export default function Screen7Page() {
         if (!ownsCompose(key, entry)) return;
 
         if ((data.status === "completed" || data.status === "fallback-ready") && data.url) {
-          setFallbackMessage(
-            data.status === "fallback-ready"
-              ? "Using a simpler background key for this one."
-              : null
-          );
-          if (entry.autoShow && (selectedIdRef.current === null || selectedIdRef.current === backgroundId)) {
+          if (entry.autoShow && (requestedIdRef.current === null || requestedIdRef.current === backgroundId)) {
+            setFallbackMessage(
+              data.status === "fallback-ready"
+                ? "Using a simpler background key for this one."
+                : null
+            );
             showComposed(backgroundId, data.url);
           }
           settleCompose(key, entry, data.url);
@@ -519,6 +581,7 @@ export default function Screen7Page() {
       if (!opts.silent) existing.silent = false;
       if (opts.autoShow) existing.autoShow = true;
       if (opts.intent === "select" && existing.intent !== "select") {
+        existing.intent = "select";
         fetch("/api/green-screen/compose", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -556,12 +619,12 @@ export default function Screen7Page() {
         }
 
         if ((data.status === "completed" || data.status === "fallback-ready") && data.url) {
-          setFallbackMessage(
-            data.status === "fallback-ready"
-              ? "Using a simpler background key for this one."
-              : null
-          );
-          if (entry.autoShow && (selectedIdRef.current === null || selectedIdRef.current === backgroundId)) {
+          if (entry.autoShow && (requestedIdRef.current === null || requestedIdRef.current === backgroundId)) {
+            setFallbackMessage(
+              data.status === "fallback-ready"
+                ? "Using a simpler background key for this one."
+                : null
+            );
             showComposed(backgroundId, data.url);
           }
           settleCompose(key, entry, data.url);
@@ -605,7 +668,7 @@ export default function Screen7Page() {
       const byId = new Map((status.backgroundsStatus ?? []).map((entry) => [entry.backgroundId, entry]));
       const ready = new Set<string>();
       const warming = new Set<string>();
-      const selected = selectedIdRef.current;
+      const selected = requestedIdRef.current;
       for (const bg of GREEN_SCREEN_BACKGROUNDS) {
         const entry = byId.get(bg.id);
         const key = keyFor(bg.id, sourceFilename);
@@ -613,44 +676,50 @@ export default function Screen7Page() {
           ready.add(key);
           continue;
         }
-        if (["waiting", "active", "delayed", "paused", "processing"].includes(entry?.status ?? "")) {
-          warming.add(key);
-          continue;
-        }
+        // Reattach to existing jobs too, so completion always updates the preview.
+        warming.add(key);
         const autoShow = selected === null || selected === bg.id;
         ensureComposed(bg.id, sourceFilename, { silent: true, autoShow, intent: "prewarm" });
       }
       setReadyIds(ready);
       setWarmingIds(warming);
-      const restoredId = selected && ready.has(keyFor(selected, sourceFilename))
-        ? selected
+      const restoredId = selected
+        ? (ready.has(keyFor(selected, sourceFilename)) ? selected : null)
         : GREEN_SCREEN_BACKGROUNDS.find((bg) => ready.has(keyFor(bg.id, sourceFilename)))?.id ?? null;
       if (restoredId) {
-        setSelectedId(restoredId);
-        selectedIdRef.current = restoredId;
-        setVideoSrc(`${composedOutputUrl(restoredId, sourceFilename)}?t=${Date.now()}`);
+        showComposed(restoredId, composedOutputUrl(restoredId, sourceFilename));
       }
     };
+    const pending = inFlight.current;
     restoreAndWarm();
     return () => {
       cancelled = true;
+      // A previous reel must never replace the preview after its source changes.
+      for (const [key, entry] of pending) {
+        entry.cancelled = true;
+        if (entry.timer) clearTimeout(entry.timer);
+        pending.delete(key);
+      }
+      stopElapsedClock();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceFilename]);
 
   const chooseBackground = (backgroundId: string) => {
-    if (!sourceFilename) return;
-    if (backgroundId === selectedId || backgroundId === pendingId) return;
+    if (!sourceFilename || !GREEN_SCREEN_BACKGROUNDS.some((bg) => bg.id === backgroundId)) return;
+    if ((backgroundId === selectedId && videoSrc && !pendingId) || backgroundId === pendingId) return;
+    requestedIdRef.current = backgroundId;
+    // Superseded requests can finish caching, but cannot control the preview.
+    for (const entry of inFlight.current.values()) entry.silent = true;
     setErrorMessage(null);
     setFallbackMessage(null);
 
     const key = keyFor(backgroundId, sourceFilename);
     if (readyIds.has(key)) {
       // Already rendered against the current edited reel — swap instantly.
-      setVideoSrc(`${composedOutputUrl(backgroundId, sourceFilename)}?t=${Date.now()}`);
-      setSelectedId(backgroundId);
-      selectedIdRef.current = backgroundId;
-      persistBackgroundSelection(backgroundId);
+      stopElapsedClock();
+      setPendingId(null);
+      showComposed(backgroundId, composedOutputUrl(backgroundId, sourceFilename));
       fetch("/api/green-screen/compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -680,6 +749,7 @@ export default function Screen7Page() {
   const handleVideoError = () => {
     if (!selectedId || !sourceFilename) return;
     const backgroundId = selectedId;
+    if (requestedIdRef.current !== backgroundId) return;
     const key = keyFor(backgroundId, sourceFilename);
     const label =
       GREEN_SCREEN_BACKGROUNDS.find((b) => b.id === backgroundId)?.label ?? backgroundId;
@@ -706,15 +776,40 @@ export default function Screen7Page() {
     ensureComposed(backgroundId, sourceFilename, { silent: false, autoShow: true, intent: "select" });
   };
 
+  useWorkflowDirty(Boolean(selectedId) && (pendingId ?? selectedId) !== airId);
   const isProcessing = pendingId !== null;
-  const stillWarmingCount = warmingIds.size;
+  const preview = GREEN_SCREEN_BACKGROUNDS.find(bg => bg.id === (pendingId ?? selectedId));
+  const onAir = GREEN_SCREEN_BACKGROUNDS.find(bg => bg.id === airId) ?? GREEN_SCREEN_BACKGROUNDS[0];
+  useEffect(() => {
+    const commit = () => { if (selectedId) persistBackgroundSelection(selectedId); };
+    window.addEventListener("apply-screen-background", commit);
+    return () => window.removeEventListener("apply-screen-background", commit);
+  });
+  useEffect(() => () => window.clearTimeout(gesture.current?.timer), []);
+  function endGesture() {
+    window.clearTimeout(gesture.current?.timer);
+    gesture.current = null;
+    setComparing(false);
+  }
+  function cycle(direction: number) {
+    if (!sourceFilename) return;
+    const index = GREEN_SCREEN_BACKGROUNDS.findIndex(bg => bg.id === (pendingId ?? selectedId));
+    const count = GREEN_SCREEN_BACKGROUNDS.length;
+    chooseBackground(GREEN_SCREEN_BACKGROUNDS[(index + direction + count) % count].id);
+  }
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
+    <div className={styles.stage}>
       <main className="relative h-full w-full">
         <section className="absolute inset-0 bg-black">
           <div
             className="relative h-full w-full overflow-hidden bg-black"
+            tabIndex={0} role="group" aria-label="Background preview. Use arrow keys to change and hold Space to compare."
+            onKeyDown={e => { if (e.target !== e.currentTarget) return; if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); cycle(e.key === "ArrowLeft" ? -1 : 1); } if (e.key === " ") { e.preventDefault(); setComparing(true); } }}
+            onKeyUp={e => { if (e.key === " ") setComparing(false); }} onBlur={endGesture}
+            onPointerDown={e => { if ((e.target as Element).closest("button")) return; endGesture(); e.currentTarget.setPointerCapture(e.pointerId); gesture.current = { x:e.clientX, timer:window.setTimeout(() => setComparing(true), 250) }; }}
+            onPointerMove={e => { if (gesture.current && Math.abs(e.clientX - gesture.current.x) > 12) { window.clearTimeout(gesture.current.timer); setComparing(false); } }}
+            onPointerUp={e => { const dx = gesture.current ? e.clientX - gesture.current.x : 0; endGesture(); if (Math.abs(dx) > 45) cycle(dx < 0 ? 1 : -1); }} onPointerCancel={endGesture} onLostPointerCapture={endGesture}
             onClick={() => {
               if (!soundBlocked) return;
               videoRef.current?.play().catch(() => {});
@@ -728,16 +823,15 @@ export default function Screen7Page() {
                 src={videoSrc}
                 autoPlay
                 loop
-                muted
+                muted={!english}
                 playsInline
                 onError={handleVideoError}
                 onLoadedData={() => {
                   if (selectedId && sourceFilename) {
                     videoRetryCount.current.delete(keyFor(selectedId, sourceFilename));
                   }
-                  videoRef.current
-                    ?.play()
-                    .catch(() => {});
+                  if (english) playSelectedAudio();
+                  else void videoRef.current?.play().catch(() => {});
                 }}
                 className="w-full h-full object-cover"
                 style={{ filter: `brightness(${brightness}%)` }}
@@ -748,25 +842,20 @@ export default function Screen7Page() {
               </div>
             )}
 
-            <audio
+            {!english && selectedAudioUrl && <audio
               ref={audioRef}
-              src={selectedAudioUrl || undefined}
-              loop
+              key={selectedAudioUrl}
+              src={selectedAudioUrl}
               preload="auto"
               className="hidden"
               aria-hidden="true"
-            />
+            />}
 
-            <div className="absolute left-6 bottom-6 z-20 rounded-xl border border-cyan-400/25 bg-slate-950/80 px-3.5 py-2.5 text-xs font-mono text-cyan-100 backdrop-blur-md">
-              Selected audio: {selectedAudioLabel}
-            </div>
-
-            {soundBlocked && (
-              <div className="absolute bottom-4 right-4 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs font-mono text-slate-200">
-                Click to enable selected audio
-              </div>
+            {comparing && sourceFilename && selectedId !== onAir.id && (
+              <video className="pointer-events-none absolute inset-0 h-full w-full object-cover" src={composedOutputUrl(onAir.id, sourceFilename)}
+                muted playsInline autoPlay loop onLoadedMetadata={e => { e.currentTarget.currentTime = videoRef.current?.currentTime ?? 0; }}
+                style={{filter: `brightness(${brightness}%)`}} />
             )}
-
             {isProcessing && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-slate-950/80 backdrop-blur-sm">
                 <span className="w-12 h-12 rounded-full border-[3px] border-emerald-400 border-t-transparent animate-spin" />
@@ -788,89 +877,32 @@ export default function Screen7Page() {
           </div>
 
         {errorMessage && (
-          <div className="absolute left-6 top-6 z-20 rounded-xl border border-rose-500/30 bg-rose-950/85 p-3.5 text-xs text-rose-300 backdrop-blur-md">
+          <div className="absolute left-1/2 top-20 z-20 -translate-x-1/2 rounded-xl border border-rose-500/30 bg-rose-950/85 p-3.5 text-xs text-rose-300 backdrop-blur-md">
             {errorMessage}
           </div>
         )}
         {fallbackMessage && !errorMessage && (
-          <div className="absolute left-6 top-6 z-20 rounded-xl border border-amber-500/30 bg-amber-950/85 p-3.5 text-xs text-amber-200 backdrop-blur-md">
+          <div className="absolute left-1/2 top-20 z-20 -translate-x-1/2 rounded-xl border border-amber-500/30 bg-amber-950/85 p-3.5 text-xs text-amber-200 backdrop-blur-md">
             {fallbackMessage}
           </div>
         )}
         </section>
 
-        {/* Background picker */}
-        <section className="absolute left-6 top-1/2 z-20 w-[clamp(10rem,18vw,15rem)] -translate-y-1/2 space-y-3 rounded-2xl border border-slate-800/80 bg-slate-950/80 p-3 shadow-2xl backdrop-blur-md">
-          <div className="flex flex-col items-center gap-1.5 text-center">
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Choose a Background
-            </h3>
-            {stillWarmingCount > 0 && (
-              <span className="text-[10px] font-mono text-amber-400/80 flex items-center gap-1 text-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                pre-rendering {stillWarmingCount} in the background
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            {GREEN_SCREEN_BACKGROUNDS.map((bg) => {
-              const key = sourceFilename ? keyFor(bg.id, sourceFilename) : null;
-              const isActive = selectedId === bg.id;
-              const isPending = pendingId === bg.id;
-              const isWarming = !!key && warmingIds.has(key) && !isPending;
-              const isReady = !!key && readyIds.has(key);
-              return (
-                <button
-                  key={bg.id}
-                  onClick={() => chooseBackground(bg.id)}
-                  disabled={isProcessing || !sourceFilename}
-                  className={`group relative rounded-xl overflow-hidden border-2 transition aspect-video ${
-                    isActive
-                      ? "border-emerald-400 shadow-lg shadow-emerald-950"
-                      : "border-slate-800 hover:border-emerald-500/60"
-                  } ${(isProcessing && !isPending) || !sourceFilename ? "opacity-40 cursor-not-allowed" : ""}`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={bg.thumb} alt={bg.label} className="w-full h-full object-cover" />
-                  <div className="absolute inset-x-0 bottom-0 bg-slate-950/80 px-2 py-1.5">
-                    <p className="text-[11px] font-semibold text-slate-100 truncate">{bg.label}</p>
-                  </div>
-                  {isActive && (
-                    <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 text-white text-[11px] flex items-center justify-center font-bold">
-                      ✓
-                    </span>
-                  )}
-                  {!isActive && isReady && (
-                    <span
-                      title="Ready — instant switch"
-                      className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-emerald-500"
-                    />
-                  )}
-                  {!isActive && isWarming && (
-                    <span
-                      title="Pre-rendering…"
-                      className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"
-                    />
-                  )}
-                  {isPending && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70">
-                      <span className="w-5 h-5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
+        <div className={styles.badge}><i />Background<span>{onAir.label} on air</span></div>
+        {preview && <div className={styles.preview} role="status"><i />{comparing ? "On air now" : pendingId ? "Preparing " + preview.label : "Previewing " + preview.label}</div>}
+        <nav className={styles.rail} aria-label="Broadcast backgrounds">
+          {GREEN_SCREEN_BACKGROUNDS.map(bg => <button type="button" key={bg.id} disabled={!sourceFilename}
+            aria-label={bg.label} aria-pressed={preview?.id === bg.id} onClick={() => chooseBackground(bg.id)}>
+            <img src={bg.thumb} alt="" />
+            <span>{onAir.id === bg.id && <i aria-label="On air" />}{bg.label}</span>
+            {preview?.id === bg.id && <b aria-hidden="true">✓</b>}
+          </button>)}
+        </nav>
+        <button className={styles.audio} type="button" onClick={playSelectedAudio} aria-label={soundBlocked ? "Enable selected audio" : selectedAudioLabel}>
+          <span aria-hidden="true">♫</span> Audio · {selectedAudioLabel}{soundBlocked && " · Enable sound"}
+        </button>
+        <div className={styles.hint}>Swipe to change, hold to compare</div>
       </main>
-
-      <style>{`
-        @keyframes loaderSlide {
-          0% { transform: translateX(-100%); }
-          50% { transform: translateX(150%); }
-          100% { transform: translateX(150%); }
-        }
-      `}</style>
     </div>
   );
 }
