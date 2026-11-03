@@ -1,3 +1,5 @@
+import backgroundManifest from "@/public/backgrounds/manifest.json";
+
 /**
  * Screen 07 — live green-screen background swap, composited against the
  * latest edited highlight reel. A new reel invalidates both the expensive
@@ -24,41 +26,9 @@ export interface GreenScreenBackground {
   thumb: string;
 }
 
-/** Kept in sync with public/backgrounds/manifest.json (see that file for how
- *  these were generated). Hard-coded rather than read at import time so the
- *  client bundle doesn't need a fetch just to render the picker grid. */
-export const GREEN_SCREEN_BACKGROUNDS: GreenScreenBackground[] = [
-  {
-    id: "newsroom-blue",
-    label: "Newsroom Blue",
-    image: "/backgrounds/newsroom-blue.jpg",
-    thumb: "/backgrounds/thumbs/newsroom-blue.jpg",
-  },
-  {
-    id: "city-skyline",
-    label: "City Skyline",
-    image: "/backgrounds/city-skyline.jpg",
-    thumb: "/backgrounds/thumbs/city-skyline.jpg",
-  },
-  {
-    id: "world-map",
-    label: "World Map",
-    image: "/backgrounds/world-map.jpg",
-    thumb: "/backgrounds/thumbs/world-map.jpg",
-  },
-  {
-    id: "sunrise-studio",
-    label: "Sunrise Studio",
-    image: "/backgrounds/sunrise-studio.jpg",
-    thumb: "/backgrounds/thumbs/sunrise-studio.jpg",
-  },
-  {
-    id: "corporate-grey",
-    label: "Corporate Grey",
-    image: "/backgrounds/corporate-grey.jpg",
-    thumb: "/backgrounds/thumbs/corporate-grey.jpg",
-  },
-];
+/** Shared catalog for the picker and background composition workers. */
+export const GREEN_SCREEN_BACKGROUNDS: GreenScreenBackground[] = backgroundManifest;
+export const DEFAULT_BACKGROUND_ID = GREEN_SCREEN_BACKGROUNDS[0].id;
 
 export function findBackground(id: string): GreenScreenBackground | undefined {
   return GREEN_SCREEN_BACKGROUNDS.find((b) => b.id === id);

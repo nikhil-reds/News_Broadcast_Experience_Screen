@@ -9,9 +9,12 @@
  * background *images* are still static files checked into /public.
  */
 import { join } from "node:path";
+import { findBackground } from "@/lib/green-screen";
 
 const PUBLIC_DIR = join(process.cwd(), "public");
 
 export function backgroundImagePath(backgroundId: string): string {
-  return join(PUBLIC_DIR, "backgrounds", `${backgroundId}.jpg`);
+  const background = findBackground(backgroundId);
+  if (!background) throw new Error(`Unknown background: ${backgroundId}`);
+  return join(PUBLIC_DIR, background.image);
 }
