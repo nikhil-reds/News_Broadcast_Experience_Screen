@@ -1,24 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AdminDetailModal, type AdminDetailField } from "@/components/admin/admin-detail-modal";
 
 type SortDirection = "asc" | "desc";
 
-export function AdminTable({ headers, children, empty }: { headers: string[]; children: ReactNode; empty?: boolean }) {
+export function AdminTable({ headers, children, empty, defaultGroup = -1 }: { headers: string[]; children: ReactNode; empty?: boolean; defaultGroup?: number }) {
   const tableRef = useRef<HTMLTableElement>(null);
-  const originalRows = useRef<HTMLTableRowElement[]>([]);
+  const id = useId();
   const [query, setQuery] = useState("");
-  const [sortIndex, setSortIndex] = useState(0);
+  const [sortIndex, setSortIndex] = useState(-1);
   const [direction, setDirection] = useState<SortDirection>("asc");
-  const [groupIndex, setGroupIndex] = useState(-1);
+  const [groupIndex, setGroupIndex] = useState(defaultGroup);
   const [selectedDetails, setSelectedDetails] = useState<AdminDetailField[] | null>(null);
 
   useEffect(() => {
     const body = tableRef.current?.tBodies[0];
     if (!body) return;
-    if (!originalRows.current.length) originalRows.current = Array.from(body.rows).filter((row) => !row.classList.contains("admin-group-row"));
-    originalRows.current.forEach((row) => {
+    const originalRows = Array.from(body.rows);
+    originalRows.forEach((row) => {
       row.querySelector(".admin-row-action")?.parentElement?.remove();
       const actionCell = document.createElement("td");
       actionCell.className = "whitespace-nowrap px-4 py-3 text-right";
@@ -32,8 +32,10 @@ export function AdminTable({ headers, children, empty }: { headers: string[]; ch
       row.appendChild(actionCell);
     });
     body.querySelectorAll(".admin-group-row").forEach((row) => row.remove());
-    const rows = originalRows.current.filter((row) => row.textContent?.toLowerCase().includes(query.trim().toLowerCase()));
-    rows.sort((a, b) => {
+    const rows = originalRows.filter((row) => row.textContent?.toLowerCase().includes(query.trim().toLowerCase()));
+    const matches = new Set(rows);
+    originalRows.forEach((row) => { row.hidden = !matches.has(row); });
+    if (sortIndex >= 0) rows.sort((a, b) => {
       const left = a.cells[sortIndex]?.textContent?.trim() ?? "";
       const right = b.cells[sortIndex]?.textContent?.trim() ?? "";
       const result = left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
@@ -49,7 +51,15 @@ export function AdminTable({ headers, children, empty }: { headers: string[]; ch
         groupRow.appendChild(cell); body.appendChild(groupRow); groupRows.forEach((row) => body.appendChild(row));
       });
     }
-  }, [direction, groupIndex, headers.length, query, sortIndex]);
+    return () => {
+      body.querySelectorAll(".admin-group-row").forEach((row) => row.remove());
+      originalRows.forEach((row) => {
+        row.hidden = false;
+        row.querySelector(".admin-row-action")?.parentElement?.remove();
+        body.appendChild(row);
+      });
+    };
+  }, [children, direction, groupIndex, headers.length, query, sortIndex]);
 
   useEffect(() => {
     const body = tableRef.current?.tBodies[0];
@@ -65,17 +75,18 @@ export function AdminTable({ headers, children, empty }: { headers: string[]; ch
     return () => body.removeEventListener("click", onAction);
   }, [headers]);
 
-  return <div className="overflow-hidden rounded-xl border border-admin-border bg-admin-surface shadow-sm">
+  return <div className="w-full min-w-0 overflow-hidden rounded-xl border border-admin-border bg-admin-surface shadow-sm">
     <div className="flex flex-wrap items-center gap-2 border-b border-admin-border bg-admin-surface-muted p-3">
-      <label className="sr-only" htmlFor="admin-table-search">Filter table</label>
-      <input id="admin-table-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter records…" className="min-w-48 flex-1 rounded-md border border-admin-input bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none placeholder:text-admin-text-muted focus:border-admin-focus focus:ring-2 focus:ring-admin-focus/20" />
-      <label className="sr-only" htmlFor="admin-table-sort">Sort by</label>
-      <select id="admin-table-sort" value={sortIndex} onChange={(event) => setSortIndex(Number(event.target.value))} className="rounded-md border border-admin-input bg-admin-surface px-3 py-2 text-sm text-admin-text">{headers.map((header, index) => <option key={header} value={index}>Sort: {header}</option>)}</select>
-      <button type="button" onClick={() => setDirection((value) => value === "asc" ? "desc" : "asc")} className="rounded-md border border-admin-input px-3 py-2 text-sm font-semibold text-admin-text-secondary transition hover:bg-admin-table-hover hover:text-admin-text" aria-label="Toggle sort direction">{direction === "asc" ? "↑ Asc" : "↓ Desc"}</button>
-      <label className="sr-only" htmlFor="admin-table-group">Group by</label>
-      <select id="admin-table-group" value={groupIndex} onChange={(event) => setGroupIndex(Number(event.target.value))} className="rounded-md border border-admin-input bg-admin-surface px-3 py-2 text-sm text-admin-text"><option value={-1}>No grouping</option>{headers.map((header, index) => <option key={header} value={index}>Group: {header}</option>)}</select>
+      <label className="sr-only" htmlFor={`${id}-search`}>Filter table</label>
+      <input id={`${id}-search`} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter records…" className="min-w-48 flex-1 rounded-md border border-admin-input bg-admin-surface px-3 py-2 text-sm text-admin-text outline-none placeholder:text-admin-text-muted focus:border-admin-focus focus:ring-2 focus:ring-admin-focus/20" />
+      <label className="sr-only" htmlFor={`${id}-sort`}>Sort by</label>
+      <select id={`${id}-sort`} value={sortIndex} onChange={(event) => setSortIndex(Number(event.target.value))} className="rounded-md border border-admin-input bg-admin-surface px-3 py-2 text-sm text-admin-text"><option value={-1}>Original order</option>{headers.map((header, index) => <option key={header} value={index}>Sort: {header}</option>)}</select>
+      <button type="button" disabled={sortIndex < 0} onClick={() => setDirection((value) => value === "asc" ? "desc" : "asc")} className="rounded-md border border-admin-input px-3 py-2 text-sm font-semibold text-admin-text-secondary transition hover:bg-admin-table-hover hover:text-admin-text" aria-label="Toggle sort direction">{direction === "asc" ? "↑ Asc" : "↓ Desc"}</button>
+      <label className="sr-only" htmlFor={`${id}-group`}>Group by</label>
+      <select id={`${id}-group`} value={groupIndex} onChange={(event) => setGroupIndex(Number(event.target.value))} className="rounded-md border border-admin-input bg-admin-surface px-3 py-2 text-sm text-admin-text"><option value={-1}>No grouping</option>{headers.map((header, index) => <option key={header} value={index}>Group: {header}</option>)}</select>
     </div>
-    <div className="admin-table-scroll max-h-[clamp(24rem,62vh,48rem)] overflow-auto"><table ref={tableRef} className="min-w-full divide-y divide-admin-border text-sm"><thead className="sticky top-0 z-10 bg-admin-surface-muted shadow-[0_1px_0_var(--admin-border)]"><tr>{headers.map((header) => <th key={header} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase tracking-[0.08em] text-admin-text-muted">{header}</th>)}<th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-[0.08em] text-admin-text-muted">Actions</th></tr></thead><tbody className="divide-y divide-admin-border-subtle [&>tr:not(.admin-group-row)]:transition-colors [&>tr:not(.admin-group-row)]:hover:bg-admin-table-hover [&>tr:focus-within]:bg-admin-table-hover">{children}</tbody></table></div>
+    <div className="admin-table-scroll max-h-[clamp(24rem,62vh,48rem)] overflow-auto"><table ref={tableRef} className="w-full min-w-full divide-y divide-admin-border text-sm"><thead className="sticky top-0 z-10 bg-admin-surface-muted shadow-[0_1px_0_var(--admin-border)]"><tr>{headers.map((header) => <th key={header} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase tracking-[0.08em] text-admin-text-muted">{header}</th>)}<th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-[0.08em] text-admin-text-muted">Details</th></tr></thead><tbody className="divide-y divide-admin-border-subtle [&>tr:not(.admin-group-row)]:transition-colors [&>tr:not(.admin-group-row)]:hover:bg-admin-table-hover [&>tr:focus-within]:bg-admin-table-hover">{children}</tbody></table></div>
+    {!empty && query.trim() && <div role="status" className="admin-no-matches">No matching records. <button onClick={() => setQuery("")}>Clear search</button></div>}
     {empty ? <div className="px-4 py-10 text-center text-sm text-admin-text-muted">No records found.</div> : null}
     {selectedDetails ? <AdminDetailModal title="Record details" fields={selectedDetails} onClose={() => setSelectedDetails(null)} /> : null}
   </div>;

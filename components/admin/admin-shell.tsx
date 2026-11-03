@@ -1,5 +1,7 @@
 "use client";
 
+import { abroSans } from "@/lib/abro-sans";
+import { poppins } from "@/lib/poppins";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { AdminNavbar } from "@/components/admin/admin-navbar";
@@ -34,9 +36,9 @@ export function AdminShell({
   }, [sidebarOpen]);
 
   return (
-    <div className={`admin-theme admin-theme-${theme} relative min-h-screen bg-admin-page text-admin-text`}>
+    <div className={`${poppins.className} ${abroSans.variable} admin-theme admin-theme-${theme} relative min-h-dvh bg-admin-page text-admin-text`}>
       <div aria-hidden="true" className="mesh-bg mesh-grid pointer-events-none fixed inset-0 z-0" />
-      <div className="relative z-10 flex min-h-screen">
+      <div className="relative z-10 flex min-h-dvh">
         <AdminSidebar email={email} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         {sidebarOpen ? (
           <button
@@ -46,9 +48,9 @@ export function AdminShell({
             onClick={() => setSidebarOpen(false)}
           />
         ) : null}
-        <div className="min-w-0 flex-1">
+        <div className="min-h-dvh min-w-0 flex-1">
           <AdminNavbar theme={theme} sidebarOpen={sidebarOpen} onMenuClick={() => setSidebarOpen((open) => !open)} />
-          <main className="mx-auto w-full max-w-[1664px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+          <main className="admin-content min-h-[calc(100dvh-4rem)] w-full min-w-0 p-4 sm:p-5 lg:p-6">{children}</main>
         </div>
       </div>
     </div>

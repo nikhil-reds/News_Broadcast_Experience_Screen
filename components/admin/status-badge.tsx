@@ -8,9 +8,9 @@ const toneMap = {
 
 export function statusTone(status?: string | null): keyof typeof toneMap {
   const value = status?.toLowerCase() ?? "";
-  if (["ready", "completed", "active", "success"].includes(value)) return "success";
-  if (["processing", "queued", "preparing", "recording", "pending"].includes(value)) return "warning";
-  if (["failed", "cancelled", "inactive", "error"].includes(value)) return "danger";
+  if (["ready", "completed", "active", "healthy", "success"].includes(value)) return "success";
+  if (["processing", "degraded", "stale", "queued", "preparing", "recording", "pending"].includes(value)) return "warning";
+  if (["failed", "down", "error"].includes(value)) return "danger";
   if (["idle"].includes(value)) return "info";
   return "neutral";
 }
@@ -25,7 +25,7 @@ export function StatusBadge({
   const label = value === null || value === undefined || value === "" ? "None" : String(value);
   return (
     <span
-      className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-semibold ${toneMap[tone ?? statusTone(label)]}`}
+      className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${toneMap[tone ?? statusTone(label)]}`}
     >
       {label}
     </span>

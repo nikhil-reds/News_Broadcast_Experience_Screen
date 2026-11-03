@@ -23,14 +23,12 @@ export function SettingsWorkspace({
   const activeUsers = users.filter((user) => user.status === "Active").length;
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 pb-10 sm:space-y-8">
+    <div className="w-full min-w-0 space-y-6 pb-10 sm:space-y-8">
       <header className="relative overflow-hidden rounded-3xl border border-admin-border bg-admin-surface p-5 shadow-sm sm:p-8">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-admin-accent/15 blur-3xl" />
-        <div aria-hidden="true" className="pointer-events-none absolute -bottom-28 left-1/3 size-64 rounded-full bg-status-success-text/10 blur-3xl" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-3xl font-bold tracking-tight text-admin-text sm:text-4xl">Settings</h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-admin-text-muted sm:text-base">Manage workspace access, review roles, and keep your security configuration in shape.</p>
+            <h1 className="admin-title">Settings</h1>
+            <p className="admin-page-description mt-2 max-w-xl text-sm leading-6 text-admin-text-muted sm:text-base">Workspace access, roles, and security.</p>
           </div>
           <p className="flex w-fit items-start gap-2 rounded-xl border border-status-info-border bg-status-info-bg px-3.5 py-2.5 text-xs leading-5 text-status-info-text sm:max-w-xs">
             <Icon name="info" className="mt-0.5 size-4" />

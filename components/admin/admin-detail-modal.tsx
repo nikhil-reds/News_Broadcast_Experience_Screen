@@ -17,12 +17,17 @@ export function AdminDetailModal({
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    const trigger = document.activeElement;
     closeRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Tab") { event.preventDefault(); closeRef.current?.focus(); }
       if (event.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (trigger instanceof HTMLElement) trigger.focus();
+    };
   }, [onClose]);
 
   return (
@@ -35,7 +40,7 @@ export function AdminDetailModal({
           </button>
         </header>
         <dl className="grid max-h-[calc(min(80vh,48rem)-5rem)] gap-4 overflow-y-auto p-6 sm:grid-cols-2">
-          {fields.map((field) => <div key={field.label} className="rounded-lg border border-admin-border-subtle bg-admin-surface-muted/60 p-4"><dt className="text-xs font-bold uppercase tracking-wide text-admin-text-muted">{field.label}</dt><dd className="mt-2 break-words text-sm text-admin-text-secondary">{field.value}</dd></div>)}
+          {fields.map((field) => <div key={field.label} className={`${["Preview", "Source text", "Translation"].includes(field.label) ? "sm:col-span-2" : ""} rounded-lg border border-admin-border-subtle bg-admin-surface-muted/60 p-4`}><dt className="text-xs font-bold uppercase tracking-wide text-admin-text-muted">{field.label}</dt><dd className="mt-2 whitespace-pre-wrap break-words text-sm text-admin-text-secondary">{field.value}</dd></div>)}
         </dl>
       </section>
     </div>

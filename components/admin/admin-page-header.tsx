@@ -22,8 +22,8 @@ export function AdminPageHeader({
             {backLabel ?? "Back"}
           </Link>
         ) : null}
-        <h2 className={`text-2xl font-bold text-admin-text ${backHref ? "mt-2" : ""}`}>{title}</h2>
-        {description ? <p className="text-sm text-admin-text-muted">{description}</p> : null}
+        <h1 className={`admin-title ${backHref ? "mt-2" : ""}`}>{title}</h1>
+        {description ? <p className="admin-page-description text-sm text-admin-text-muted">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
