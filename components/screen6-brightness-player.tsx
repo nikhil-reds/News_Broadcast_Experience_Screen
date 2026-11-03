@@ -1,38 +1,23 @@
 "use client";
+import { selectionFetch } from "@/lib/screen-selection-writes";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchCurrentSession, patchSession } from "@/lib/current-session";
+import styles from "./brightness-preview.module.css";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useWorkflowDirty, useWorkflowReady } from "@/lib/workflow-ready";
+import { useSelectedBrightness } from "@/lib/use-selected-brightness";
+import { fetchCurrentSession } from "@/lib/current-session";
 import { useScreenPublication } from "@/lib/use-screen-publication";
 
-const MIN_BRIGHTNESS = 1;
-const MAX_BRIGHTNESS = 100;
+const MIN_BRIGHTNESS = 0;
+const MAX_BRIGHTNESS = 200;
 const BRIGHTNESS_STEP = 5;
-const WS_RECONNECT_MS = 2000;
 
 function clampBrightness(value: number) {
   return Math.min(MAX_BRIGHTNESS, Math.max(MIN_BRIGHTNESS, value));
 }
 
-function sliderVars(brightness: number): React.CSSProperties {
-  const pct = brightness / MAX_BRIGHTNESS;
-  const switchLightMin = 40;
-  const switchLightMax = 100;
-  const l1 = pct * (switchLightMax - switchLightMin) + switchLightMin;
-  const levels = [l1, l1 - 10, l1 - 37].map((light) => Math.max(0, light));
-  const thumbHue = pct * 120;
-  const thumbHSL = `${thumbHue},90.4%,44.9%`;
-
-  return {
-    "--l1": `hsl(228,9.8%,${levels[0]}%)`,
-    "--l2": `hsl(228,9.8%,${levels[1]}%)`,
-    "--l3": `hsl(228,9.8%,${levels[2]}%)`,
-    "--p": `hsl(${thumbHSL})`,
-    "--pT": `hsla(${thumbHSL},0)`,
-  } as React.CSSProperties;
-}
-
 async function saveBrightnessSelection(sessionId: string, brightness: number) {
-  await fetch("/api/brightness/selection", {
+  return selectionFetch("/api/brightness/selection", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId, brightness }),
@@ -41,45 +26,27 @@ async function saveBrightnessSelection(sessionId: string, brightness: number) {
 
 /** Screen 06: muted preview with a live brightness control rail. */
 export default function Screen6BrightnessPlayer() {
-  const [brightness, setBrightness] = useState(MAX_BRIGHTNESS);
+  const remoteBrightness = useSelectedBrightness();
+  const [draft, setDraft] = useState<number | null>(null);
+  const brightness = draft ?? remoteBrightness;
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  useWorkflowDirty(brightness !== remoteBrightness);
+  useWorkflowReady(Boolean(sessionId));
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimerRef = useRef<number | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
-  const lastVersionRef = useRef(0);
-  const pendingBrightnessRef = useRef<number | null>(null);
   const publication = useScreenPublication<{ videoUrl: string; filename: string }>(6);
-  const controlVars = useMemo(() => sliderVars(brightness), [brightness]);
+  const [comparing, setComparing] = useState(false);
 
-  const applyRemoteBrightness = useCallback((state: unknown) => {
-    if (!state || typeof state !== "object") return;
-    const candidate = state as { brightness?: unknown; version?: unknown };
-    if (typeof candidate.version !== "number" || candidate.version < lastVersionRef.current) return;
-    if (typeof candidate.brightness !== "number") return;
-    lastVersionRef.current = candidate.version;
-    pendingBrightnessRef.current = null;
-    setBrightness(clampBrightness(candidate.brightness));
-  }, []);
-
-  const changeBrightness = useCallback((value: number) => {
-    const nextBrightness = clampBrightness(value);
-    setBrightness(nextBrightness);
-    pendingBrightnessRef.current = nextBrightness;
-    const socket = socketRef.current;
-    if (!sessionIdRef.current) return;
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      saveBrightnessSelection(sessionIdRef.current, nextBrightness).catch(() => {});
-      return;
-    }
-    socket.send(JSON.stringify({
-      type: "brightness:set",
-      sessionId: sessionIdRef.current,
-      brightness: nextBrightness,
-    }));
-    patchSession(sessionIdRef.current, { selectedBrightness: nextBrightness });
-    pendingBrightnessRef.current = null;
-  }, []);
+  const changeBrightness = useCallback((value: number) => setDraft(clampBrightness(value)), []);
+  useEffect(() => {
+    const commit = () => {
+      if (sessionId) void saveBrightnessSelection(sessionId, brightness).then(response => {
+        if (response.ok) setDraft(null);
+      }).catch(() => {});
+    };
+    window.addEventListener("apply-screen-brightness", commit);
+    return () => window.removeEventListener("apply-screen-brightness", commit);
+  }, [brightness, sessionId]);
 
   useEffect(() => {
     if (!publication.assets?.videoUrl) return;
@@ -96,48 +63,13 @@ export default function Screen6BrightnessPlayer() {
 
   useEffect(() => {
     let disposed = false;
-    const websocketUrl = process.env.NEXT_PUBLIC_AUDIO_LANGUAGE_WS_URL ||
-      `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:3001/ws`;
-
-    const connect = async () => {
-      const session = await fetchCurrentSession();
-      if (disposed || !session) return;
-      sessionIdRef.current = session.id;
-      const socket = new WebSocket(websocketUrl);
-      socketRef.current = socket;
-      socket.onopen = () => {
-        socket.send(JSON.stringify({ type: "brightness:get", sessionId: session.id }));
-        if (pendingBrightnessRef.current !== null) {
-          socket.send(JSON.stringify({
-            type: "brightness:set",
-            sessionId: session.id,
-            brightness: pendingBrightnessRef.current,
-          }));
-          pendingBrightnessRef.current = null;
-        }
-      };
-      socket.onmessage = (event) => {
-        try {
-          const message = JSON.parse(String(event.data)) as { type?: string; state?: unknown };
-          if (message.type === "brightness:state" || message.type === "brightness:changed" || message.type === "brightness:saved") {
-            applyRemoteBrightness(message.state);
-          }
-        } catch {
-          // Ignore malformed gateway messages; reconnect will request the latest state.
-        }
-      };
-      socket.onclose = () => {
-        if (!disposed) reconnectTimerRef.current = window.setTimeout(connect, WS_RECONNECT_MS);
-      };
-    };
-
-    void connect();
-    return () => {
-      disposed = true;
-      if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
-      socketRef.current?.close();
-    };
-  }, [applyRemoteBrightness]);
+    const load = () => { void fetchCurrentSession().then(session => {
+      if (!disposed && session) setSessionId(session.id);
+    }); };
+    load();
+    const timer = sessionId ? undefined : window.setInterval(load, 2000);
+    return () => { disposed = true; window.clearInterval(timer); };
+  }, [sessionId]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -151,66 +83,32 @@ export default function Screen6BrightnessPlayer() {
   }, [brightness, changeBrightness]);
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-[#15171b] text-white">
-      <div className="flex h-full w-full flex-row gap-3 p-3">
-        <section className="relative h-full min-w-0 flex-1 overflow-hidden rounded-lg bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
-          {videoUrl ? (
-            <video
-              key={videoUrl}
-              ref={videoRef}
-              src={videoUrl}
-              loop
-              muted
-              playsInline
-              className="h-full w-full object-cover"
-              style={{ filter: `brightness(${brightness}%)` }}
-            />
-          ) : null}
-
-          {!videoUrl && <div className="h-full w-full bg-black" />}
-
-          {publication.status === "preparing" && (
-            <div className="absolute bottom-6 left-6 rounded-lg border border-slate-700 bg-slate-950/85 px-3 py-2 font-mono text-xs text-slate-400">
-              Preparing next reel...
-              {publication.progress ? ` ${publication.progress.completed}/${publication.progress.total}` : ""}
-            </div>
-          )}
-
-          {publication.status === "failed" && (
-            <div className="absolute bottom-6 left-6 rounded-lg border border-red-800 bg-red-950/85 px-3 py-2 font-mono text-xs text-red-200">
-              Next reel failed - showing last good one
-            </div>
-          )}
-        </section>
-
-        <aside
-          className="screen6-brightness-panel flex h-full w-[clamp(132px,12vw,190px)] shrink-0 items-center justify-center rounded-lg px-4 py-6 shadow-[0_0_0_1px_rgba(0,0,0,0.12)]"
-          style={controlVars}
-        >
-          <form className="flex h-full w-full items-center justify-center" onSubmit={(event) => event.preventDefault()}>
-            <label htmlFor="brightness" className="sr-only">
-              Brightness
-            </label>
-            <div className="flex h-full w-full flex-col items-center justify-between gap-4 py-2">
-              <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-700">Up</span>
-              <input
-                type="range"
-                id="brightness"
-                name="brightness"
-                min={MIN_BRIGHTNESS}
-                max={MAX_BRIGHTNESS}
-                value={brightness}
-                onChange={(event) => changeBrightness(Number(event.target.value))}
-                className="screen6-brightness-slider"
-                aria-valuetext={`${brightness}% brightness`}
-              />
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-xl font-black leading-none text-slate-800">{brightness}%</span>
-                <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-700">Down</span>
-              </div>
-            </div>
-          </form>
-        </aside>
+    <main className={styles.stage}>
+      <button type="button" className={styles.picture} aria-label="Hold to compare with original brightness"
+        onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); setComparing(true); }}
+        onPointerUp={() => setComparing(false)} onLostPointerCapture={() => setComparing(false)}
+        onPointerCancel={() => setComparing(false)} onBlur={() => setComparing(false)}
+        onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); setComparing(true); } }}
+        onKeyUp={event => { if (event.key === " " || event.key === "Enter") setComparing(false); }}>
+        {videoUrl && <video ref={videoRef} key={videoUrl} src={videoUrl} muted autoPlay loop playsInline
+          style={{ filter: `brightness(${comparing ? 100 : brightness}%)` }} />}
+      </button>
+      <div className={styles.badge}><i aria-hidden="true" />Edited video<span>{remoteBrightness}% on air</span></div>
+      {comparing && <div className={styles.original}>Original · 100%</div>}
+      <div className={styles.rail}>
+        <div className={styles.fill} style={{height: `${brightness / 2}%`}} />
+        <svg className={styles.sun} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5m0 15V22M2 12h2.5m15 0H22M5 5l1.8 1.8m10.4 10.4L19 19M5 19l1.8-1.8M17.2 6.8 19 5"/>
+        </svg>
+        <span className={styles.dim} aria-hidden="true">○</span>
+        <output className={styles.value} htmlFor="brightness">{brightness}<small>%</small></output>
+        <input type="range" id="brightness" aria-label="Brightness" aria-orientation="vertical" aria-valuetext={`${brightness}% brightness`}
+          min={MIN_BRIGHTNESS} max={MAX_BRIGHTNESS} value={brightness}
+          onChange={event => changeBrightness(Number(event.target.value))} />
+      </div>
+      <div className={styles.footer}>
+        <span>{publication.status === "failed" ? "Next reel failed · showing last good reel" : publication.status === "preparing" ? `Preparing next reel${publication.progress ? " · " + publication.progress.completed + "/" + publication.progress.total : "…"}` : "Hold the video to compare"}</span>
+        {brightness !== 100 && <button type="button" onClick={() => changeBrightness(100)}>Reset to 100%</button>}
       </div>
     </main>
   );
