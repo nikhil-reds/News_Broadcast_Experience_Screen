@@ -1,48 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { redisConnection } from "@/lib/redis";
-
 const COSYVOICE_API_URL = (process.env.COSYVOICE_API_URL || "http://localhost:9500").replace(/\/$/, "");
 const SAMPLE_RATE = Number(process.env.COSYVOICE_SAMPLE_RATE || 24000);
-const COSYVOICE_LOCK_KEY = "lock:cosyvoice:inference";
-const COSYVOICE_LOCK_TTL_MS = Number(process.env.COSYVOICE_LOCK_TTL_MS || 20 * 60 * 1000);
-const COSYVOICE_LOCK_WAIT_MS = Number(process.env.COSYVOICE_LOCK_WAIT_MS || 20 * 60 * 1000);
-const LOCK_RELEASE_SCRIPT = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
-
-async function withCosyVoiceLock<T>(opts: {
-  fn: () => Promise<T>;
-  onWaiting?: () => Promise<void>;
-  onAcquired?: (waitMs: number) => Promise<void>;
-}): Promise<T> {
-  const token = randomUUID();
-  const deadline = Date.now() + COSYVOICE_LOCK_WAIT_MS;
-  const waitStartedAt = Date.now();
-  let waitingNotified = false;
-
-  while (Date.now() < deadline) {
-    const acquired = await redisConnection.set(
-      COSYVOICE_LOCK_KEY,
-      token,
-      "PX",
-      COSYVOICE_LOCK_TTL_MS,
-      "NX"
-    );
-    if (acquired === "OK") {
-      try {
-        await opts.onAcquired?.(Date.now() - waitStartedAt);
-        return await opts.fn();
-      } finally {
-        await redisConnection.eval(LOCK_RELEASE_SCRIPT, 1, COSYVOICE_LOCK_KEY, token).catch(() => {});
-      }
-    }
-    if (!waitingNotified) {
-      waitingNotified = true;
-      await opts.onWaiting?.();
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  throw new Error(`Timed out waiting ${Math.round(COSYVOICE_LOCK_WAIT_MS / 60000)} minutes for CosyVoice capacity`);
-}
 
 /**
  * Wrap raw 16-bit mono PCM bytes (what the CosyVoice FastAPI server's
@@ -78,7 +35,11 @@ export async function synthesizeCrossLingual(text: string, promptWav: Buffer, lo
   onWaiting?: () => Promise<void>;
   onAcquired?: (waitMs: number) => Promise<void>;
 }): Promise<Buffer> {
-  return withCosyVoiceLock({ ...lockCallbacks, fn: async () => {
+  // Serialization is owned by the dedicated CosyVoice service. Keeping a
+  // second Redis lock here caused four language workers to independently wait
+  // on the same model and made queue state difficult to interpret.
+  await lockCallbacks?.onAcquired?.(0);
+  return (async () => {
     const form = new FormData();
     form.append("tts_text", text);
     form.append("prompt_wav", new Blob([new Uint8Array(promptWav)], { type: "audio/wav" }), "prompt.wav");
@@ -104,5 +65,16 @@ export async function synthesizeCrossLingual(text: string, promptWav: Buffer, lo
     } finally {
       clearTimeout(timeoutId);
     }
-  }});
+  })();
+}
+
+/** Concatenate CosyVoice WAV responses while retaining one valid WAV header. */
+export function concatWavPcm(chunks: Buffer[]): Buffer {
+  if (chunks.length === 0) throw new Error("No synthesized audio chunks");
+  const pcm = chunks.map((wav) => wav.subarray(wav.toString("ascii", 0, 4) === "RIFF" ? 44 : 0));
+  const body = Buffer.concat(pcm);
+  const header = Buffer.from(chunks[0].subarray(0, 44));
+  header.writeUInt32LE(36 + body.length, 4);
+  header.writeUInt32LE(body.length, 40);
+  return Buffer.concat([header, body]);
 }
