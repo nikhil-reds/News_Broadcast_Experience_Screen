@@ -1,3 +1,6 @@
+import { getAudioLanguageState } from "./audio-language-state";
+import { DEFAULT_VOICE_ID } from "./voice-profiles";
+import { voiceCacheKey } from "./voice-cache";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -16,7 +19,10 @@ async function resolveReel(generationId: string) {
     where: { sessionId: generationId, filename: { startsWith: "highlight-" } },
     orderBy: { createdAt: "desc" },
   });
-  return reel ? { videoUrl: reel.url, filename: reel.filename } : null;
+  return reel ? {
+    videoUrl: `/api/asset/${encodeURIComponent(reel.bucket || "videos")}/${encodeURIComponent(reel.objectKey || reel.filename)}`,
+    filename: reel.filename,
+  } : null;
 }
 
 async function resolveEnglishTranscript(generationId: string) {
@@ -28,10 +34,10 @@ async function resolveEnglishTranscript(generationId: string) {
   if (!transcript) return null;
   const audio = await prisma.audioFile.findFirst({
     where: { filename: transcript.sourceAudio },
-    select: { url: true },
+    select: { url: true, bucket: true, objectKey: true, filename: true },
   });
   return {
-    audioUrl: audio?.url ?? null,
+    audioUrl: audio ? `/api/asset/${encodeURIComponent(audio.bucket || "audio")}/${encodeURIComponent(audio.objectKey || audio.filename)}` : null,
     text: transcript.text,
     segments: transcript.segments.map((s) => ({ start: s.start, end: s.end, text: s.text })),
   };
@@ -50,14 +56,16 @@ async function resolveAllLanguages(generationId: string) {
   if (!transcript) return null;
   const englishAudio = await prisma.audioFile.findFirst({
     where: { filename: transcript.sourceAudio },
-    select: { url: true },
+    select: { url: true, bucket: true, objectKey: true, filename: true },
   });
 
   const languages: Record<string, { audioUrl: string | null; text: string }> = {
-    English: { audioUrl: englishAudio?.url ?? null, text: transcript.text },
+    English: { audioUrl: englishAudio ? `/api/asset/${encodeURIComponent(englishAudio.bucket || "audio")}/${encodeURIComponent(englishAudio.objectKey || englishAudio.filename)}` : null, text: transcript.text },
   };
+  const voiceId = (await getAudioLanguageState(generationId))?.voiceId ?? DEFAULT_VOICE_ID;
   for (const t of transcript.translations) {
-    languages[t.language] = { audioUrl: t.audio?.url ?? null, text: t.text };
+    const audio = t.audio.find(a => a.variantKey === voiceCacheKey(t.text, voiceId));
+    languages[t.language] = { audioUrl: audio?.url ?? null, text: t.text };
   }
   return { languages };
 }

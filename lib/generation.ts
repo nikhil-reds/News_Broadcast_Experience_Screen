@@ -1,3 +1,4 @@
+import { assertFlowWritable } from "@/lib/flow-lifecycle";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { GREEN_SCREEN_BACKGROUNDS } from "@/lib/green-screen";
@@ -126,6 +127,7 @@ export async function upsertTaskPending(
   payload?: Record<string, unknown>
 ) {
   if (!generationId) return null;
+  await assertFlowWritable(generationId);
   return prisma.generationTask.upsert({
     where: { generationId_taskType: { generationId, taskType } },
     create: { generationId, taskType, status: "pending", jobId, payload: payload as Prisma.InputJsonValue },
@@ -141,6 +143,7 @@ export async function markTaskProcessing(
   opts?: { preserveAttempt?: boolean }
 ): Promise<number> {
   if (!generationId) return 1;
+  await assertFlowWritable(generationId);
   const row = await prisma.generationTask.upsert({
     where: { generationId_taskType: { generationId, taskType } },
     create: { generationId, taskType, status: "processing", attempt: 1, jobId, startedAt: new Date() },
@@ -156,6 +159,7 @@ export async function markTaskWaitingForCosyVoice(
   jobId?: string
 ): Promise<number> {
   if (!generationId) return 1;
+  await assertFlowWritable(generationId);
   const row = await prisma.generationTask.upsert({
     where: { generationId_taskType: { generationId, taskType } },
     create: { generationId, taskType, status: "waiting-for-cosyvoice", attempt: 1, jobId, progressMessage: "Waiting for CosyVoice capacity", lastHeartbeatAt: new Date() },
@@ -247,7 +251,7 @@ async function maybeMarkGenerationReady(generationId: string) {
 // ---------------------------------------------------------------------------
 
 export async function getLatestGenerationId(): Promise<string | null> {
-  const row = await prisma.broadcastSession.findFirst({ orderBy: { seq: "desc" }, select: { id: true } });
+  const row = await prisma.broadcastSession.findFirst({ where: { retiredAt: null }, orderBy: { seq: "desc" }, select: { id: true } });
   return row?.id ?? null;
 }
 
@@ -259,8 +263,8 @@ export async function getLatestGenerationId(): Promise<string | null> {
  */
 export async function isStaleBaseGeneration(generationId: string | null | undefined): Promise<boolean> {
   if (!generationId) return false;
-  const latest = await getLatestGenerationId();
-  return latest !== null && latest !== generationId;
+  const flow = await prisma.broadcastSession.findUnique({ where: { id: generationId }, select: { retiredAt: true } });
+  return !flow || flow.retiredAt !== null;
 }
 
 // ---------------------------------------------------------------------------
@@ -286,12 +290,13 @@ export async function computeScreenBaseStatus(screenId: number): Promise<ScreenB
   const required = SCREEN_REQUIREMENTS[screenId];
   if (!required || required.length === 0) return null;
 
-  const latestGen = await prisma.broadcastSession.findFirst({ orderBy: { seq: "desc" } });
+  const latestGen = await prisma.broadcastSession.findFirst({ where: { retiredAt: null }, orderBy: { seq: "desc" } });
   if (!latestGen) {
     return { status: "preparing", generationId: null, seq: null, progress: { completed: 0, total: required.length } };
   }
 
   const candidates = await prisma.broadcastSession.findMany({
+    where: { retiredAt: null },
     orderBy: { seq: "desc" },
     take: 5,
     include: { generationTasks: { where: { taskType: { in: required } } } },
@@ -344,6 +349,7 @@ function paramsMatch(a: unknown, b: Record<string, unknown>): boolean {
 
 /** Called when an operator's config change (background/language/aspect) kicks off a variant job. */
 export async function setPendingVariant(screenId: number, generationId: string, params: Record<string, unknown>) {
+  await assertFlowWritable(generationId);
   await prisma.screenPublication.upsert({
     where: { screenId },
     create: {
