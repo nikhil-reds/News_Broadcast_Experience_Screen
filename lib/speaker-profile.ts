@@ -1,3 +1,4 @@
+import { withFlowWork } from "@/lib/flow-lifecycle";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -103,6 +104,10 @@ function classifyGender(pitchHz: number | null, voicedRatio: number): {
 }
 
 export async function ensureSpeakerProfile(filename: string): Promise<SpeakerProfileResult> {
+  const audio = await prisma.audioFile.findUnique({ where: { filename } });
+  return withFlowWork(audio?.sessionId, () => ensureSpeakerProfileInFlow(filename));
+}
+async function ensureSpeakerProfileInFlow(filename: string): Promise<SpeakerProfileResult> {
   const sourceAudio = `/api/asset/${AUDIO_BUCKET}/${encodeURIComponent(filename)}`;
   const audio = await prisma.audioFile.findUnique({ where: { filename }, include: { speakerProfile: true } });
 
