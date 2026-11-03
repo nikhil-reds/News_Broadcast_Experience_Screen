@@ -1,3 +1,4 @@
+import { cleanupSupersededGenerations } from "@/lib/generation-cleanup";
 /**
  * Watchdog — stuck-job detection & recovery
  * -------------------------------------------
@@ -140,7 +141,7 @@ async function requeueFromPayload(taskType: string, payload: any): Promise<boole
     return true;
   }
   if (taskType.startsWith("tts-")) {
-    await enqueueAudioConversion(payload.langCode, payload.translationId, payload.filename, payload.text, generationId);
+    await enqueueAudioConversion(payload.langCode, payload.translationId, payload.filename, payload.text, generationId, { voiceId: payload.voiceId, modelRevision: payload.modelRevision });
     return true;
   }
   if (taskType.startsWith("greenscreen-")) {
@@ -280,6 +281,7 @@ async function recoverTask(task: {
 }
 
 async function scan() {
+  await cleanupSupersededGenerations().catch(error => console.error("Flow cleanup will retry:", error));
   metrics.watchdog_scans++;
   const now = Date.now();
   const suspiciousCutoff = new Date(now - SUSPICIOUS_AFTER_MS);
