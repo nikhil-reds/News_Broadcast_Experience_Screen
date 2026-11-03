@@ -250,3 +250,67 @@ compose.yaml    Local infrastructure and AI services
 
 Generated folders such as `.next/`, `.tmp/`, and local virtual environments
 are not source files and should not be committed.
+
+## Local male and female voices
+
+Screen 5 offers Male, Female and Preview voice for Hindi, German, French and
+Spanish. The two selected references are stored in
+`public/chatterbox-service/voices/`; English plays the original recording.
+Screen 7 receives the selected language and voice through the local gateway,
+which now starts with `npm run worker:all`.
+
+The verified GPU runtime is `news-chatterbox-v3-local:5de7a54`, built from the
+pinned source in `public/chatterbox-service/vendor/`. It explicitly loads
+`t3_mtl23ls_v3.safetensors` from model revision
+`5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18`. Startup verifies the locally
+cached model manifest and both reference checksums. The model cache is mounted
+read-only and the model container has an internal-only Docker network. The
+localhost relay at `http://127.0.0.1:9601/health` reports the actual checkpoint,
+revision, checksum, device and installed voice IDs. No cloud TTS fallback exists.
+
+Start the installed local services with
+`docker compose up -d --no-build chatterbox-gpu chatterbox-local-api`, then
+`npm run worker:all` and `npm run dev`. The downloaded model/cache and built
+images must be retained; ordinary startup and inference require no internet.
+The V3 build deliberately retains the already-tested Torch 2.7.1/CUDA 12.8
+base image for the RTX 5080 rather than downgrading to Chatterbox's Torch pin.
+
+Audio rows, task identities and storage keys distinguish both voices. Existing
+recordings remain legacy variants. A cached variant is reusable only when its
+translation text, selected reference, model revision and synthesis settings
+match. The final export page at `/exports` snapshots the audio language and voice.
+It locally transcribes the edited reel, translates its retained speech, and uses Chatterbox V3 to dub the selected voice. Pitch-preserving time stretching fits speech into the existing edit. English uses the original track. Each final MP4 and its cache identity include the selected audio configuration; rendering never silently falls back to English.
+
+
+## Latest-flow retention
+
+Only the latest fully saved recording flow is retained. A replacement becomes
+eligible after camera 1, camera 2, camera 3 and master audio have all uploaded
+successfully with nonempty files. Starting or partially saving another recording
+does not delete the previous flow. Existing recordings are also preserved at startup
+until the first new recording is fully saved. Session sequence determines the newest take,
+even when uploads finish out of order.
+
+Uploads and the watchdog reconcile saved flows. Older flows are retired, their
+screen publications cleared, and their queued jobs removed. Running writers hold
+shared PostgreSQL advisory locks; cleanup takes an exclusive lock after they stop.
+Retired workers cannot start new processing or upload more results. The watchdog
+retries cleanup every scan (30 seconds by default), including storage failures.
+Run `npm run worker:all` for processing and persistent cleanup retries.
+
+The `flow_assets` ownership journal is written before media uploads, so partial
+renders remain discoverable even if a later database write fails. Cleanup removes
+recordings, transcripts, translations, generated voice audio and speaker samples,
+highlight sidecars, matting caches, composites, exports, and session-specific Redis
+state. Shared backgrounds, advertisements, installed voice models and application
+settings are retained. Storage deletion must succeed before ownership rows are
+removed; missing objects or buckets count as already deleted.
+
+The additive migration is
+`prisma/migrations/20261103120000_latest_flow_retention/migration.sql`.
+This installation's older migration history is incomplete; the new SQL was
+applied transactionally without resetting or baselining existing tables.
+The isolated integration scenarios are in `script/test-flow-retention.ts` and
+require a separate test database, Redis on port 16379, and uniquely named test
+buckets. The test refuses to run against the normal database or media buckets.
+
