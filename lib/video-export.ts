@@ -9,25 +9,29 @@
  * sidecar JSON (`<reel>.json` in the transcripts bucket) records exactly which
  * [start, end) of the source timeline each concatenated clip came from, which
  * is enough to re-time the transcript's cues onto the reel's own timeline —
- * see `remapCuesToReel`. The reel's audio (camera 1, English) is kept as-is;
- * only the subtitle text changes with language, same as a subtitled (not
- * dubbed) foreign broadcast.
+ * see `remapCuesToReel`. Translated exports instead transcribe the actual
+ * edit locally and synthesize the snapshotted voice into its speech windows.
  */
+import { createHash } from "node:crypto";
+import { createReelDub } from "./reel-dub";
+import { translateSegmentTexts } from "./qwen";
+import { CHATTERBOX_REVISION, CHATTERBOX_CHECKPOINT, voiceProfile, isVoiceId, type VoiceId } from "./voice-profiles";
+import { EXPORT_AUDIO_LABELS, type ExportAudioLanguage } from "./export-settings";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  TTS_AUDIO_BUCKET,
   TRANSCRIPTS_BUCKET,
   VIDEO_BUCKET,
   downloadObjectToFile,
   getObjectBuffer,
   uploadObject,
 } from "@/lib/minio";
-import { composeFinalExport } from "@/lib/ffmpeg";
+import { composeFinalExport, probeDurationSeconds } from "@/lib/ffmpeg";
 import { renderSubtitlePng } from "@/lib/subtitle-image";
 import { getTranscriptForLanguage } from "@/lib/transcript-language";
-import { HIGHLIGHT_FILENAME_PREFIX } from "@/lib/camera-recordings";
 import { findBackground } from "@/lib/green-screen";
 import { backgroundImagePath } from "@/lib/green-screen-paths";
 
@@ -122,17 +126,6 @@ export function remapCuesToReel(
   return out;
 }
 
-function exportFilename(
-  reelFilename: string,
-  aspect: ExportAspect,
-  langCode: string,
-  backgroundId: string
-): string {
-  const stamp = reelFilename.replace(HIGHLIGHT_FILENAME_PREFIX, "").replace(/\.[^.]+$/, "");
-  const bgSuffix = backgroundId === NO_BACKGROUND ? "" : `-${backgroundId}`;
-  return `${aspect}-${langCode}${bgSuffix}-${stamp}.mp4`;
-}
-
 const LANGUAGE_CODES: Record<string, string> = {
   English: "en",
   German: "de",
@@ -145,6 +138,8 @@ export interface ComposeExportResult {
   filename: string;
   url: string;
   size: number;
+  dubAudioKey: string | null;
+  dubManifestKey: string | null;
 }
 
 /**
@@ -190,6 +185,9 @@ export async function getRemappedCuesForReel(params: {
  */
 export async function composeExportVideo(params: {
   reelFilename: string;
+  exportKey: string;
+  audioLanguage: ExportAudioLanguage;
+  voiceId: VoiceId | "original";
   sourceAudio: string;
   language: string;
   aspect: ExportAspect;
@@ -209,7 +207,20 @@ export async function composeExportVideo(params: {
     const reelPath = join(workDir, "reel.mp4");
     await downloadObjectToFile(VIDEO_BUCKET, reelFilename, reelPath);
 
-    const remapped = await getRemappedCuesForReel({ reelFilename, sourceAudio, language });
+    const duration = await probeDurationSeconds(reelPath);
+    const { audioLanguage, voiceId, exportKey } = params;
+    if ((audioLanguage === "en") !== (voiceId === "original")) throw new Error("Invalid export audio selection");
+    const dub = audioLanguage !== "en" && isVoiceId(voiceId)
+      ? await createReelDub({ reelPath, workDir, duration, audioLanguage, voiceId, onHeartbeat }) : null;
+    let remapped: TimedCue[];
+    if (dub) {
+      if (language === EXPORT_AUDIO_LABELS[audioLanguage]) remapped = dub.cues;
+      else if (language === "English") remapped = dub.sourceCues;
+      else {
+        const subtitles = await translateSegmentTexts(dub.sourceCues.map(c => c.text), language);
+        remapped = dub.sourceCues.map((cue, i) => ({ ...cue, text: subtitles[i] }));
+      }
+    } else remapped = await getRemappedCuesForReel({ reelFilename, sourceAudio, language });
 
     const bandHeight = SUBTITLE_BAND_HEIGHT[aspect];
     const subtitles = await Promise.all(
@@ -225,11 +236,15 @@ export async function composeExportVideo(params: {
       })
     );
 
-    const outFilename = exportFilename(reelFilename, aspect, langCode, backgroundId);
+    const outFilename = `${aspect}-${langCode}-audio-${audioLanguage}-${voiceId}-${exportKey.slice(0, 24)}.mp4`;
     const outPath = join(workDir, "export.mp4");
 
     await composeFinalExport({
       input: reelPath,
+      replacementAudio: dub?.audioPath,
+      duration,
+      audioLanguage: ({ en: "eng", hi: "hin", de: "deu", fr: "fra", es: "spa" })[audioLanguage],
+      voiceLabel: voiceId === "original" ? "Original recording" : `${voiceProfile(voiceId).label} (${voiceId})`,
       output: outPath,
       width: dims.width,
       height: dims.height,
@@ -241,11 +256,24 @@ export async function composeExportVideo(params: {
       onHeartbeat,
     });
 
+    let dubAudioKey: string | null = null;
+    let dubManifestKey: string | null = null;
+    if (dub) {
+      const audioBytes = await readFile(dub.audioPath);
+      dubAudioKey = "export-dubs/" + exportKey + ".wav";
+      dubManifestKey = outFilename + ".audio.json";
+      await uploadObject(TTS_AUDIO_BUCKET, dubAudioKey, audioBytes, "audio/wav");
+      await uploadObject(VIDEO_BUCKET, dubManifestKey, Buffer.from(JSON.stringify({
+        exportKey, audioLanguage, voiceId, modelRevision: CHATTERBOX_REVISION, checkpoint: CHATTERBOX_CHECKPOINT,
+        duration, cues: dub.cues, sourceCues: dub.sourceCues, timing: dub.timing,
+        wavSha256: createHash("sha256").update(audioBytes).digest("hex"),
+      }, null, 2)), "application/json");
+    }
     const bytes = await readFile(outPath);
     await uploadObject(VIDEO_BUCKET, outFilename, bytes, "video/mp4");
     const url = `/api/asset/${VIDEO_BUCKET}/${encodeURIComponent(outFilename)}`;
 
-    return { filename: outFilename, url, size: bytes.length };
+    return { filename: outFilename, url, size: bytes.length, dubAudioKey, dubManifestKey };
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }
