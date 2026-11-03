@@ -1,3 +1,4 @@
+import { flowProcessor } from "@/lib/flow-lifecycle";
 /**
  * Green-Screen Compose Worker
  * ----------------------------
@@ -49,6 +50,7 @@ import {
   failVariant,
 } from "@/lib/generation";
 import { startHeartbeat } from "@/lib/generation-heartbeat";
+import { attachWorkerHealth } from "@/lib/worker-health";
 import { RVM_TIMEOUT_MS, runRvmMatting, validateMatteFiles } from "@/lib/video-matting";
 
 // Same env-var-override convention as FFMPEG_EXPORT_TIMEOUT_MS (lib/video-export.ts).
@@ -75,7 +77,7 @@ const WORKER_NAME = "green-screen-compose-worker";
 
 const worker = new Worker<GreenScreenJob>(
   GREEN_SCREEN_QUEUE,
-  async (job: Job<GreenScreenJob>) => {
+  flowProcessor(async (job: Job<GreenScreenJob>) => {
     const { backgroundId, sourceFilename, generationId } = job.data;
 
     if (generationId && (await isStaleBaseGeneration(generationId))) {
@@ -158,7 +160,7 @@ const worker = new Worker<GreenScreenJob>(
       await heartbeat.stop();
       await rm(workDir, { recursive: true, force: true });
     }
-  },
+  }),
   {
     name: WORKER_NAME,
     connection: redisConnection,
@@ -173,6 +175,7 @@ const worker = new Worker<GreenScreenJob>(
     lockDuration: FFMPEG_GREENSCREEN_TIMEOUT_MS + 2 * 60 * 1000,
   }
 );
+attachWorkerHealth(worker, { workerName: WORKER_NAME, queueName: GREEN_SCREEN_QUEUE });
 
 async function tryComposeWithRvm(opts: {
   sourceFilename: string;
