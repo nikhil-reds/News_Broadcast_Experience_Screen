@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { currentBroadcastSession } from "@/lib/current-broadcast-session";
 
 /**
  * GET /api/sessions/current — the session every screen should treat as "now."
@@ -9,9 +9,7 @@ import { prisma } from "@/lib/prisma";
  * transcript from a different take than what Screens 1-3 were showing.
  */
 export async function GET() {
-  const session = await prisma.broadcastSession.findFirst({
-    orderBy: { startedAt: "desc" },
-  });
+  const session = await currentBroadcastSession();
 
   if (!session) {
     return NextResponse.json({ session: null });

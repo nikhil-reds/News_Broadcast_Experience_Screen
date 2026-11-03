@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.selectedAudioLanguage = body.selectedAudioLanguage;
   }
   if (typeof body.selectedBrightness === "number" && Number.isInteger(body.selectedBrightness)) {
-    data.selectedBrightness = Math.min(100, Math.max(1, body.selectedBrightness));
+    data.selectedBrightness = Math.min(200, Math.max(0, body.selectedBrightness));
   }
 
   try {

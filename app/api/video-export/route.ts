@@ -2,108 +2,84 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enqueueVideoExport } from "@/lib/queue";
 import { NO_BACKGROUND } from "@/lib/video-export";
-import { setPendingVariant } from "@/lib/generation";
-import { debounce } from "@/lib/debounce";
+import { setPendingVariant, publishVariant } from "@/lib/generation";
+import { getAudioLanguageState } from "@/lib/audio-language-state";
+import { DEFAULT_VOICE_ID, CHATTERBOX_REVISION } from "@/lib/voice-profiles";
+import { EXPORT_AUDIO_LABELS, isExportAudioLanguage, type ExportAudioLanguage } from "@/lib/export-settings";
+import { exportIdentity } from "@/lib/export-identity";
+import { minioClient, VIDEO_BUCKET, objectExists } from "@/lib/minio";
+import { findBackground } from "@/lib/green-screen";
+import { currentBroadcastSession } from "@/lib/current-broadcast-session";
 
-/**
- * POST /api/video-export — Screen 11/12's "Generate" action.
- *
- * Re-running the same (reel, language, aspect) combination reuses the
- * existing VideoJob row rather than piling up duplicates — if it already
- * completed, the caller gets that result back immediately.
- */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-  const { reelFilename, sourceAudio, language, aspect, backgroundId = NO_BACKGROUND } = body || {};
-
-  if (!reelFilename || !sourceAudio || !language || !aspect) {
-    return NextResponse.json(
-      { error: "reelFilename, sourceAudio, language, and aspect are required" },
-      { status: 400 }
-    );
+  if (!body || typeof body.reelFilename !== "string" || typeof body.sourceAudio !== "string" ||
+      !["portrait", "landscape"].includes(body.aspect)) {
+    return NextResponse.json({ error: "Valid reelFilename, sourceAudio and aspect are required" }, { status: 400 });
   }
-  if (aspect !== "portrait" && aspect !== "landscape") {
-    return NextResponse.json({ error: 'aspect must be "portrait" or "landscape"' }, { status: 400 });
-  }
-
-  // Screen mapping is fixed elsewhere in this codebase's screen structure.
-  const screenId = aspect === "portrait" ? 11 : 12;
-
-  const existing = await prisma.videoJob.findUnique({
-    where: { reelFilename_language_aspect_backgroundId: { reelFilename, language, aspect, backgroundId } },
-  });
-
-  // Only a genuinely-finished export is safe to short-circuit on — a
-  // "processing"/"queued" row can go stale forever if the worker that owned
-  // it crashed or its BullMQ job was reclaimed/retried, and this route has
-  // no way to tell a live one from a dead one just by reading that column.
-  // enqueueVideoExport() below already re-checks the *real* BullMQ job state
-  // before deciding to reuse or recreate it, so it's the authoritative dedup
-  // — this early return only needs to cover the "nothing to do" case.
-  if (existing && existing.status === "completed") {
-    return NextResponse.json({ videoJob: existing });
-  }
-
-  // The reel's own sessionId — populated going forward by a separate,
-  // concurrent part of this refactor. Older reels won't have one; treat that
-  // as legacy/no-generation rather than an error.
-  const recording = await prisma.videoRecording.findUnique({
-    where: { filename: reelFilename },
-    select: { sessionId: true },
-  });
-  const generationId = recording?.sessionId ?? null;
-
-  if (generationId) {
-    await setPendingVariant(screenId, generationId, { language, aspect, backgroundId });
-  }
-
-  // Coalesce rapid config changes (language/aspect/background) into a single
-  // enqueue: only the last request within the debounce window for this
-  // screen actually creates/updates the VideoJob row and enqueues the export.
-  const videoJob = await debounce(`video-export:screen${screenId}`, 700, async () => {
-    const job = await prisma.videoJob.upsert({
-      where: { reelFilename_language_aspect_backgroundId: { reelFilename, language, aspect, backgroundId } },
-      create: { reelFilename, sourceAudio, language, aspect, backgroundId, status: "queued", generationId },
-      update: { sourceAudio, status: "queued", errorMessage: null, generationId },
-    });
-
-    try {
-      await enqueueVideoExport({
-        videoJobId: job.id,
-        reelFilename,
-        sourceAudio,
-        language,
-        aspect,
-        backgroundId,
-        generationId,
-        screenId,
-      });
-      return job;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to enqueue export job";
-      return prisma.videoJob.update({ where: { id: job.id }, data: { status: "failed", errorMessage: message } });
+  try {
+    const { reelFilename, sourceAudio, aspect } = body;
+    // Snapshot the same current-session selection used by Screens 5 and 7.
+    const session = await currentBroadcastSession();
+    const selection = session ? await getAudioLanguageState(session.id) : null;
+    const savedCode = Object.entries(EXPORT_AUDIO_LABELS).find(([, label]) => label === session?.selectedAudioLanguage)?.[0];
+    const audioLanguage: ExportAudioLanguage = selection?.audioLanguage ?? (isExportAudioLanguage(savedCode) ? savedCode : "en");
+    const voiceId = audioLanguage === "en" ? "original" as const : selection?.voiceId ?? DEFAULT_VOICE_ID;
+    if ((body.audioLanguage !== undefined && body.audioLanguage !== audioLanguage) ||
+        (body.voiceId !== undefined && body.voiceId !== voiceId)) {
+      return NextResponse.json({ error: "The audio selection changed. Refresh the export settings and generate again." }, { status: 409 });
     }
-  });
-
-  if (videoJob.status === "failed") {
-    return NextResponse.json({ error: videoJob.errorMessage ?? "Failed to enqueue export job" }, { status: 500 });
+    const language = body.language ?? EXPORT_AUDIO_LABELS[audioLanguage];
+    if (!Object.values(EXPORT_AUDIO_LABELS).includes(language)) return NextResponse.json({ error: "Unsupported subtitle language" }, { status: 400 });
+    const backgroundId = body.backgroundId ?? session?.selectedBackgroundId ?? NO_BACKGROUND;
+    if (typeof backgroundId !== "string" || (backgroundId !== NO_BACKGROUND && !findBackground(backgroundId))) {
+      return NextResponse.json({ error: "Invalid background" }, { status: 400 });
+    }
+    const [recording, transcript] = await Promise.all([
+      prisma.videoRecording.findUnique({ where: { filename: reelFilename } }),
+      prisma.transcript.findFirst({ where: { sourceAudio }, orderBy: { createdAt: "desc" }, include: { translations: true } }),
+    ]);
+    if (!recording || !transcript) return NextResponse.json({ error: "A saved reel and its transcript are required" }, { status: 404 });
+    if (recording.sessionId && transcript.generationId && recording.sessionId !== transcript.generationId) {
+      return NextResponse.json({ error: "The selected source audio belongs to another recording session" }, { status: 409 });
+    }
+    const stat = await minioClient.statObject(VIDEO_BUCKET, reelFilename);
+    const translation = transcript.translations.find(t => t.language === language);
+    const exportKey = exportIdentity({ reelFilename, reelEtag: stat.etag, sourceAudio,
+      transcriptVersion: `${transcript.id}:${transcript.updatedAt.toISOString()}:${translation?.updatedAt.toISOString() ?? ""}`,
+      language, aspect, backgroundId, audioLanguage, voiceId });
+    const generationId = recording.sessionId;
+    const screenId = aspect === "portrait" ? 11 : 12;
+    const variant = { language, aspect, backgroundId, audioLanguage, voiceId, exportKey };
+    if (generationId) await setPendingVariant(screenId, generationId, variant);
+    const existing = await prisma.videoJob.findUnique({ where: { exportKey } });
+    if (existing?.status === "completed" && existing.outputFilename && await objectExists(VIDEO_BUCKET, existing.outputFilename)) {
+      if (generationId) await publishVariant(screenId, generationId, variant,
+        { outputUrl: existing.outputUrl, outputFilename: existing.outputFilename, size: existing.size });
+      return NextResponse.json({ videoJob: existing, cached: true });
+    }
+    const videoJob = await prisma.videoJob.upsert({
+      where: { exportKey },
+      create: { reelFilename, sourceAudio, language, aspect, backgroundId, audioLanguage, voiceId, exportKey,
+        modelRevision: voiceId === "original" ? "original" : CHATTERBOX_REVISION, status: "queued", generationId },
+      update: { status: existing?.status === "processing" ? "processing" : "queued", errorMessage: null },
+    });
+    await enqueueVideoExport({ videoJobId: videoJob.id, reelFilename, sourceAudio, language, aspect,
+      backgroundId, generationId, screenId, audioLanguage, voiceId, exportKey });
+    return NextResponse.json({ videoJob });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to start export" }, { status: 500 });
   }
-
-  return NextResponse.json({ videoJob });
 }
 
-/** GET /api/video-export?reelFilename=&language=&aspect= — list matching jobs, newest first. */
 export async function GET(req: NextRequest) {
-  const { searchParams } = req.nextUrl;
-  const reelFilename = searchParams.get("reelFilename") || undefined;
-  const language = searchParams.get("language") || undefined;
-  const aspect = searchParams.get("aspect") || undefined;
-
+  const p = req.nextUrl.searchParams;
   const videoJobs = await prisma.videoJob.findMany({
-    where: { reelFilename, language, aspect },
-    orderBy: { createdAt: "desc" },
-    take: 50,
+    where: { reelFilename: p.get("reelFilename") || undefined, language: p.get("language") || undefined,
+      aspect: p.get("aspect") || undefined, audioLanguage: p.get("audioLanguage") || undefined,
+      voiceId: p.get("voiceId") || undefined },
+    orderBy: { createdAt: "desc" }, take: 50,
   });
-
-  return NextResponse.json({ videoJobs });
+  return NextResponse.json({ videoJobs }, { headers: { "Cache-Control": "no-store" } });
 }
+

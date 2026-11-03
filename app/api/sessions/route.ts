@@ -17,6 +17,7 @@ export async function POST() {
 /** GET /api/sessions — list sessions, newest first. Mainly for debugging/ops. */
 export async function GET() {
   const sessions = await prisma.broadcastSession.findMany({
+    where: { retiredAt: null },
     orderBy: { startedAt: "desc" },
     take: 50,
   });
