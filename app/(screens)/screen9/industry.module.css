@@ -1,0 +1,18 @@
+@font-face {font-family:IndustryAbro;src:url("/fonts/AbroSans/OpenType-TT/AbroSans-Regular.ttf") format("truetype");font-weight:400;font-display:swap}
+@font-face {font-family:IndustryAbro;src:url("/fonts/AbroSans/OpenType-TT/AbroSans-Thin.ttf") format("truetype");font-weight:100;font-display:swap}
+.stage {position:relative;min-height:100svh;box-sizing:border-box;padding:clamp(84px,13vh,145px) 24px 110px;color:white;font-family:IndustryAbro,sans-serif;background:radial-gradient(ellipse 40% 36% at 42% 58%,#191934 0%,transparent 100%),radial-gradient(ellipse 30% 34% at 66% 60%,#2b1425,transparent),#000}
+.badge {position:absolute;top:24px;left:20px;display:flex;align-items:center;gap:10px;padding:11px 16px;border:1px solid #ffffff1c;border-radius:999px;background:#17171999;font-size:18px}
+.badge span {border-left:1px solid #ffffff33;padding-left:12px;color:#ffffffbc;font-size:14px}
+.badge i,.marker i {width:8px;height:8px;border-radius:50%;background:#f65f50;box-shadow:0 0 0 3px #f65f5033}
+.header {text-align:center}.header h1 {margin:0;font-size:clamp(40px,5.6vw,84px);font-weight:100;letter-spacing:-.034em;line-height:1.08}
+.header p {margin:clamp(16px,3.4vh,32px) auto 0;color:#ffffff91;font-size:clamp(16px,1.65vw,23px)}
+.cards {width:min(74vw,1100px);margin:clamp(38px,9vh,100px) auto 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(12px,1.8vw,28px)}
+.card {position:relative;display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:clamp(16px,2vw,32px);min-height:clamp(195px,18.7vw,274px);border-radius:clamp(20px,2.6vw,36px);border:1px solid #ffffff22;background:#ffffff08;color:#ddd;cursor:pointer;transition:transform .22s,background .22s,box-shadow .22s}
+.card svg {width:clamp(32px,3.7vw,56px);height:auto;margin-bottom:auto;color:#ffffffab}
+.card strong {margin-top:24px;font-size:clamp(17px,1.7vw,26px);font-weight:400;line-height:1.2}
+.card small {font-size:clamp(14px,1.38vw,20px);line-height:1.2;margin-top:8px;opacity:.63}
+.card[aria-pressed=true] {background:white;color:#171717;transform:translateY(-10px);box-shadow:-14px 18px 38px -18px #9162ff,14px 20px 44px -18px #ce5ba5}
+.card[aria-pressed=true] svg {color:#4a4a4a}.card:hover:not([aria-pressed=true]){background:#ffffff12}.card:focus-visible{outline:2px solid white;outline-offset:4px}
+.marker {position:absolute;top:16px;right:15px;display:flex;align-items:center;gap:6px;font-size:12px}.marker i{width:6px;height:6px}
+@media(max-width:800px){.cards{width:min(95%,570px);grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:32px}.card{min-height:150px}.card[aria-pressed=true]{transform:translateY(-4px)}}
+@media(prefers-reduced-motion:reduce){.card{transition:none}}
