@@ -8,7 +8,7 @@ interface ScreenInfo {
   title: string;
   description: string;
   path: string;
-  category: "Capture" | "Processing" | "Post-Prod" | "Preview" | "Screen Control Room Multi-View";
+  category: "Capture" | "Processing" | "Post-Prod" | "Preview";
   icon: string;
   visualType: "camera" | "waveform" | "languages" | "video" | "banner" | "portrait" | "landscape" | "sensor";
 }
@@ -21,17 +21,6 @@ interface ScreenNavigationMatrixProps {
 }
 
 const SCREENS: ScreenInfo[] = [
-  {
-    id: "screen13",
-    num: "01",
-    title: "Video Stream",
-    description: "Real-time master video broadcast stream.",
-    path: "/camera",
-    category: "Screen Control Room Multi-View",
-    icon: "📹",
-    visualType: "video",
-  },
-
   {
     id: "screen01",
     num: "01",
@@ -152,16 +141,7 @@ const SCREENS: ScreenInfo[] = [
     icon: "📺",
     visualType: "landscape",
   },
-  {
-    id: "screenMain",
-    num: "13",
-    title: "Responsive Preview Studio",
-    description: "Preview the broadcast across 12 device profiles.",
-    path: "/main",
-    category: "Preview",
-    icon: "📱",
-    visualType: "portrait",
-  },
+
 ];
 
 const CATEGORY_COLORS = {
@@ -186,134 +166,14 @@ export default function ScreenNavigationMatrix({
     return false;
   };
 
-  const topScreens = SCREENS.filter(s => s.category === "Screen Control Room Multi-View");
-  const remainingScreens = SCREENS.filter(s => s.category !== "Screen Control Room Multi-View");
 
   return (
     <section 
       className="screen-navigation-matrix w-full p-6 rounded-2xl border border-slate-800/80 shadow-2xl space-y-6"
     >
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <span>🖥️</span> Screen Control Room Multi-View
-          </h2>
-          <p className="text-xs text-slate-400">
-            Monitor and redirect live output feeds across all 14 broadcast screens
-          </p>
-        </div>
-        <div className="flex gap-2 text-[10px] font-mono flex-wrap justify-end">
-          <span className="flex items-center gap-1 bg-rose-950/40 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-md">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> Capture
-          </span>
-          <span className="flex items-center gap-1 bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-md">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Processing
-          </span>
-          <span className="flex items-center gap-1 bg-indigo-950/40 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-md">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" /> Post-Prod
-          </span>
-          <span className="flex items-center gap-1 bg-cyan-950/40 text-cyan-400 border border-cyan-500/20 px-2.5 py-1 rounded-md">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" /> Multi-View
-          </span>
-        </div>
-      </div>
-
-      {/* Top Screens (Wider Rectangles, no "Screen XX" tag) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {topScreens.map((screen) => {
-          const isRecording = getRecordingState(screen.id);
-
-          return (
-            <a
-              key={screen.id}
-              href={screen.path}
-              className="group relative flex flex-col justify-between bg-slate-950 border border-slate-800/80 hover:border-cyan-500/50 rounded-xl p-4 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-950/30 overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-radial from-slate-950 via-slate-950 to-slate-900/50 opacity-50 z-0" />
-
-              <div className="relative z-10 space-y-3">
-                <div className="flex items-center justify-between">
-                  {/* Replaced the Screen tag with a subtle indicator */}
-                  <span className="text-[9px] font-mono text-cyan-400/80 font-semibold tracking-wider">
-                    ● CONTROL ROOM
-                  </span>
-                  
-                  <div className="flex items-center gap-2">
-                    {isRecording && (
-                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-500/20 border border-rose-500/40 text-[9px] font-mono text-rose-300 animate-pulse">
-                        ● REC
-                      </span>
-                    )}
-                    <div className="text-slate-400 group-hover:text-cyan-400 transition-colors">
-                      <svg className="w-4 h-4 transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="aspect-[21/9] w-full rounded-lg bg-slate-900/60 border border-slate-800/80 overflow-hidden flex flex-col items-center justify-center p-2 relative">
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0)_95%,rgba(0,0,0,0.3)_95%)] bg-[size:100%_4px] opacity-20 pointer-events-none" />
-
-                  {screen.visualType === "camera" && (
-                    <div className="flex flex-col items-center justify-center text-slate-500 gap-1.5">
-                      <span className="text-2xl">{screen.icon}</span>
-                      <span className="text-[10px] font-mono tracking-widest text-slate-400">
-                        {isRecording ? "FEED LIVE" : "CAM ON-AIR"}
-                      </span>
-                    </div>
-                  )}
-
-                  {screen.visualType === "waveform" && (
-                    <div className="flex items-center gap-1 justify-center w-full px-4">
-                      <div className="w-1 bg-emerald-500 rounded-full animate-pulse h-6" />
-                      <div className="w-1 bg-emerald-400 rounded-full animate-pulse h-10 delay-75" />
-                      <div className="w-1 bg-emerald-500 rounded-full animate-pulse h-4 delay-150" />
-                      <div className="w-1 bg-emerald-600 rounded-full animate-pulse h-12 delay-100" />
-                      <div className="w-1 bg-emerald-400 rounded-full animate-pulse h-7 delay-200" />
-                    </div>
-                  )}
-
-                  {screen.visualType === "video" && (
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="text-2xl text-indigo-400">✦</span>
-                      <span className="text-[9px] font-mono text-indigo-300">EDITED PREVIEW</span>
-                    </div>
-                  )}
-
-                  {screen.visualType === "sensor" && (
-                    <div className="flex flex-col items-center justify-center text-cyan-400 gap-1.5">
-                      <span className="text-2xl animate-pulse">📡</span>
-                      <span className="text-[9px] font-mono tracking-widest text-cyan-300">
-                        ACTIVE · 100%
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-0.5">
-                  <h3 className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">
-                    {screen.title}
-                  </h3>
-                  <p className="text-[10px] text-slate-400 leading-tight">
-                    {screen.description}
-                  </p>
-                </div>
-              </div>
-            </a>
-          );
-        })}
-      </div>
-
-      <div className="border-t border-slate-800/80 pt-4">
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-          All Broadcast Channels
-        </p>
-      </div>
-
       {/* Remaining Screens */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {remainingScreens.map((screen) => {
+        {SCREENS.map((screen) => {
           const isRecording = getRecordingState(screen.id);
           const isMainScreen = screen.id === "screenMain";
 
