@@ -1,0 +1,15 @@
+@font-face {font-family:SubtitleAbro;src:url("/fonts/AbroSans/OpenType-TT/AbroSans-Regular.ttf") format("truetype");font-display:swap}
+.stage {position:relative;height:100svh;overflow:hidden;color:white;background:black;font-family:SubtitleAbro,sans-serif}
+.picture {height:100%;touch-action:pan-y;overflow:hidden;border-radius:22px}
+.badge,.preview,.rail,.notice {position:absolute;z-index:2;background:rgba(13,16,33,.76);border:1px solid #ffffff24;backdrop-filter:blur(14px);border-radius:999px}
+.badge,.preview {top:24px;display:flex;align-items:center;gap:10px;line-height:1.1;padding:12px 16px;pointer-events:none}
+.badge {left:22px;font-size:18px}.badge span{border-left:1px solid #ffffff40;padding-left:10px;font-size:14px;color:#ddd}
+.badge i,.rail i,.preview i {display:inline-block;width:8px;height:8px;background:#ff6557;box-shadow:0 0 0 3px #ff655730;border-radius:50%}
+.preview {left:50%;transform:translateX(-50%);font-size:15px}.preview i{width:6px;height:6px;background:#d889ff;box-shadow:0 0 8px #aa64ff}
+.rail {left:22px;top:80px;width:clamp(175px,19vw,238px);padding:8px;display:grid;gap:3px;border-radius:24px;max-height:calc(100% - 195px);overflow:auto}
+.rail button {display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0 13px;min-height:clamp(37px,7.4vh,55px);border-radius:15px;color:#ffffffe0;text-align:left;cursor:pointer}
+.rail button:last-child{border-top:1px solid #ffffff18}.rail button[aria-pressed=true]{color:#141414;background:white}.rail button:hover:not([aria-pressed=true]){background:#ffffff12}.rail small{opacity:.67;font-size:13px}.rail i{margin-right:7px;width:6px;height:6px}
+.caption {position:absolute;bottom:86px;left:50%;transform:translateX(-50%);width:min(62%,900px);text-align:center;pointer-events:none;font:700 clamp(18px,2vw,32px)/1.55 Arial,sans-serif;text-wrap:balance}
+.caption span{background:#000d;border-radius:4px;padding:4px 9px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.notice{right:24px;top:84px;max-width:40%;font-size:14px;padding:8px 14px}
+@media(max-width:700px){.badge{left:12px;top:12px;font-size:15px}.preview{left:auto;right:12px;top:66px;transform:none;font-size:12px}.rail{left:12px;top:64px;width:150px;max-height:calc(100% - 224px)}.rail button{padding:0 8px;font-size:14px}.caption{width:92%;bottom:94px}.notice{top:110px}}

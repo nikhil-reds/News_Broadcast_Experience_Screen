@@ -1,4 +1,6 @@
 "use client";
+import styles from "./subtitles.module.css";
+import { useWorkflowDirty, useWorkflowReady } from "@/lib/workflow-ready";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { fetchCurrentSession, patchSession } from "@/lib/current-session";
@@ -26,11 +28,12 @@ interface RecordingItem {
 }
 
 const LANGUAGES = [
-  { label: "English", code: "en" },
-  { label: "German", code: "de" },
-  { label: "Hindi", code: "hi" },
-  { label: "French", code: "fr" },
-  { label: "Spanish", code: "es" },
+  { label: "English", code: "en", native: "English" },
+  { label: "German", code: "de", native: "Deutsch" },
+  { label: "Hindi", code: "hi", native: "हिन्दी" },
+  { label: "French", code: "fr", native: "Français" },
+  { label: "Spanish", code: "es", native: "Español" },
+  { label: "Off", code: "off", native: "No subtitles" },
 ];
 
 const REEL_POLL_MS = 5000;
@@ -47,14 +50,24 @@ export default function Screen8Page() {
   const backgroundId = useSelectedBackground();
   const brightness = useSelectedBrightness();
 
-  const [language, setLanguage] = useState<string>("English");
-  const onRemoteSubtitle = useCallback((code: string) => { const item = LANGUAGES.find((entry) => entry.code === code); if (item) setLanguage(item.label); }, []);
+  const [air, setAir] = useState("English");
+  const [preview, setPreview] = useState<string | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const selected = preview ?? air;
+  useWorkflowDirty(selected !== air);
+  const language = comparing ? air : selected;
+  const gesture = useRef<{x:number; timer:number} | null>(null);
+  const onRemoteSubtitle = useCallback((code: string) => {
+    const item = LANGUAGES.find(entry => entry.code === code);
+    if (item) setAir(item.label);
+  }, []);
   const saveSubtitle = useRealtimeSelection("subtitle-language", onRemoteSubtitle);
-  const selectLanguage = useCallback((item: typeof LANGUAGES[number]) => { setLanguage(item.label); saveSubtitle(item.code); }, [saveSubtitle]);
+  const [loadedLanguage, setLoadedLanguage] = useState("");
   const [cues, setCues] = useState<TimedCue[]>([]);
   const [isLoadingCues, setIsLoadingCues] = useState<boolean>(false);
   const [cuesError, setCuesError] = useState<string | null>(null);
 
+  useWorkflowReady(Boolean(reelUrl) && !comparing && (selected === "Off" || (hasTranscript && loadedLanguage === selected && !isLoadingCues && !cuesError)));
   const [videoTime, setVideoTime] = useState<number>(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const attemptedRef = useRef<Set<string>>(new Set());
@@ -174,7 +187,7 @@ export default function Screen8Page() {
 
   // ---- Subtitle cues: map the base English transcript to edited reel time. --
   useEffect(() => {
-    if (!selectedUrl || !reelFilename || !hasTranscript) return;
+    if (language === "Off" || !selectedUrl || !reelFilename || !hasTranscript) return;
     let cancelled = false;
     (async () => {
       setIsLoadingCues(true);
@@ -187,6 +200,7 @@ export default function Screen8Page() {
         const data = await res.json();
         if (cancelled) return;
         if (res.ok && Array.isArray(data.cues)) {
+          setLoadedLanguage(language);
           setCues(data.cues);
         } else {
           setCues([]);
@@ -212,71 +226,52 @@ export default function Screen8Page() {
   useEffect(() => {
     fetchCurrentSession().then((session) => {
       sessionIdRef.current = session?.id ?? null;
+      if (LANGUAGES.some(item => item.label === session?.selectedSubtitleLanguage)) setAir(session!.selectedSubtitleLanguage);
     });
   }, []);
   useEffect(() => {
-    if (sessionIdRef.current) {
-      patchSession(sessionIdRef.current, { selectedSubtitleLanguage: language });
+    function commit() {
+      const item = LANGUAGES.find(entry => entry.label === selected);
+      if (!item || !sessionIdRef.current) return;
+      void patchSession(sessionIdRef.current, { selectedSubtitleLanguage: item.label });
+      saveSubtitle(item.code);
+      setPreview(null);
     }
-  }, [language]);
+    window.addEventListener("apply-screen-subtitles", commit);
+    return () => window.removeEventListener("apply-screen-subtitles", commit);
+  }, [selected, saveSubtitle]);
 
-  const activeCue = cues.find((c) => videoTime >= c.start && videoTime <= c.end) ?? null;
-
-  const isTranslating = isLoadingCues && language !== "English";
+  const activeCue = language === "Off" || loadedLanguage !== language ? null : cues.find(cue => videoTime >= cue.start && videoTime < cue.end);
+  function cycle(direction: number) {
+    const index = LANGUAGES.findIndex(item => item.label === selected);
+    setPreview(LANGUAGES[(index + direction + LANGUAGES.length) % LANGUAGES.length].label);
+  }
+  function endGesture() {
+    window.clearTimeout(gesture.current?.timer);
+    gesture.current = null;
+    setComparing(false);
+  }
+  useEffect(() => () => window.clearTimeout(gesture.current?.timer), []);
 
   return (
-    <div className="relative h-screen overflow-hidden bg-slate-950 font-sans text-slate-100">
-      {/* Language selector */}
-      <section
-        className="absolute top-1/2 z-20 -translate-y-1/2 rounded-2xl border border-slate-800/80 bg-slate-950/80 shadow-2xl backdrop-blur-md"
-        style={{
-          left: "clamp(1rem, 2.5vw, 2rem)",
-          width: "clamp(12rem, 22vw, 15rem)",
-          padding: "clamp(1.2rem, 2vw, 1.5rem)",
-        }}
-      >
-        <h1
-          className="mb-5 text-center font-bold uppercase tracking-[0.12em] text-cyan-100"
-          style={{ fontSize: "clamp(0.8rem, 1.4vw, 1rem)" }}
-        >
-          Subtitle Language Change
-        </h1>
-        <div className="flex flex-col" style={{ gap: "0.9rem" }}>
-        {LANGUAGES.map((l) => {
-          const active = language === l.label;
-          const loading = isTranslating && active;
-          return (
-            <button
-              key={l.label}
-              onClick={() => selectLanguage(l)}
-              disabled={isLoadingCues && !active}
-              className={`flex w-full items-center justify-between rounded-xl border px-5 text-left font-bold transition ${
-                active
-                  ? "bg-indigo-600 text-white border-indigo-400 shadow-lg shadow-indigo-950"
-                  : "bg-slate-900 text-slate-300 border-slate-700 hover:border-indigo-500 hover:text-white"
-              } ${isLoadingCues && !active ? "opacity-40 cursor-not-allowed" : ""}`}
-              style={{ minHeight: "3.6rem", fontSize: "clamp(1rem, 1.65vw, 1.15rem)" }}
-            >
-              {l.label}
-              {loading && <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />}
-            </button>
-          );
-        })}
-        </div>
-      </section>
-
-      {/* Status line */}
-      {(status || cuesError) && (
-        <div className="absolute inset-x-0 top-0 z-10 px-6 py-2 text-center text-xs font-mono text-slate-400">
-          {(isTranscribing || isLoadingCues) && (
-            <span className="inline-block w-2 h-2 mr-2 rounded-full bg-amber-400 animate-ping align-middle" />
-          )}
-          {cuesError ? `Subtitle error: ${cuesError}` : status}
-        </div>
-      )}
-
+    <div className={styles.stage}>
+      <div className={styles.badge}><i aria-hidden="true" />Subtitles<span>{air === "Off" ? "Off air" : air + " on air"}</span></div>
+      <div className={styles.preview} role="status"><i aria-hidden="true" />{comparing ? "On air now" : selected === "Off" ? "Previewing no subtitles" : "Previewing " + selected}</div>
+      <nav className={styles.rail} aria-label="Subtitle language">
+        {LANGUAGES.map(item => <button key={item.code} type="button" aria-pressed={selected === item.label} onClick={() => setPreview(item.label)}>
+          <span>{air === item.label && <i aria-label="On air" />}{item.label}</span><small lang={item.code === "off" ? "en" : item.code}>{item.native}</small>
+        </button>)}
+      </nav>
+      {language !== "Off" && (cuesError || isTranscribing || isLoadingCues || status.startsWith("Error")) &&
+        <p className={styles.notice} role="status">{cuesError || (isLoadingCues ? "Preparing subtitles…" : isTranscribing ? "Preparing transcript…" : status)}</p>}
       {/* Highlight reel with subtitle overlay */}
-      <main className="h-full overflow-hidden">
+      <main className={styles.picture} tabIndex={0} aria-label="Subtitle preview. Use arrow keys to switch languages and hold Space to compare."
+        onPointerDown={event => { endGesture(); event.currentTarget.setPointerCapture(event.pointerId); gesture.current = {x:event.clientX,timer:window.setTimeout(() => setComparing(true),250)}; }}
+        onPointerMove={event => { if (gesture.current && Math.abs(event.clientX - gesture.current.x) > 12) { window.clearTimeout(gesture.current.timer); setComparing(false); } }}
+        onPointerUp={event => { const dx = gesture.current ? event.clientX - gesture.current.x : 0; endGesture(); if (Math.abs(dx) > 45) cycle(dx < 0 ? 1 : -1); }}
+        onPointerCancel={endGesture} onLostPointerCapture={endGesture} onBlur={endGesture}
+        onKeyDown={event => { if (event.key === " ") { event.preventDefault(); setComparing(true); } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); cycle(event.key === "ArrowLeft" ? -1 : 1); } }}
+        onKeyUp={event => { if (event.key === " ") setComparing(false); }}>
         <div className="relative h-full w-full overflow-hidden bg-black">
           {reelUrl ? (
             <video
@@ -298,10 +293,8 @@ export default function Screen8Page() {
           )}
           {/* Subtitle band, burned-in style but live CSS overlay */}
           {activeCue && (
-            <div className="absolute bottom-16 left-4 right-4 flex justify-center pointer-events-none">
-              <p className="max-w-[90%] text-center text-white font-extrabold text-xl sm:text-2xl leading-snug px-4 py-2 rounded-lg bg-black/70 [text-shadow:0_2px_4px_rgba(0,0,0,0.8)]">
-                {activeCue.text}
-              </p>
+            <div className={styles.caption}>
+              <span>{activeCue.text}</span>
             </div>
           )}
         </div>
