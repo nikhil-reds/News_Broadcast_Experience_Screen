@@ -1,3 +1,4 @@
+import { DEFAULT_VOICE_ID, isVoiceId, type VoiceId } from "./voice-profiles";
 import { redisConnection } from "@/lib/redis";
 
 export const AUDIO_LANGUAGE_CODES = ["en", "de", "hi", "fr", "es"] as const;
@@ -6,6 +7,7 @@ export type AudioLanguageCode = (typeof AUDIO_LANGUAGE_CODES)[number];
 export interface AudioLanguageState {
   sessionId: string;
   audioLanguage: AudioLanguageCode;
+  voiceId: VoiceId;
   updatedAt: string;
   version: number;
 }
@@ -27,20 +29,25 @@ export function isAudioLanguageCode(value: unknown): value is AudioLanguageCode 
  */
 export async function saveAudioLanguageState(
   sessionId: string,
-  audioLanguage: AudioLanguageCode
+  audioLanguage: AudioLanguageCode,
+  voiceId?: VoiceId
 ): Promise<AudioLanguageState> {
   const updatedAt = new Date().toISOString();
   const raw = await redisConnection.eval(
     `
       local previous = redis.call("GET", KEYS[1])
       local version = 0
+      local voice = ARGV[4]
+      if voice == "" then voice = "indian-male-01" end
       if previous then
         local ok, parsed = pcall(cjson.decode, previous)
         if ok and type(parsed.version) == "number" then version = parsed.version end
+        if ok and ARGV[4] == "" and parsed.voiceId then voice = parsed.voiceId end
       end
       local state = {
         sessionId = ARGV[1],
         audioLanguage = ARGV[2],
+        voiceId = voice,
         updatedAt = ARGV[3],
         version = version + 1
       }
@@ -54,7 +61,8 @@ export async function saveAudioLanguageState(
     AUDIO_LANGUAGE_CHANNEL,
     sessionId,
     audioLanguage,
-    updatedAt
+    updatedAt,
+    voiceId ?? ""
   );
 
   return JSON.parse(String(raw)) as AudioLanguageState;
@@ -66,7 +74,8 @@ export async function getAudioLanguageState(sessionId: string): Promise<AudioLan
 
   try {
     const state = JSON.parse(raw) as AudioLanguageState;
-    return state.sessionId === sessionId && isAudioLanguageCode(state.audioLanguage) ? state : null;
+    return state.sessionId === sessionId && isAudioLanguageCode(state.audioLanguage)
+      ? { ...state, voiceId: isVoiceId(state.voiceId) ? state.voiceId : DEFAULT_VOICE_ID } : null;
   } catch {
     return null;
   }
