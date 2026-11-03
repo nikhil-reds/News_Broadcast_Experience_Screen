@@ -20,13 +20,14 @@ export default async function AdminGenerationTaskDetailPage({
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        backHref="/admin/generation-tasks"
-        backLabel="Back to tasks"
+        backHref="/admin/generation-logs"
+        backLabel="Back to generation logs"
         title={task.taskType}
         description="Pipeline task diagnostics and recovery context."
       />
 
-      <AdminSection title="Task Details">
+      {task.errorMessage && <section className="admin-notice" aria-label="Task error">{task.errorMessage}</section>}
+      <AdminSection title="Task details">
         <DetailGrid>
           <DetailItem label="Generation" value={task.generation ? `#${task.generation.seq}` : task.generationId} />
           <DetailItem label="Status" value={<StatusBadge value={task.status} />} />
@@ -43,11 +44,6 @@ export default async function AdminGenerationTaskDetailPage({
         </DetailGrid>
       </AdminSection>
 
-      <AdminSection title="Error">
-        <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-slate-950 p-4 text-sm text-slate-100">
-          {task.errorMessage ?? "No error message recorded."}
-        </pre>
-      </AdminSection>
     </div>
   );
 }

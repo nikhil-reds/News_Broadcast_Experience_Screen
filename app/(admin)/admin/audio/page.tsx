@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { AdminTable, Td } from "@/components/admin/admin-table";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -30,9 +29,7 @@ export default async function AdminAudioPage() {
             </Td>
             <Td>{formatDate(audio.createdAt)}</Td>
             <Td>
-              <Link href={audio.url} className="font-semibold text-admin-accent">
-                View
-              </Link>
+              <audio controls preload="none" src={audio.url} aria-label={`Play ${audio.filename}`} />
             </Td>
           </tr>
         ))}

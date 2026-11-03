@@ -3,8 +3,8 @@
 export default function AdminError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <div role="alert" className="rounded-lg border border-status-danger-border bg-admin-surface p-6 shadow-sm">
-      <h2 className="text-lg font-bold text-admin-text">This page could not be loaded</h2>
-      <p className="mt-1 text-sm text-admin-text-muted">
+      <h2 className="admin-title text-admin-text">This page could not be loaded</h2>
+      <p className="admin-page-description mt-1 text-sm text-admin-text-muted">
         The data request failed. Try again, and if it keeps happening check the server logs.
       </p>
       <button

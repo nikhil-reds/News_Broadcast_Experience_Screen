@@ -22,10 +22,11 @@ export default async function AdminAdDetailPage({
         backHref="/admin/ads"
         backLabel="Back to ads"
         title={ad.sponsor}
-        description={ad.text}
+        description={`Campaign ${ad.code}`}
       />
 
-      <AdminSection title="Campaign Details">
+      <AdminSection title="Campaign preview"><p className="max-w-prose whitespace-pre-wrap">{ad.text}</p></AdminSection>
+      <AdminSection title="Campaign details">
         <DetailGrid>
           <DetailItem label="Code" value={ad.code} />
           <DetailItem label="Status" value={<StatusBadge value={ad.isActive ? "active" : "inactive"} />} />

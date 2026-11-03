@@ -24,8 +24,8 @@ export default async function AdminAdsPage({
     <div className="space-y-4">
       <AdminPageHeader title="Ads" description="Sponsored campaigns used by the ad showcase screens." />
 
-      <section className="rounded-lg border border-admin-border bg-admin-surface p-5 shadow-sm">
-        <h3 className="font-bold">Create Campaign</h3>
+      <details open={Boolean(error)} className="rounded-lg border border-admin-border bg-admin-surface p-5 shadow-sm">
+        <summary className="cursor-pointer font-bold">Create campaign</summary>
         {error === "missing-fields" ? (
           <p role="alert" className="mt-3 rounded-md border border-status-danger-border bg-status-danger-bg px-3 py-2 text-sm text-status-danger-text">
             Sponsor, code, campaign text and end time are required.
@@ -60,7 +60,7 @@ export default async function AdminAdsPage({
             Add campaign
           </button>
         </form>
-      </section>
+      </details>
 
       <AdminTable headers={["Sponsor", "Code", "Status", "Priority", "Impressions", "Text", "Start", "End", "Actions"]} empty={ads.length === 0}>
         {ads.map((ad) => (

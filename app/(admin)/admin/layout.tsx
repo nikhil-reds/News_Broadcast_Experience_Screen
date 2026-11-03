@@ -1,3 +1,5 @@
+import "./admin.css";
+import "./admin-button-font.css";
 import type { ReactNode } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { getAdminTheme } from "@/lib/admin-theme";

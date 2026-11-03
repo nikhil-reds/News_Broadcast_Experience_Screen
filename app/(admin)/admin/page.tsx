@@ -1,104 +1,158 @@
+import Link from "next/link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import { AdminCard } from "@/components/admin/admin-card";
 import { prisma } from "@/lib/prisma";
+import styles from "./dashboard.module.css";
 
-function MetricSection({ title, children }: { title: string; children: React.ReactNode }) {
+type StatusItem = {
+  label: string;
+  value: number;
+  tone: "ready" | "processing" | "failed" | "completed" | "pending" | "cancelled";
+};
+
+function StatusBar({ items, label }: { items: StatusItem[]; label: string }) {
   return (
-    <section className="space-y-3 sm:space-y-4">
-      <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-admin-text-muted sm:text-sm">{title}</h3>
-      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">{children}</div>
-    </section>
+    <>
+      <div className={styles.statusBar} role="img" aria-label={`${label}: ${items.map((item) => `${item.label} ${item.value}`).join(", ")}`}>
+        {items.map((item) => <span key={item.label} className={styles[item.tone]} style={{ flexGrow: item.value || .35 }} />)}
+      </div>
+      <div className={styles.legend}>
+        {items.map((item) => (
+          <div key={item.label}>
+            <span><i className={styles[item.tone]} />{item.label}</span>
+            <strong>{item.value.toLocaleString("en-IN")}</strong>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
-export default async function AdminDashboardPage() {
-  const today = new Date();
-  const startOfToday = new Date(today);
+function MediaCard({ title, value, detail, href }: { title: string; value: number; detail: string; href: string }) {
+  return (
+    <Link href={href} className={styles.mediaCard}>
+      <div className={styles.mediaCardHeader}><h3>{title}</h3><span aria-hidden="true">↗</span></div>
+      <strong>{value.toLocaleString("en-IN")}</strong>
+      <p>{detail}</p>
+      <div className={styles.sparkline} aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div>
+    </Link>
+  );
+}
+
+export default async function AdminDashboardPage({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
+  const { range: requestedRange } = await searchParams;
+  const range = requestedRange === "24h" || requestedRange === "30d" ? requestedRange : "7d";
+  const rangeLabel = range === "24h" ? "Last 24 hours" : range === "30d" ? "Last 30 days" : "Last 7 days";
+  const now = new Date();
+  const periodStart = new Date(now);
+  periodStart.setTime(now.getTime() - (range === "24h" ? 24 * 60 * 60_000 : range === "30d" ? 30 * 24 * 60 * 60_000 : 7 * 24 * 60 * 60_000));
+  const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
-  const startOfWeek = new Date(today);
+  const startOfWeek = new Date(now);
   startOfWeek.setDate(startOfWeek.getDate() - 7);
+  const todayStart = startOfToday > periodStart ? startOfToday : periodStart;
+  const weekStart = startOfWeek > periodStart ? startOfWeek : periodStart;
 
   const [
-    totalSessions,
-    sessionsToday,
-    sessionsThisWeek,
-    processingSessions,
-    readySessions,
-    failedSessions,
-    pendingTasks,
-    processingTasks,
-    completedTasks,
-    failedTasks,
-    cancelledTasks,
-    audioFiles,
-    videoRecordings,
-    transcripts,
-    translations,
-    completedVideoJobs,
-    activeScreens,
-    onlineCameras,
+    totalSessions, sessionsToday, sessionsThisWeek, processingSessions, readySessions, failedSessions,
+    pendingTasks, processingTasks, completedTasks, failedTasks, cancelledTasks,
+    audioFiles, videoRecordings, transcripts, translations, completedVideoJobs,
+    activeScreens, onlineCameras,
   ] = await Promise.all([
-    prisma.broadcastSession.count(),
-    prisma.broadcastSession.count({ where: { createdAt: { gte: startOfToday } } }),
-    prisma.broadcastSession.count({ where: { createdAt: { gte: startOfWeek } } }),
-    prisma.broadcastSession.count({ where: { pipelineStatus: "processing" } }),
-    prisma.broadcastSession.count({ where: { pipelineStatus: "ready" } }),
-    prisma.broadcastSession.count({ where: { pipelineStatus: "failed" } }),
-    prisma.generationTask.count({ where: { status: "pending" } }),
-    prisma.generationTask.count({ where: { status: "processing" } }),
-    prisma.generationTask.count({ where: { status: "completed" } }),
-    prisma.generationTask.count({ where: { status: "failed" } }),
-    prisma.generationTask.count({ where: { status: "cancelled" } }),
-    prisma.audioFile.count(),
-    prisma.videoRecording.count(),
-    prisma.transcript.count(),
-    prisma.transcriptTranslation.count(),
-    prisma.videoJob.count({ where: { status: "completed" } }),
+    prisma.broadcastSession.count({ where: { createdAt: { gte: periodStart } } }),
+    prisma.broadcastSession.count({ where: { createdAt: { gte: todayStart } } }),
+    prisma.broadcastSession.count({ where: { createdAt: { gte: weekStart } } }),
+    prisma.broadcastSession.count({ where: { pipelineStatus: "processing", createdAt: { gte: periodStart } } }),
+    prisma.broadcastSession.count({ where: { pipelineStatus: "ready", createdAt: { gte: periodStart } } }),
+    prisma.broadcastSession.count({ where: { pipelineStatus: "failed", createdAt: { gte: periodStart } } }),
+    prisma.generationTask.count({ where: { status: "pending", createdAt: { gte: periodStart } } }),
+    prisma.generationTask.count({ where: { status: "processing", createdAt: { gte: periodStart } } }),
+    prisma.generationTask.count({ where: { status: "completed", createdAt: { gte: periodStart } } }),
+    prisma.generationTask.count({ where: { status: "failed", createdAt: { gte: periodStart } } }),
+    prisma.generationTask.count({ where: { status: "cancelled", createdAt: { gte: periodStart } } }),
+    prisma.audioFile.count({ where: { createdAt: { gte: periodStart } } }),
+    prisma.videoRecording.count({ where: { createdAt: { gte: periodStart } } }),
+    prisma.transcript.count({ where: { createdAt: { gte: periodStart } } }),
+    prisma.transcriptTranslation.count({ where: { createdAt: { gte: periodStart } } }),
+    prisma.videoJob.count({ where: { status: "completed", createdAt: { gte: periodStart } } }),
     prisma.broadcastScreen.count({ where: { isActive: true } }),
     prisma.cameraFeed.count({ where: { status: "online" } }),
   ]);
 
+  const totalTasks = pendingTasks + processingTasks + completedTasks + failedTasks + cancelledTasks;
+  const successRate = Math.round((readySessions / Math.max(1, readySessions + failedSessions)) * 100);
+  const sessionItems: StatusItem[] = [
+    { label: "Ready", value: readySessions, tone: "ready" },
+    { label: "Processing", value: processingSessions, tone: "processing" },
+    { label: "Failed", value: failedSessions, tone: "failed" },
+  ];
+  const taskItems: StatusItem[] = [
+    { label: "Completed", value: completedTasks, tone: "completed" },
+    { label: "Pending", value: pendingTasks, tone: "pending" },
+    { label: "Processing", value: processingTasks, tone: "processing" },
+    { label: "Failed", value: failedTasks, tone: "failed" },
+    { label: "Cancelled", value: cancelledTasks, tone: "cancelled" },
+  ];
+
   return (
-    <div className="admin-dashboard-surface space-y-6 p-4 sm:space-y-8 sm:p-6 lg:p-8">
+    <div className={styles.dashboard}>
       <AdminPageHeader
         title="Dashboard"
-        description="Live operational summary for the broadcast pipeline."
-        actions={
-          <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-admin-border bg-admin-surface px-3 py-2 text-xs font-semibold text-admin-text-secondary shadow-sm transition hover:bg-admin-surface-muted focus-visible:outline-2 focus-visible:outline-admin-focus sm:text-sm">
-            <span aria-hidden="true">◷</span>
-            <span>Last 7 days</span>
-            <span aria-hidden="true">⌄</span>
-          </button>
-        }
+        description="Live summary of the broadcast pipeline"
+        actions={(
+          <details className={styles.rangeMenu}>
+            <summary className={styles.rangeButton}>{rangeLabel} <span aria-hidden="true">⌄</span></summary>
+            <div role="menu">
+              <Link href="/admin?range=24h" role="menuitem" aria-current={range === "24h" ? "page" : undefined}>Last 24 hours</Link>
+              <Link href="/admin?range=7d" role="menuitem" aria-current={range === "7d" ? "page" : undefined}>Last 7 days</Link>
+              <Link href="/admin?range=30d" role="menuitem" aria-current={range === "30d" ? "page" : undefined}>Last 30 days</Link>
+            </div>
+          </details>
+        )}
       />
 
-      <MetricSection title="Overview">
-        <AdminCard title="Total Sessions" value={totalSessions} detail="All generations" href="/admin/sessions" />
-        <AdminCard title="Sessions Today" value={sessionsToday} detail="Created since midnight" href="/admin/sessions" />
-        <AdminCard title="Sessions This Week" value={sessionsThisWeek} detail="Last 7 days" href="/admin/sessions" />
-        <AdminCard title="Processing" value={processingSessions} detail="Pipeline in progress" tone="warn" href="/admin/sessions" />
-        <AdminCard title="Ready Sessions" value={readySessions} detail="Available generations" tone="good" href="/admin/sessions" />
-        <AdminCard title="Failed Sessions" value={failedSessions} detail="Pipeline failures" tone={failedSessions ? "bad" : "good"} href="/admin/sessions" />
-      </MetricSection>
-      <MetricSection title="Pipeline health">
-        <AdminCard title="Pending Tasks" value={pendingTasks} detail="Waiting to start" tone={pendingTasks ? "warn" : "good"} href="/admin/generation-tasks" />
-        <AdminCard title="Processing Tasks" value={processingTasks} detail="Currently running" href="/admin/generation-tasks" />
-        <AdminCard title="Completed Tasks" value={completedTasks} detail="Successfully finished" tone="good" href="/admin/generation-tasks" />
-        <AdminCard title="Failed Tasks" value={failedTasks} detail="Needs review" tone={failedTasks ? "bad" : "good"} href="/admin/generation-tasks" />
-        <AdminCard title="Cancelled Tasks" value={cancelledTasks} detail="Stopped by operator" href="/admin/generation-tasks" />
-      </MetricSection>
-      <MetricSection title="Media output">
-        <AdminCard title="Audio Files" value={audioFiles} detail="Uploaded masters" href="/admin/audio" />
-        <AdminCard title="Video Recordings" value={videoRecordings} detail="Camera assets" href="/admin/recordings" />
-        <AdminCard title="Transcripts" value={transcripts} detail="Generated transcripts" href="/admin/transcripts" />
-        <AdminCard title="Translations" value={translations} detail="Language outputs" href="/admin/translations" />
-        <AdminCard title="Video Exports" value={completedVideoJobs} detail="Completed jobs" tone="good" href="/admin/video-jobs" />
-      </MetricSection>
-      <MetricSection title="Infrastructure">
-        <AdminCard title="Active Screens" value={activeScreens} detail="Screens enabled" tone="good" href="/admin/screens" />
-        <AdminCard title="Online Cameras" value={onlineCameras} detail="Feeds currently online" tone={onlineCameras ? "good" : "warn"} href="/admin/control-room" />
-      </MetricSection>
+      <section className={styles.failureBanner} aria-label="Failures needing review">
+        <i aria-hidden="true" />
+        <p><strong>{failedSessions}</strong> sessions and <strong>{failedTasks}</strong> tasks failed in this period</p>
+        <Link href="/admin/generation-logs?status=failed">Review failures</Link>
+      </section>
 
+      <section className={styles.primaryGrid} aria-label="Pipeline summary">
+        <article className={styles.summaryCard}>
+          <h2>Sessions</h2>
+          <div className={styles.bigValue}><strong>{totalSessions.toLocaleString("en-IN")}</strong><span>{sessionsThisWeek.toLocaleString("en-IN")} this week</span></div>
+          <StatusBar items={sessionItems} label="Session status" />
+          <div className={styles.sessionDetails}>
+            <div><span>Created today</span><strong>{sessionsToday}</strong></div>
+            <div><span>This week</span><strong>{sessionsThisWeek}</strong></div>
+            <div><span>Success rate</span><strong>{successRate}%</strong></div>
+          </div>
+        </article>
+
+        <article className={styles.summaryCard}>
+          <h2>Pipeline tasks</h2>
+          <div className={styles.bigValue}><strong>{totalTasks.toLocaleString("en-IN")}</strong><span>{completedTasks.toLocaleString("en-IN")} completed</span></div>
+          <StatusBar items={taskItems} label="Pipeline task status" />
+        </article>
+      </section>
+
+      <section aria-labelledby="media-output-title">
+        <h2 id="media-output-title" className={styles.sectionTitle}>Media output</h2>
+        <div className={styles.mediaGrid}>
+          <MediaCard title="Audio files" value={audioFiles} detail="Uploaded masters" href="/admin/audio" />
+          <MediaCard title="Video recordings" value={videoRecordings} detail="Camera assets" href="/admin/recordings" />
+          <MediaCard title="Transcripts" value={transcripts} detail="Generated" href="/admin/transcripts" />
+          <MediaCard title="Translations" value={translations} detail="Language outputs" href="/admin/translations" />
+          <MediaCard title="Video exports" value={completedVideoJobs} detail="Completed jobs" href="/admin/video-jobs" />
+        </div>
+      </section>
+
+      <section aria-labelledby="infrastructure-title">
+        <h2 id="infrastructure-title" className={styles.sectionTitle}>Infrastructure</h2>
+        <div className={styles.infrastructure}>
+          <Link href="/admin/control-room"><span><i className={styles.ready} />Active screens</span><strong>{activeScreens}</strong><em>Broadcast outputs enabled</em></Link>
+          <Link href="/admin/studio/camera"><span><i className={onlineCameras ? styles.ready : styles.processing} />Online cameras</span><strong>{onlineCameras}</strong><em>Feeds reporting online</em></Link>
+        </div>
+      </section>
     </div>
   );
 }
