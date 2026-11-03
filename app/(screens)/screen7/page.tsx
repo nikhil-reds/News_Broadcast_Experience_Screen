@@ -12,6 +12,7 @@ import { fetchCurrentSession, patchSession } from "@/lib/current-session";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 import { DEFAULT_VOICE_ID, isVoiceId, type VoiceId } from "@/lib/voice-profiles";
 import { useSelectedBrightness } from "@/lib/use-selected-brightness";
+import { abroSans } from "@/lib/abro-sans";
 
 type ComposeStatus = "waiting" | "active" | "delayed" | "paused" | "completed" | "fallback-ready" | "failed";
 
@@ -837,7 +838,7 @@ export default function Screen7Page() {
                 style={{ filter: `brightness(${brightness}%)` }}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm font-mono">
+              <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm">
                 {sourceFilename ? "Preparing first edited-background composite…" : "Waiting for edited video…"}
               </div>
             )}
@@ -862,13 +863,13 @@ export default function Screen7Page() {
                 <div className="w-56 h-1.5 rounded-full bg-slate-800 overflow-hidden">
                   <div className="h-full w-1/3 rounded-full bg-emerald-500 animate-[loaderSlide_1.1s_ease-in-out_infinite]" />
                 </div>
-                <p className="text-sm font-mono text-slate-200">
+                <p className="text-sm text-slate-200">
                   Preparing background… {elapsedSeconds}s
                 </p>
                 <button
                   type="button"
                   onClick={cancelWaiting}
-                  className="rounded-md border border-slate-600 px-3 py-1.5 text-xs font-mono text-slate-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-emerald-400"
+                  className="rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-emerald-400"
                 >
                   Stop waiting
                 </button>
@@ -888,7 +889,7 @@ export default function Screen7Page() {
         )}
         </section>
 
-        <div className={styles.badge}><i />Background<span>{onAir.label} on air</span></div>
+        <div className={styles.badge}><i /><strong className={`${abroSans.className} font-normal`}>Background</strong><span>{onAir.label} on air</span></div>
         {preview && <div className={styles.preview} role="status"><i />{comparing ? "On air now" : pendingId ? "Preparing " + preview.label : "Previewing " + preview.label}</div>}
         <nav className={styles.rail} aria-label="Broadcast backgrounds">
           {GREEN_SCREEN_BACKGROUNDS.map(bg => <button type="button" key={bg.id} disabled={!sourceFilename}

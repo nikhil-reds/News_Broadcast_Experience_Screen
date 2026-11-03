@@ -1,5 +1,4 @@
-@font-face {font-family:"Background Abro";src:url("/fonts/AbroSans/OpenType-TT/AbroSans-Regular.ttf") format("truetype");font-display:swap}
-.stage {height:100svh;overflow:hidden;background:#030509;color:white;font-family:"Background Abro",sans-serif;touch-action:pan-y}
+.stage {height:100svh;overflow:hidden;background:#030509;color:white;touch-action:pan-y}
 .badge,.preview,.rail,.audio,.hint {position:absolute;z-index:20;background:rgba(10,20,30,.64);border:1px solid #ffffff24;backdrop-filter:blur(14px);box-shadow:0 2px 8px #0002}
 .badge,.preview,.audio,.hint {border-radius:999px;display:inline-flex;align-items:center;gap:10px;padding:10px 16px;line-height:1.1}
 .badge {left:20px;top:16px;font-size:18px;min-height:44px}

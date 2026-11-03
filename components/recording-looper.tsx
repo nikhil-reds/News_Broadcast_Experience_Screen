@@ -346,18 +346,18 @@ export default function RecordingLooper({
           </div>
         )}
         {soundBlocked && (
-          <div className="absolute bottom-6 right-6 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs font-mono text-slate-200">
+          <div className="absolute bottom-6 right-6 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs text-slate-200">
             🔊 Click to enable selected audio
           </div>
         )}
         {screenId != null && publication.status === "preparing" && (
-          <div className="absolute bottom-6 left-6 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs font-mono text-slate-400">
+          <div className="absolute bottom-6 left-6 px-3 py-2 rounded-lg bg-slate-950/85 border border-slate-700 text-xs text-slate-400">
             Preparing next reel…
             {publication.progress ? ` ${publication.progress.completed}/${publication.progress.total}` : ""}
           </div>
         )}
         {screenId != null && publication.status === "failed" && (
-          <div className="absolute bottom-6 left-6 px-3 py-2 rounded-lg bg-red-950/85 border border-red-800 text-xs font-mono text-red-200">
+          <div className="absolute bottom-6 left-6 px-3 py-2 rounded-lg bg-red-950/85 border border-red-800 text-xs text-red-200">
             Next reel failed — showing last good one
           </div>
         )}
