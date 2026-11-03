@@ -1,3 +1,4 @@
+import { flowProcessor } from "@/lib/flow-lifecycle";
 /**
  * Video Export Worker
  * --------------------
@@ -21,8 +22,9 @@ import { redisConnection } from "@/lib/redis";
 import { VIDEO_EXPORT_QUEUE, type VideoExportJob } from "@/lib/queue";
 import { composeExportVideo, FFMPEG_EXPORT_TIMEOUT_MS } from "@/lib/video-export";
 import { prisma } from "@/lib/prisma";
-import { isStaleVariant, publishVariant, failVariant, markTaskProcessing, markTaskCompleted, markTaskFailed } from "@/lib/generation";
+import { publishVariant, failVariant, markTaskProcessing, markTaskCompleted, markTaskFailed } from "@/lib/generation";
 import { startHeartbeat } from "@/lib/generation-heartbeat";
+import { attachWorkerHealth } from "@/lib/worker-health";
 
 const WORKER_NAME = "video-export-worker";
 // A little above the ffmpeg pass's own timeout so a genuinely slow (not
@@ -32,8 +34,8 @@ const LOCK_DURATION_MS = FFMPEG_EXPORT_TIMEOUT_MS + 2 * 60 * 1000;
 
 const worker = new Worker<VideoExportJob>(
   VIDEO_EXPORT_QUEUE,
-  async (job: Job<VideoExportJob>) => {
-    const { videoJobId, reelFilename, sourceAudio, language, aspect, backgroundId, generationId, screenId } =
+  flowProcessor(async (job: Job<VideoExportJob>) => {
+    const { videoJobId, reelFilename, sourceAudio, language, aspect, backgroundId, generationId, screenId, audioLanguage, voiceId, exportKey } =
       job.data;
     console.log(
       `[${WORKER_NAME}] job ${job.id} → ${aspect} "${reelFilename}" in ${language}` +
@@ -45,7 +47,9 @@ const worker = new Worker<VideoExportJob>(
     // is already a no-op without a generationId, and the screenId-specific
     // ones are additionally guarded, so legacy jobs just skip straight to
     // the ffmpeg work exactly as before.
-    const taskType = screenId ? `video-export-${screenId}` : null;
+    if (!exportKey || !audioLanguage || !voiceId) throw new Error("Legacy export job has no audio selection; generate a new export");
+    const variant = { language, aspect, backgroundId, audioLanguage, voiceId, exportKey };
+    const taskType = screenId ? `video-export-${screenId}-${exportKey.slice(0, 12)}` : null;
 
     await prisma.videoJob.update({
       where: { id: videoJobId },
@@ -53,31 +57,12 @@ const worker = new Worker<VideoExportJob>(
     });
     if (taskType) await markTaskProcessing(generationId, taskType, job.id);
 
-    if (generationId && screenId) {
-      if (await isStaleVariant(screenId, generationId, { language, aspect, backgroundId })) {
-        console.log(
-          `[${WORKER_NAME}] job ${job.id} → superseded by a newer request for screen ${screenId}, skipping ffmpeg`
-        );
-        // BullMQ will mark this job "completed" (it returned normally) — but
-        // without this, GenerationTask stayed "processing" forever, since
-        // markTaskCompleted/Failed otherwise only run past this point. A
-        // stuck "processing" row is exactly what the watchdog exists to
-        // catch, but a superseded task should never even need recovering.
-        if (taskType) {
-          await prisma.generationTask.updateMany({
-            where: { generationId, taskType },
-            data: { status: "cancelled", errorMessage: "superseded by a newer request before rendering started" },
-          });
-        }
-        return { skipped: true, reason: "stale-variant" };
-      }
-    }
-
     const heartbeat = taskType ? startHeartbeat({ generationId, taskType, jobId: job.id }) : null;
 
     try {
       const result = await composeExportVideo({
         reelFilename,
+        exportKey, audioLanguage, voiceId,
         sourceAudio,
         language,
         aspect,
@@ -93,6 +78,8 @@ const worker = new Worker<VideoExportJob>(
           outputFilename: result.filename,
           outputUrl: result.url,
           size: result.size,
+          dubAudioKey: result.dubAudioKey,
+          dubManifestKey: result.dubManifestKey,
           errorMessage: null,
         },
       });
@@ -104,7 +91,7 @@ const worker = new Worker<VideoExportJob>(
         await publishVariant(
           screenId,
           generationId,
-          { language, aspect, backgroundId },
+          variant,
           { outputUrl: result.url, outputFilename: result.filename, size: result.size }
         );
       }
@@ -125,11 +112,11 @@ const worker = new Worker<VideoExportJob>(
       const maxAttempts = job.opts.attempts ?? 3;
       if (taskType) await markTaskFailed(generationId, taskType, message, attemptsMade, maxAttempts, job.id);
       if (generationId && screenId && attemptsMade >= maxAttempts) {
-        await failVariant(screenId, generationId, { language, aspect, backgroundId }, message);
+        await failVariant(screenId, generationId, variant, message);
       }
       throw err;
     }
-  },
+  }),
   {
     name: WORKER_NAME,
     connection: redisConnection,
@@ -138,6 +125,7 @@ const worker = new Worker<VideoExportJob>(
     lockDuration: LOCK_DURATION_MS,
   }
 );
+attachWorkerHealth(worker, { workerName: WORKER_NAME, queueName: VIDEO_EXPORT_QUEUE });
 
 worker.on("ready", () => {
   console.log(`[${WORKER_NAME}] ready and listening on queue "${VIDEO_EXPORT_QUEUE}"`);
