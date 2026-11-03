@@ -1,0 +1,36 @@
+# CUDA validation image. The CPU Dockerfile remains the preserved benchmark baseline.
+# RTX 5080 / Blackwell requires a PyTorch build that contains sm_120 kernels.
+# CUDA 12.8 is the minimum supported runtime family for this GPU generation.
+FROM pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_CONSTRAINT=/tmp/constraints.txt
+
+WORKDIR /opt/CosyVoice
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    git git-lfs unzip g++ curl sox libsox-dev \
+    && git lfs install \
+    && rm -rf /var/lib/apt/lists/*
+RUN git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git
+WORKDIR /opt/CosyVoice/CosyVoice
+RUN sed -i '/async def inference_cross_lingual/,/return StreamingResponse/{s/prompt_speech_16k = load_wav(prompt_wav.file, 16000)/prompt_wav.file.seek(0)/; s/cosyvoice.inference_cross_lingual(tts_text, prompt_speech_16k)/cosyvoice.inference_cross_lingual(tts_text, prompt_wav.file)/}' runtime/python/fastapi/server.py
+RUN echo "setuptools<81" > /tmp/constraints.txt
+# Keep the CUDA torch/torchaudio supplied by the base image. The upstream
+# requirements pin them to older CPU-compatible versions, which silently
+# disables CUDA if installed here.
+RUN sed -i \
+    -e '/^--extra-index-url/d' \
+    -e '/^deepspeed/d' \
+    -e '/^onnxruntime/d' \
+    -e '/^tensorrt-cu12/d' \
+    -e '/torch/d' \
+    requirements.txt \
+    && echo "onnxruntime==1.18.0" >> requirements.txt \
+    && pip3 install --no-cache-dir --index-url https://pypi.org/simple/ --no-deps -r requirements.txt \
+    && pip3 install --no-cache-dir --index-url https://pypi.org/simple/ \
+        fastapi==0.111.0 uvicorn==0.30.1 transformers==4.40.2 huggingface_hub==0.23.4 regex==2024.5.15 tiktoken==0.7.0 numba==0.59.1 typeguard==4.3.0 antlr4-python3-runtime==4.9.3 scipy==1.13.1 einops==0.8.0 lightning-utilities==0.11.2 torchmetrics==1.4.0 pyparsing==3.1.2 matplotlib==3.7.5 lazy_loader==0.4 librosa==0.10.2.post1 more_itertools==10.3.0
+COPY server.py /opt/CosyVoice/server.py
+EXPOSE 50000
+HEALTHCHECK --interval=15s --timeout=5s --start-period=600s --retries=20 CMD curl -f http://localhost:50000/docs || exit 1
+CMD ["python3", "/opt/CosyVoice/server.py", "--port", "50000", "--model_dir", "iic/CosyVoice2-0.5B"]
