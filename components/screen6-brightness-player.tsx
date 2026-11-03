@@ -7,6 +7,7 @@ import { useWorkflowDirty, useWorkflowReady } from "@/lib/workflow-ready";
 import { useSelectedBrightness } from "@/lib/use-selected-brightness";
 import { fetchCurrentSession } from "@/lib/current-session";
 import { useScreenPublication } from "@/lib/use-screen-publication";
+import { abroSans } from "@/lib/abro-sans";
 
 const MIN_BRIGHTNESS = 0;
 const MAX_BRIGHTNESS = 200;
@@ -93,7 +94,7 @@ export default function Screen6BrightnessPlayer() {
         {videoUrl && <video ref={videoRef} key={videoUrl} src={videoUrl} muted autoPlay loop playsInline
           style={{ filter: `brightness(${comparing ? 100 : brightness}%)` }} />}
       </button>
-      <div className={styles.badge}><i aria-hidden="true" />Edited video<span>{remoteBrightness}% on air</span></div>
+      <div className={styles.badge}><i aria-hidden="true" /><strong className={`${abroSans.className} font-normal`}>Edited video</strong><span>{remoteBrightness}% on air</span></div>
       {comparing && <div className={styles.original}>Original · 100%</div>}
       <div className={styles.rail}>
         <div className={styles.fill} style={{height: `${brightness / 2}%`}} />

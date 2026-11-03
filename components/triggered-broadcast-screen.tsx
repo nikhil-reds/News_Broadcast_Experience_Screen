@@ -194,7 +194,7 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
   const applying = Boolean(handoff && !confirmed);
   const showContent = visible || Boolean(handoff);
   return (
-    <div className="relative min-h-screen bg-black text-white">
+    <div className={`${poppins.className} relative min-h-screen bg-black text-white`}>
       {showContent ? (
         <WorkflowReadyContext.Provider value={setSelectionReady}>
           <WorkflowDirtyContext.Provider value={setDirty}>
@@ -221,7 +221,7 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
           {error || (applying && minimumElapsed && waiting.length ? `Waiting for Screen ${waiting.join(" and ")}…` : applying || confirmed ? "" : !connected ? "Connecting to screens…" : busy ? "Saving…" : active && !enabled ? "Preparing content…" : "")}
         </p>
         <button type="button" onClick={apply} disabled={!enabled || Boolean(showApplied)} aria-busy={busy || applying}
-          style={screen === 9 || screen === 10 ? { fontFamily: poppins.style.fontFamily } : undefined}
+          style={{ fontFamily: poppins.style.fontFamily }}
           className={`${styles.button} ${screen <= 10 ? styles.applyButton : ""} ${applying ? styles.applying : ""} ${showApplied ? styles.applied : ""}`}>
           <span aria-live="polite">{screen === 12 ? (applied ? "Published" : "Publish") : screen === 11 ? (applied ? "Broadcasted" : "Broadcast") : (showApplied ? "Applied" : applying ? "Applying…" : "Apply")}</span>
           <span className={styles.icon} aria-hidden="true">
