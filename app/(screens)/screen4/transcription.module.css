@@ -1,0 +1,62 @@
+@font-face {
+  font-family: TranscriptionAbro;
+  src: url("/fonts/AbroSans/OpenType-TT/AbroSans-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+.stage {
+  position: relative; height: 100svh; overflow: hidden; isolation: isolate;
+  font: 400 16px/1.3 TranscriptionAbro, sans-serif; color: white; background: black;
+  border: 1px solid #ffffff12; border-radius: 30px;
+}
+.texture {
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 49.94%, #ffffff08 50%, transparent 50.06%);
+}
+.glow { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 34% 32% at 31% 78%, #263cab, transparent),
+    radial-gradient(ellipse 35% 36% at 57% 78%, #762ea6, transparent),
+    radial-gradient(ellipse 28% 25% at 76% 78%, #a62c77, transparent);
+  opacity: calc(.12 + var(--level, 0) * .14); transition: opacity 120ms linear;
+}
+.texture::after { content: ""; position: absolute; inset: 0; opacity: .45;
+  background: radial-gradient(circle, #ffffff30 1px, transparent 1.3px) 0 0 / 5.5vw 5.5vw;
+  mask-image: radial-gradient(ellipse at 50% 78%, black, transparent 77%);
+}
+.rings { position: absolute; left: 50%; top: 78%; width: 80%; height: auto; transform: translate(-50%,-50%); fill: none; stroke: #ffffff10; stroke-width: 1; }
+.ringPulse,.ringDash,.ringTicks { transform-origin: 0 0; }
+.ringPulse { transform: scale(calc(1 + var(--level, 0) * .06)); transition: transform 120ms linear; }
+.ringDash { animation: orbit 90s linear infinite reverse; }
+.ringTicks { animation: orbit 120s linear infinite; stroke: #ffffff24; }
+.stage[data-playing="false"] .ringDash,.stage[data-playing="false"] .ringTicks { animation-play-state: paused; }
+@keyframes orbit { to { transform: rotate(360deg); } }
+.header { position: absolute; z-index: 1; inset: 18px 18px auto; display: flex; justify-content: space-between; align-items: flex-start; }
+.identity,.status span,.speaker { display: inline-flex; align-items: center; gap: 9px; border-radius: 999px; background: #16161a80; box-shadow: inset 0 1px 0 #ffffff1f,inset 0 0 0 1px #ffffff14; backdrop-filter: blur(14px); }
+.identity { padding: 0 16px; height: 44px; }
+.identity i,.status i { width: 8px; height: 8px; border-radius: 50%; background: #ff5a4e; box-shadow: 0 0 0 3px #ff5a4e38; }
+.status { display: flex; gap: 8px; }
+.status span,.speaker { height: 38px; padding: 0 14px; font-size: 14px; color: #ffffffaa; font-variant-numeric: tabular-nums; }
+.captions { position: absolute; top: 40%; left: 50%; transform: translate(-50%,-50%); width: min(80%, 900px); display: grid; justify-items: center; gap: clamp(8px,2vh,16px); text-align: center; }
+.speaker { color: #eee; }
+.speaker b { display: flex; align-items: center; gap: 2px; height: 20px; }
+.speaker i { width: 3px; height: calc(4px + 9px * var(--level,0)); background: #ddd; border-radius: 2px; transition: height 90ms linear; }
+.speaker i:nth-child(2) { height: calc(5px + 15px * var(--level,0)); }
+.previous,.caption { margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.previous { color: #ffffff80; height: 2.6em; font-size: clamp(14px,1.8vw,24px); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; animation: appear 300ms ease-out; }
+.caption { color: #ffffffb8; min-height: 2.6em; font-size: clamp(21px,min(4vw,6.6vh),58px); line-height: 1.3; letter-spacing: -.02em; }
+.word { display: inline-block; max-width: 100%; opacity: 0; transform: translateY(.16em); transition: opacity 180ms ease-out, transform 240ms ease-out, color 160ms ease-out; }
+.word[data-visible="true"] { opacity: 1; transform: none; }
+.word[data-current="true"] { color: #fff; text-shadow: 0 0 18px #b05cff40; }
+.accessibleCaption { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@keyframes appear { from { opacity: .15; transform: translateY(.12em); } }
+.wave { position: absolute; top: 56%; height: 44%; width: 100%; pointer-events: none; }
+@media (max-width: 760px) { .status span:not(:first-child) { display: none; } .captions { width: 88%; } .rings { width: 150%; } .caption { min-height: 3.9em; } }
+@media (max-width: 380px) { .header { inset: 12px; gap: 8px; } .identity { padding-inline: 10px; font-size: 14px; } .status span { padding-inline: 10px; } }
+@media (max-height: 450px) { .header { inset: 8px 12px auto; } .speaker,.status span,.identity { height: 28px; } .captions { top: 43%; gap: 4px; } .caption { font-size: clamp(17px,5vh,23px); min-height: 2.6em; } .previous { font-size: 12px; } }
+@media (prefers-reduced-motion: reduce) {
+  .previous,.ringDash,.ringTicks { animation: none; }
+  .word,.word[data-visible="true"] { opacity: 1; transform: none; transition: none; }
+  .word[data-current="true"] { color: inherit; text-shadow: none; }
+  .ringPulse { transform: none; transition: none; }
+  .glow { opacity: .12; transition: none; }
+  .speaker i { height: 5px; transition: none; }
+}
