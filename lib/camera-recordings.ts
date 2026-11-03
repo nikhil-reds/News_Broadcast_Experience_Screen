@@ -89,10 +89,11 @@ export function parseRecordingTimestamp(filename: string): number | null {
  * Reel name derived from the camera take, so re-running the worker for the same
  * pair overwrites one object instead of piling up near-duplicates.
  */
-export function highlightFilenameFor(cameraFilename: string): string {
+export function highlightFilenameFor(cameraFilename: string, revision?: string): string {
   const stamp = cameraFilename
     .replace(CAMERA_FILENAME_PREFIX[2], "")
     .replace(CAMERA_FILENAME_PREFIX[1], "")
     .replace(/\.[^.]+$/, "");
-  return `${HIGHLIGHT_FILENAME_PREFIX}${stamp}.mp4`;
+  const suffix = revision ? `-${revision.replace(/[^a-zA-Z0-9._-]/g, "-")}` : "";
+  return `${HIGHLIGHT_FILENAME_PREFIX}${stamp}${suffix}.mp4`;
 }
