@@ -1,3 +1,4 @@
+import { trackFlowAsset } from "@/lib/flow-lifecycle";
 import * as Minio from "minio";
 
 // Single MinIO client, cached on globalThis for dev hot-reload.
@@ -60,6 +61,7 @@ export async function uploadObject(
   buffer: Buffer,
   contentType?: string
 ): Promise<void> {
+  await trackFlowAsset(bucket, key);
   await ensureBucket(bucket);
   await minioClient.putObject(
     bucket,
@@ -112,7 +114,7 @@ export async function deleteObject(bucket: string, key: string): Promise<void> {
     await minioClient.removeObject(bucket, key);
   } catch (err: unknown) {
     const code = minioErrorCode(err);
-    if (code === "NoSuchKey" || code === "NotFound") return;
+    if (code === "NoSuchKey" || code === "NotFound" || code === "NoSuchBucket") return;
     throw err;
   }
 }
