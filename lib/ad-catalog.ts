@@ -77,6 +77,12 @@ export function getBrandByIdFromCatalog(id: string | null | undefined) {
   return AD_INDUSTRIES.flatMap((industry) => industry.brands).find((brand) => brand.id === id);
 }
 
+/** Resolve the industry too, so a remote brand selection can move Screen 10
+ * out of a stale industry view before highlighting the selected brand. */
+export function getIndustryByBrandId(id: string | null | undefined) {
+  return AD_INDUSTRIES.find((industry) => industry.brands.some((brand) => brand.id === id));
+}
+
 export function getAdsByBrandId(id: string | null | undefined) {
   return getBrandByIdFromCatalog(id)?.ads ?? [];
 }
