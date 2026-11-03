@@ -1,4 +1,5 @@
 "use client";
+import { selectionFetch } from "@/lib/screen-selection-writes";
 
 export interface CurrentSession {
   id: string;
@@ -14,7 +15,7 @@ export interface CurrentSession {
 /** GET /api/sessions/current, used by Screens 7/8/11/12 to resolve "now". */
 export async function fetchCurrentSession(): Promise<CurrentSession | null> {
   try {
-    const res = await fetch("/api/sessions/current");
+    const res = await selectionFetch("/api/sessions/current");
     if (!res.ok) return null;
     const data = await res.json();
     return data.session ?? null;
@@ -29,7 +30,7 @@ export async function patchSession(
   patch: Partial<Pick<CurrentSession, "selectedBackgroundId" | "selectedSubtitleLanguage" | "selectedAudioLanguage" | "selectedBrightness" | "status">>
 ): Promise<void> {
   try {
-    await fetch(`/api/sessions/${sessionId}`, {
+    await selectionFetch(`/api/sessions/${sessionId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
