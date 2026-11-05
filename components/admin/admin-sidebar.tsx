@@ -2,23 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { signOutAction } from "@/app/actions/auth";
 import { adminNavigation } from "@/lib/admin-navigation";
 
 type AdminSidebarProps = { email: string; open: boolean; onClose: () => void };
-type DemoState = {
-  active: boolean;
-  sessionId: string | null;
-  startedAt: string | null;
-  endsAt: string | null;
-};
-
-function formatRemaining(endsAt: string | null) {
-  if (!endsAt) return "15:00";
-  const seconds = Math.max(0, Math.ceil((Date.parse(endsAt) - Date.now()) / 1000));
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-}
 
 const icons: Record<string, ReactNode> = {
   grid: (
@@ -90,45 +78,6 @@ function isActivePath(pathname: string, href: string) {
 
 export function AdminSidebar({ email, open, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
-  const [demo, setDemo] = useState<DemoState>({ active: false, sessionId: null, startedAt: null, endsAt: null });
-  const [demoTime, setDemoTime] = useState("15:00");
-  const [demoBusy, setDemoBusy] = useState(false);
-  const [demoError, setDemoError] = useState("");
-  const demoActive = demo.active;
-
-  const refreshDemo = useCallback(async () => {
-    const response = await fetch("/api/admin/demo", { cache: "no-store" });
-    if (!response.ok) return;
-    const state = await response.json() as DemoState;
-    setDemo(state);
-    setDemoTime(formatRemaining(state.endsAt));
-  }, []);
-
-  useEffect(() => {
-    const initial = window.setTimeout(() => void refreshDemo(), 0);
-    const timer = window.setInterval(() => void refreshDemo(), 1_000);
-    return () => {
-      window.clearTimeout(initial);
-      window.clearInterval(timer);
-    };
-  }, [refreshDemo]);
-
-  const toggleDemo = async () => {
-    if (demoBusy) return;
-    setDemoBusy(true);
-    setDemoError("");
-    try {
-      const response = await fetch("/api/admin/demo", { method: demoActive ? "DELETE" : "POST" });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? "Unable to update demo");
-      setDemo(body as DemoState);
-      setDemoTime(formatRemaining((body as DemoState).endsAt));
-    } catch (error) {
-      setDemoError(error instanceof Error ? error.message : "Unable to update demo");
-    } finally {
-      setDemoBusy(false);
-    }
-  };
 
   return (
     <aside id="admin-navigation" aria-label="Admin navigation panel" className={`admin-sidebar-gradient fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(20rem,88vw)] shrink-0 flex-col border-r border-white/10 text-white shadow-2xl transition-transform duration-200 motion-reduce:transition-none md:w-[4.5rem] lg:sticky lg:z-auto lg:h-screen lg:w-64 lg:shadow-none ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
@@ -180,11 +129,9 @@ export function AdminSidebar({ email, open, onClose }: AdminSidebarProps) {
       <div className="shrink-0 px-3 pb-3">
         <button
           type="button"
-          aria-label={demoActive ? "End demo" : "Start demo"}
-          aria-pressed={demoActive}
-          title={demoActive ? "End demo" : "Start demo"}
-          onClick={toggleDemo}
-          disabled={demoBusy}
+          aria-label="Open saved demo"
+          title="Open saved demo"
+          onClick={() => { window.location.assign(`/demo?run=${Date.now()}`); }}
           className="flex min-h-14 w-full items-center justify-center gap-2 rounded-md border border-white/15 bg-[#141128] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#201b3d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300 motion-reduce:transition-none"
         >
           <svg
@@ -197,16 +144,15 @@ export function AdminSidebar({ email, open, onClose }: AdminSidebarProps) {
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            {demoActive ? <rect x="6" y="6" width="12" height="12" rx="2" /> : <path d="m8 5 11 7-11 7z" />}
+            <path d="m8 5 11 7-11 7z" />
           </svg>
           <span className="md:hidden lg:flex lg:flex-col lg:items-start lg:leading-tight">
-            <span>{demoBusy ? "Please wait…" : demoActive ? "End demo" : "Start demo"}</span>
+            <span>Demo</span>
             <span className="mt-0.5 text-[10px] font-medium tabular-nums text-violet-200">
-              {demoActive ? `Ends in ${demoTime}` : "15 minute limit"}
+              Saved broadcast
             </span>
           </span>
         </button>
-        {demoError ? <p role="alert" className="mt-2 px-1 text-xs text-red-300">{demoError}</p> : null}
       </div>
 
       <div className="shrink-0 space-y-3 border-t border-white/10 p-3">

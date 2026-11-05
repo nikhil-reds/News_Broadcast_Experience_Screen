@@ -5,7 +5,8 @@
 }
 .texture {
   position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent 49.94%, #ffffff08 50%, transparent 50.06%);
+  background: radial-gradient(60% 50% at 50% -10%, rgba(255,255,255,.07), transparent 70%),
+    linear-gradient(90deg, transparent 49.94%, #ffffff08 50%, transparent 50.06%);
 }
 .glow { position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(ellipse 34% 32% at 31% 78%, #263cab, transparent),
@@ -14,7 +15,8 @@
   opacity: calc(.12 + var(--level, 0) * .14); transition: opacity 120ms linear;
 }
 .texture::after { content: ""; position: absolute; inset: 0; opacity: .45;
-  background: radial-gradient(circle, #ffffff30 1px, transparent 1.3px) 0 0 / 5.5vw 5.5vw;
+  --spacing: clamp(42px, 5.5vw, 96px);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M28 32h8m-4-4v8' fill='none' stroke='white' stroke-opacity='.55' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center / var(--spacing) var(--spacing) repeat;
   mask-image: radial-gradient(ellipse at 50% 78%, black, transparent 77%);
 }
 .rings { position: absolute; left: 50%; top: 78%; width: 80%; height: auto; transform: translate(-50%,-50%); fill: none; stroke: #ffffff10; stroke-width: 1; }

@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "durationMs": 23267,
+  "events": [
+    {
+      "at": 0,
+      "type": "settings",
+      "background": "bg-markets-1920x1080.png",
+      "brightness": 95
+    },
+    {
+      "at": 0,
+      "type": "camera",
+      "camera": 1,
+      "sourceTime": 0,
+      "transition": "cut"
+    },
+    {
+      "at": 7776,
+      "type": "camera",
+      "camera": 2,
+      "sourceTime": 7776,
+      "transition": "dissolve"
+    },
+    {
+      "at": 15551,
+      "type": "camera",
+      "camera": 3,
+      "sourceTime": 15551,
+      "transition": "dissolve"
+    },
+    {
+      "at": 0,
+      "type": "caption-track",
+      "language": "German"
+    },
+    {
+      "at": 0,
+      "type": "ad",
+      "image": "amazon-bottom.png"
+    },
+    {
+      "at": 8000,
+      "type": "ad",
+      "image": "amazon-l-band.png"
+    },
+    {
+      "at": 16000,
+      "type": "ad",
+      "image": "amazon-side.png"
+    },
+    {
+      "at": 23267,
+      "type": "finish"
+    }
+  ]
+}
