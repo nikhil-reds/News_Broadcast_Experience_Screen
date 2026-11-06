@@ -8,7 +8,7 @@ import { adminNavigation } from "@/lib/admin-navigation";
 import { readDemoDeadline, readServerDemoDeadline, subscribeToDemoDeadline, writeDemoDeadline } from "@/lib/demo-timer";
 import type { DemoState } from "@/lib/saved-demo-control";
 
-type AdminSidebarProps = { email: string; open: boolean; onClose: () => void };
+type AdminSidebarProps = { email: string; permissions: string[]; open: boolean; onClose: () => void };
 
 const DEMO_DURATION_SECONDS = 15 * 60;
 
@@ -96,7 +96,7 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminSidebar({ email, open, onClose }: AdminSidebarProps) {
+export function AdminSidebar({ email, permissions, open, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const demoEndsAt = useSyncExternalStore(subscribeToDemoDeadline, readDemoDeadline, readServerDemoDeadline);
   const [demoNow, setDemoNow] = useState(() => Date.now());
@@ -206,7 +206,7 @@ export function AdminSidebar({ email, open, onClose }: AdminSidebarProps) {
       </div>
 
       <nav aria-label="Admin navigation" className="flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4">
-        {adminNavigation.map((item) => {
+        {adminNavigation.filter((item) => permissions.includes(item.permission)).map((item) => {
           const active = isActivePath(pathname, item.href);
           return (
             <Link
@@ -239,7 +239,7 @@ export function AdminSidebar({ email, open, onClose }: AdminSidebarProps) {
         })}
       </nav>
 
-      <div className="shrink-0 px-3 pb-3">
+      {permissions.includes("studio.control") ? <div className="shrink-0 px-3 pb-3">
         <button
           type="button"
           aria-label={!demoReady ? "Connecting to Demo" : demoStarting ? "Switching demo footage" : demoActive ? `End demo: ${demoTime} remaining` : "Start 15-minute demo timer"}
@@ -261,7 +261,7 @@ export function AdminSidebar({ email, open, onClose }: AdminSidebarProps) {
             </svg>
           </span>
         </button>
-      </div>
+      </div> : null}
 
       <div className="shrink-0 space-y-3 border-t border-white/10 p-3">
         <p className="truncate px-1 text-xs text-slate-400" title={email}>

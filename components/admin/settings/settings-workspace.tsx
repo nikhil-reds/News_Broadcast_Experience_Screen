@@ -6,19 +6,25 @@ import { SettingsNav, type Section } from "./settings-nav";
 import { Icon, StatTile } from "./settings-primitives";
 import { UsersPanel } from "./users-panel";
 import type { RealAdminUser } from "./users-panel";
+import { RolesPanel, type AdminRoleView } from "./roles-panel";
 
 export function SettingsWorkspace({
   email,
   initialUsers,
+  initialRoles,
+  permissions,
   hasCustomPassword,
   hasCustomSecret,
 }: {
   email: string;
   initialUsers: RealAdminUser[];
+  initialRoles: AdminRoleView[];
+  permissions: string[];
   hasCustomPassword: boolean;
   hasCustomSecret: boolean;
 }) {
-  const [section, setSection] = useState<Section>("Users");
+  const [section, setSection] = useState<Section>(permissions.includes("users.read") ? "Users" : "General");
+  const visibleSections: Section[] = ["General", ...(permissions.includes("users.read") ? ["Users" as const] : []), ...(permissions.includes("roles.read") ? ["Roles" as const] : []), "Security"];
   const securityDone = Number(hasCustomPassword) + Number(hasCustomSecret);
 
   return (
@@ -40,10 +46,11 @@ export function SettingsWorkspace({
         </div>
       </header>
       <div className="grid min-w-0 gap-5 xl:grid-cols-[16.5rem_minmax(0,1fr)] xl:gap-8">
-        <SettingsNav email={email} section={section} onSelect={setSection} counts={{ Users: initialUsers.length }} />
+        <SettingsNav email={email} section={section} onSelect={setSection} visibleSections={visibleSections} counts={{ Users: initialUsers.length, Roles: initialRoles.length }} />
         <div key={section} className="settings-fade min-w-0">
           {section === "General" && <GeneralPanel email={email} />}
-          {section === "Users" && <UsersPanel initialUsers={initialUsers} />}
+          {section === "Users" && permissions.includes("users.read") && <UsersPanel initialUsers={initialUsers} initialRoles={initialRoles} permissions={permissions} />}
+          {section === "Roles" && permissions.includes("roles.read") && <RolesPanel initialRoles={initialRoles} canManage={permissions.includes("roles.manage")} />}
           {section === "Security" && <SecurityPanel hasCustomPassword={hasCustomPassword} hasCustomSecret={hasCustomSecret} />}
         </div>
       </div>

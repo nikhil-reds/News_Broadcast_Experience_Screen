@@ -11,10 +11,12 @@ import type { AdminTheme } from "@/lib/admin-theme";
 export function AdminShell({
   children,
   email,
+  permissions,
   theme,
 }: {
   children: ReactNode;
   email: string;
+  permissions: string[];
   theme: AdminTheme;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -39,7 +41,7 @@ export function AdminShell({
     <div className={`${poppins.className} ${abroSans.variable} admin-theme admin-theme-${theme} relative min-h-dvh bg-admin-page text-admin-text`}>
       <div aria-hidden="true" className="mesh-bg mesh-grid pointer-events-none fixed inset-0 z-0" />
       <div className="relative z-10 flex min-h-dvh">
-        <AdminSidebar email={email} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AdminSidebar email={email} permissions={permissions} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         {sidebarOpen ? (
           <button
             type="button"

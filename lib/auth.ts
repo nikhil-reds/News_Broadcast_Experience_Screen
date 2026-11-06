@@ -17,9 +17,9 @@ export async function validateAdminCredentials(email: string, password: string) 
   const adminEmail = process.env.ADMIN_EMAIL ?? "admin@amagi.local";
   const adminPassword = process.env.ADMIN_PASSWORD ?? "admin123";
   const normalizedEmail = email.trim().toLowerCase();
-  if (normalizedEmail === adminEmail.toLowerCase() && password === adminPassword) return true;
-  const user = await prisma.adminUser.findUnique({ where: { email: normalizedEmail } });
-  if (!user || user.status !== "active" || !await verifyPassword(password, user.passwordHash)) return false;
+  if (normalizedEmail === adminEmail.toLowerCase() && password === adminPassword) return { email: normalizedEmail, userId: null };
+  const user = await prisma.adminUser.findUnique({ where: { email: normalizedEmail }, include: { role: true } });
+  if (!user || !user.role || user.status !== "active" || !await verifyPassword(password, user.passwordHash)) return null;
   await prisma.adminUser.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-  return true;
+  return { email: user.email, userId: user.id };
 }

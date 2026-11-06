@@ -2,7 +2,7 @@
 
 import { Avatar, Icon, type IconName } from "./settings-primitives";
 
-export type Section = "General" | "Users" | "Security";
+export type Section = "General" | "Users" | "Roles" | "Security";
 
 type SectionMeta = { id: Section; icon: IconName; hint: string };
 
@@ -12,6 +12,7 @@ const groups: { label: string; items: SectionMeta[] }[] = [
     items: [
       { id: "General", icon: "settings", hint: "Account basics" },
       { id: "Users", icon: "users", hint: "Team access" },
+      { id: "Roles", icon: "key", hint: "Permissions" },
     ],
   },
   {
@@ -22,7 +23,7 @@ const groups: { label: string; items: SectionMeta[] }[] = [
   },
 ];
 
-export function SettingsNav({ section, onSelect, counts, email }: { section: Section; onSelect: (section: Section) => void; counts: Partial<Record<Section, number>>; email: string }) {
+export function SettingsNav({ section, onSelect, counts, email, visibleSections }: { section: Section; onSelect: (section: Section) => void; counts: Partial<Record<Section, number>>; email: string; visibleSections: Section[] }) {
   return (
     <nav aria-label="Settings sections" className="min-w-0 xl:self-stretch">
       <div className="flex h-full min-w-0 flex-col rounded-2xl border border-admin-border bg-gradient-to-b from-admin-surface to-admin-surface-muted p-2 shadow-sm sm:p-3 xl:sticky xl:top-20 xl:h-[calc(100dvh-7rem)] xl:min-h-[28rem]">
@@ -31,7 +32,7 @@ export function SettingsNav({ section, onSelect, counts, email }: { section: Sec
             <div key={group.label} className="contents xl:block">
               <p className="hidden px-3 pb-2 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-admin-text-muted xl:block">{group.label}</p>
               <div className="flex gap-2 xl:block xl:space-y-1">
-                {group.items.map((item) => {
+                {group.items.filter((item) => visibleSections.includes(item.id)).map((item) => {
                   const active = section === item.id;
                   return (
                     <button

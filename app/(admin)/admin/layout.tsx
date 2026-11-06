@@ -9,7 +9,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const session = await verifyAdminSession();
   const theme = await getAdminTheme();
   return (
-    <AdminShell email={session.email} theme={theme}>
+    <AdminShell email={session.email} permissions={session.permissions} theme={theme}>
       {children}
     </AdminShell>
   );

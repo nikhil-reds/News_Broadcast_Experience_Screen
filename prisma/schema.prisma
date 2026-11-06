@@ -19,9 +19,40 @@ model AdminUser {
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  roleId       String?
+  role         AdminRole? @relation(fields: [roleId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
+  @@index([roleId])
   @@map("admin_users")
+}
+
+model AdminRole {
+  id          String      @id @default(uuid())
+  slug        String      @unique
+  name        String
+  description String?
+  permissions String[]
+  isSystem    Boolean     @default(false)
+  users       AdminUser[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("admin_roles")
+}
+
+model AdminAuditLog {
+  id         String   @id @default(uuid())
+  actorEmail String
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorEmail, createdAt])
+  @@map("admin_audit_logs")
 }
 
 /// Stores uploaded or recorded studio master audio files (stored in MinIO `audio` bucket)

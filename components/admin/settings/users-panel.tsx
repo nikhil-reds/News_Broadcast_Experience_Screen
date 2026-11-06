@@ -3,33 +3,45 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { Avatar, Icon, SectionHeading, SettingsPanel, StatusDot } from "./settings-primitives";
+import type { AdminRoleView } from "./roles-panel";
 
 export type RealAdminUser = {
   id: string; name: string; email: string; status: string; source: "environment" | "database";
   lastLoginAt: string | null; createdAt: string | null;
+  role: { id: string; name: string; slug: string } | null;
 };
-type FieldErrors = Partial<Record<"name" | "email" | "password", string>>;
+type FieldErrors = Partial<Record<"name" | "email" | "password" | "roleId", string>>;
 const inputClass = "mt-1.5 min-h-11 w-full rounded-xl border border-admin-input bg-admin-surface px-3 text-sm text-admin-text outline-none focus:border-admin-focus focus:ring-2 focus:ring-admin-focus/20";
 
-export function UsersPanel({ initialUsers }: { initialUsers: RealAdminUser[] }) {
+export function UsersPanel({ initialUsers, initialRoles, permissions }: { initialUsers: RealAdminUser[]; initialRoles: AdminRoleView[]; permissions: string[] }) {
   const [users, setUsers] = useState(initialUsers);
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const canCreate = permissions.includes("users.create");
+  const canUpdate = permissions.includes("users.update");
+  const canDisable = permissions.includes("users.disable");
+  async function updateUser(user: RealAdminUser, change: { roleId?: string; status?: string }) {
+    const response = await fetch(`/api/admin/users/${user.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(change) });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) { setNotice(result?.error ?? "Unable to update user."); return; }
+    setUsers((current) => current.map((item) => item.id === user.id ? { ...item, status: result.user.status, role: result.user.role } : item));
+    setNotice(`${user.name} was updated.`);
+  }
   return <div className="space-y-5">
-    <SectionHeading title="Users" description="Administrators who can sign in to this application." action={<button type="button" onClick={() => setOpen(true)} className="admin-action min-h-11 w-full gap-2 sm:w-auto"><Icon name="plus" className="size-4" />Add User</button>} />
+    <SectionHeading title="Users" description="Manage sign-in access, roles, and account status." action={canCreate ? <button type="button" onClick={() => setOpen(true)} className="admin-action min-h-11 w-full gap-2 sm:w-auto"><Icon name="plus" className="size-4" />Add User</button> : undefined} />
     {notice ? <p role="status" className="rounded-xl border border-status-success-border bg-status-success-bg px-4 py-3 text-sm text-status-success-text">{notice}</p> : null}
     <SettingsPanel className="divide-y divide-admin-border !p-0">
-      {users.map((user) => <article key={user.id} className="grid min-w-0 gap-4 px-4 py-5 sm:px-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(9rem,.6fr)_minmax(10rem,.7fr)] xl:items-center">
+      {users.map((user) => <article key={user.id} className="grid min-w-0 gap-4 px-4 py-5 sm:px-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(11rem,.7fr)_minmax(12rem,.8fr)] xl:items-center">
         <div className="flex min-w-0 items-center gap-3"><Avatar name={user.name} /><div className="min-w-0"><p className="break-words text-sm font-semibold capitalize text-admin-text">{user.name}</p><p className="break-all text-xs text-admin-text-muted xl:truncate">{user.email}</p></div></div>
-        <div><span className="mb-1 block text-[.68rem] font-bold uppercase tracking-wide text-admin-text-muted">Access</span><p className="w-fit rounded-lg bg-admin-surface-muted px-2.5 py-1 text-xs font-semibold text-admin-text-secondary ring-1 ring-admin-border">Administrator</p></div>
-        <div><span className="mb-1 block text-[.68rem] font-bold uppercase tracking-wide text-admin-text-muted">Status</span><div className="flex flex-wrap items-center gap-2"><StatusDot tone="success">Active</StatusDot><span className="text-xs text-admin-text-muted">{user.source === "environment" ? "Environment" : user.lastLoginAt ? `Last sign-in ${new Date(user.lastLoginAt).toLocaleDateString()}` : "Not signed in"}</span></div></div>
+        <div><span className="mb-1 block text-[.68rem] font-bold uppercase tracking-wide text-admin-text-muted">Role</span>{user.source === "database" && canUpdate ? <select aria-label={`Role for ${user.name}`} value={user.role?.id ?? ""} onChange={(event) => updateUser(user, { roleId: event.target.value })} className="min-h-10 w-full rounded-xl border border-admin-input bg-admin-surface px-3 text-sm text-admin-text">{initialRoles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select> : <p className="w-fit rounded-lg bg-admin-surface-muted px-2.5 py-1 text-xs font-semibold text-admin-text-secondary ring-1 ring-admin-border">{user.role?.name ?? "No role"}</p>}</div>
+        <div><span className="mb-1 block text-[.68rem] font-bold uppercase tracking-wide text-admin-text-muted">Status</span><div className="flex flex-wrap items-center gap-2"><StatusDot tone={user.status === "active" ? "success" : "neutral"}>{user.status === "active" ? "Active" : "Disabled"}</StatusDot>{user.source === "database" && canDisable ? <button type="button" onClick={() => updateUser(user, { status: user.status === "active" ? "disabled" : "active" })} className="min-h-9 border border-admin-input px-3 text-xs font-semibold text-admin-text">{user.status === "active" ? "Disable" : "Enable"}</button> : <span className="text-xs text-admin-text-muted">{user.source === "environment" ? "Protected" : user.lastLoginAt ? `Last sign-in ${new Date(user.lastLoginAt).toLocaleDateString()}` : "Not signed in"}</span>}</div></div>
       </article>)}
     </SettingsPanel>
-    {open ? <AddUserDialog existingEmails={users.map((user) => user.email)} onClose={() => setOpen(false)} onCreated={(user) => { setUsers((current) => [...current, user]); setOpen(false); setNotice(`${user.name} can now sign in.`); }} /> : null}
+    {open ? <AddUserDialog roles={initialRoles} existingEmails={users.map((user) => user.email)} onClose={() => setOpen(false)} onCreated={(user) => { setUsers((current) => [...current, user]); setOpen(false); setNotice(`${user.name} can now sign in.`); }} /> : null}
   </div>;
 }
 
-function AddUserDialog({ existingEmails, onClose, onCreated }: { existingEmails: string[]; onClose: () => void; onCreated: (user: RealAdminUser) => void }) {
+function AddUserDialog({ roles, existingEmails, onClose, onCreated }: { roles: AdminRoleView[]; existingEmails: string[]; onClose: () => void; onCreated: (user: RealAdminUser) => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -61,6 +73,7 @@ function AddUserDialog({ existingEmails, onClose, onCreated }: { existingEmails:
     <form onSubmit={submit} className="overflow-y-auto p-4 sm:p-6" noValidate>{error ? <p role="alert" className="mb-4 rounded-lg border border-status-danger-border bg-status-danger-bg px-4 py-3 text-sm text-status-danger-text">{error}</p> : null}<div className="space-y-4">
       <label className="block text-sm font-semibold text-admin-text">Full name<input ref={nameRef} name="name" required maxLength={100} className={inputClass} />{fields.name ? <span className="mt-1 block text-xs text-status-danger-text">{fields.name}</span> : null}</label>
       <label className="block text-sm font-semibold text-admin-text">Email address<input name="email" type="email" required maxLength={254} className={inputClass} />{fields.email ? <span className="mt-1 block text-xs text-status-danger-text">{fields.email}</span> : null}</label>
+      <label className="block text-sm font-semibold text-admin-text">Role<select name="roleId" required defaultValue={roles.find((role) => role.slug === "viewer")?.id ?? roles[0]?.id} className={inputClass}>{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select>{fields.roleId ? <span className="mt-1 block text-xs text-status-danger-text">{fields.roleId}</span> : null}</label>
       <div className="block text-sm font-semibold text-admin-text"><label htmlFor="add-user-password">Password</label><div className="relative"><input ref={passwordRef} id="add-user-password" name="password" type={showPassword ? "text" : "password"} required minLength={12} maxLength={128} autoComplete="new-password" className={`${inputClass} pr-12`} /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute right-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-admin-text-muted transition-colors hover:bg-admin-table-hover hover:text-admin-text"><Icon name={showPassword ? "eyeOff" : "eye"} className="size-5" /></button></div><div className="mt-2 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs font-normal text-admin-text-muted">Use at least 12 characters. Share it securely with the user.</span><button type="button" onClick={generatePassword} className="inline-flex min-h-9 shrink-0 items-center gap-2 border border-admin-input px-3 text-xs font-semibold text-admin-text transition-colors hover:bg-admin-table-hover"><Icon name="key" className="size-4" />Generate password</button></div>{fields.password ? <span className="mt-1 block text-xs text-status-danger-text">{fields.password}</span> : null}</div>
     </div><div className="mt-6 flex flex-col-reverse gap-3 border-t border-admin-border pt-5 sm:flex-row sm:justify-end"><button type="button" disabled={saving} onClick={onClose} className="min-h-11 w-full border border-admin-input px-5 text-sm font-semibold text-admin-text sm:w-auto">Cancel</button><button type="submit" disabled={saving} className="admin-action min-h-11 w-full min-w-32 sm:w-auto">{saving ? "Adding…" : "Add User"}</button></div></form>
   </div></div>, document.body);

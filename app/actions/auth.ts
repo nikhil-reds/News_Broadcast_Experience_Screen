@@ -19,11 +19,12 @@ export async function signInAction(
     return { error: "Enter both email and password." };
   }
 
-  if (!await validateAdminCredentials(email, password)) {
+  const identity = await validateAdminCredentials(email, password);
+  if (!identity) {
     return { error: "Invalid admin credentials." };
   }
 
-  await createAdminSession(email);
+  await createAdminSession(identity.email, identity.userId);
   redirect("/admin");
 }
 
