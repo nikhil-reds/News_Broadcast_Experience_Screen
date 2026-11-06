@@ -1,4 +1,4 @@
-import { Avatar, CodeBlock, EmptyState, Icon, SectionHeading, SettingsPanel, SettingsRow, StatusDot, ToggleRow } from "./settings-primitives";
+import { Avatar, Icon, SectionHeading, SettingsPanel, SettingsRow, StatusDot } from "./settings-primitives";
 
 export function GeneralPanel({ email }: { email: string }) {
   return (
@@ -16,15 +16,9 @@ export function GeneralPanel({ email }: { email: string }) {
           <span className="inline-flex max-w-full items-center gap-2 rounded-lg border border-admin-border bg-admin-surface-muted px-3 py-2 text-sm font-medium text-admin-text-secondary"><Icon name="mail" className="size-4" /><span className="truncate">{email}</span></span>
         </SettingsRow>
       </SettingsPanel>
-      <SettingsPanel>
-        <h4 className="font-semibold text-admin-text">Recommended environment</h4>
-        <p className="mb-4 mt-1 text-sm text-admin-text-muted">Example variable names. Values below are placeholders.</p>
-        <CodeBlock title=".env.local" lines={["ADMIN_EMAIL=admin@example.com", "ADMIN_PASSWORD=replace-with-a-strong-password", "ADMIN_SESSION_SECRET=replace-with-a-long-random-secret"]} />
-      </SettingsPanel>
     </div>
   );
 }
-
 export function SecurityPanel({ hasCustomPassword, hasCustomSecret }: { hasCustomPassword: boolean; hasCustomSecret: boolean }) {
   const checks = [
     { label: "Admin password", detail: "Set ADMIN_PASSWORD for production.", ok: hasCustomPassword },
@@ -49,26 +43,6 @@ export function SecurityPanel({ hasCustomPassword, hasCustomSecret }: { hasCusto
             <StatusDot tone={check.ok ? "success" : "warning"}>{check.ok ? "Configured" : "Development default"}</StatusDot>
           </SettingsRow>
         ))}
-      </SettingsPanel>
-      <SettingsPanel className="divide-y divide-admin-border !p-0">
-        <div className="px-4 py-5 sm:px-6">
-          <h4 className="font-semibold text-admin-text">Planned controls</h4>
-          <p className="mt-1 text-sm text-admin-text-muted">These settings are a preview and cannot be changed here yet.</p>
-        </div>
-        <ToggleRow label="Two-factor authentication" description="Require a second verification step for privileged roles." />
-        <ToggleRow label="Password change on invitation" description="Prompt new users to create a password at first sign-in." />
-        <ToggleRow label="Role change notifications" description="Notify administrators when access changes." />
-      </SettingsPanel>
-    </div>
-  );
-}
-
-export function ActivityPanel() {
-  return (
-    <div className="space-y-5">
-      <SectionHeading title="Activity log" description="A record of user invitations, role changes, and security events will appear here." />
-      <SettingsPanel className="!p-0">
-        <EmptyState icon="inbox" title="No activity records yet" description="Activity history will be available when user management is connected to the backend." />
       </SettingsPanel>
     </div>
   );

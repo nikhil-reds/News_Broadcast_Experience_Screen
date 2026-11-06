@@ -2,6 +2,8 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
+import { verifyPassword } from "@/lib/admin-users";
 
 export async function verifyAdminSession() {
   const session = await getAdminSession();
@@ -11,9 +13,13 @@ export async function verifyAdminSession() {
   return session;
 }
 
-export function validateAdminCredentials(email: string, password: string) {
+export async function validateAdminCredentials(email: string, password: string) {
   const adminEmail = process.env.ADMIN_EMAIL ?? "admin@amagi.local";
   const adminPassword = process.env.ADMIN_PASSWORD ?? "admin123";
-
-  return email.trim().toLowerCase() === adminEmail.toLowerCase() && password === adminPassword;
+  const normalizedEmail = email.trim().toLowerCase();
+  if (normalizedEmail === adminEmail.toLowerCase() && password === adminPassword) return true;
+  const user = await prisma.adminUser.findUnique({ where: { email: normalizedEmail } });
+  if (!user || user.status !== "active" || !await verifyPassword(password, user.passwordHash)) return false;
+  await prisma.adminUser.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  return true;
 }

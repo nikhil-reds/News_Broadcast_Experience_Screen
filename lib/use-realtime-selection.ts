@@ -17,7 +17,7 @@ function readLocalSelection(kind: RealtimeSelectionKind, sessionId?: string | nu
   try {
     // A selection is scoped to a broadcast session. Prefer that value over a
     // generic browser cache left by an older session.
-    if (kind === "industry-preview") return sessionId ? window.localStorage.getItem(localSelectionKey(kind, sessionId)) : null;
+    if (kind === "industry-preview" || sessionId?.startsWith("demo-")) return sessionId ? window.localStorage.getItem(localSelectionKey(kind, sessionId)) : null;
     return (sessionId ? window.localStorage.getItem(localSelectionKey(kind, sessionId)) : null) ?? window.localStorage.getItem(localSelectionKey(kind));
   } catch {
     return null;
@@ -26,9 +26,9 @@ function readLocalSelection(kind: RealtimeSelectionKind, sessionId?: string | nu
 
 function writeLocalSelection(kind: RealtimeSelectionKind, value: string, sessionId?: string | null) {
   try {
-    window.localStorage.setItem(localSelectionKey(kind), value);
+    if (!sessionId?.startsWith("demo-")) window.localStorage.setItem(localSelectionKey(kind), value);
     if (sessionId) window.localStorage.setItem(localSelectionKey(kind, sessionId), value);
-    window.dispatchEvent(new CustomEvent(localSelectionEvent(kind), { detail: { value } }));
+    window.dispatchEvent(new CustomEvent(localSelectionEvent(kind), { detail: { value, sessionId } }));
   } catch {}
 }
 
@@ -62,11 +62,12 @@ export function useRealtimeSelection(kind: RealtimeSelectionKind, onState: (valu
     const localValue = readLocalSelection(kind);
     if (localValue) applyLocalState(localValue);
     const onLocalChange = (event: Event) => {
+      if (event instanceof CustomEvent && event.detail?.sessionId && sessionRef.current && event.detail.sessionId !== sessionRef.current) return;
       const value = event instanceof CustomEvent && typeof event.detail?.value === "string" ? event.detail.value : readLocalSelection(kind);
       if (value) applyLocalState(value);
     };
     const onStorage = (event: StorageEvent) => {
-      if (event.key === localSelectionKey(kind, kind === "industry-preview" ? sessionRef.current : null) && event.newValue) applyLocalState(event.newValue);
+      if (event.key === localSelectionKey(kind, kind === "industry-preview" || sessionRef.current?.startsWith("demo-") ? sessionRef.current : null) && event.newValue) applyLocalState(event.newValue);
     };
     window.addEventListener(localSelectionEvent(kind), onLocalChange);
     window.addEventListener("storage", onStorage);

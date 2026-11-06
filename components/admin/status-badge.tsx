@@ -8,10 +8,10 @@ const toneMap = {
 
 export function statusTone(status?: string | null): keyof typeof toneMap {
   const value = status?.toLowerCase() ?? "";
-  if (["ready", "completed", "active", "healthy", "success"].includes(value)) return "success";
-  if (["processing", "degraded", "stale", "queued", "preparing", "recording", "pending"].includes(value)) return "warning";
-  if (["failed", "down", "error"].includes(value)) return "danger";
-  if (["idle"].includes(value)) return "info";
+  if (["ready", "completed", "active", "healthy", "success", "resolved", "granted"].includes(value)) return "success";
+  if (["processing", "degraded", "stale", "queued", "preparing", "recording", "pending", "new"].includes(value)) return "warning";
+  if (["failed", "down", "error", "declined", "withdrawn"].includes(value)) return "danger";
+  if (["idle", "reviewed"].includes(value)) return "info";
   return "neutral";
 }
 

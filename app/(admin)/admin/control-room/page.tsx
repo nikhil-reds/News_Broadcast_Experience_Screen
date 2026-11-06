@@ -15,7 +15,7 @@ export default async function AdminScreenListPage() {
   });
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto w-full max-w-[112rem] space-y-5 sm:space-y-6">
       <AdminPageHeader title="Screen List" description="Six device-size broadcast URLs and all 12 workflow screens in one place." />
       <BroadcastOutputList />
       <section className="space-y-3">

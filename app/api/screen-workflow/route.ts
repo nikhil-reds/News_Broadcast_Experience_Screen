@@ -35,8 +35,7 @@ export async function GET(request: NextRequest) {
   const screen = Number(request.nextUrl.searchParams.get("screen"));
   if (!Number.isInteger(screen) || screen < 1 || screen > 12) return json({ error: "Invalid screen" }, 400);
   try {
-    // Reading the state also enforces the 15-minute deadline and restores the
-    // workflow that was active before Demo started.
+    // Enforce the saved-demo deadline before returning the preserved live flow.
     await getDemoState();
     const session = await currentBroadcastSession();
     if (request.nextUrl.searchParams.get("output") === "1") {
@@ -127,6 +126,7 @@ export async function DELETE() {
       sessionId: session.id,
       revision: current.revision + 1,
       applied: [],
+      restartAt: Date.now(),
       publishedAt: null,
     };
     const saved = await redisConnection.eval(`

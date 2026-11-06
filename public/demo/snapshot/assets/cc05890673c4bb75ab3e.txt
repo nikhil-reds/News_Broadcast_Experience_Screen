@@ -1,0 +1,1 @@
+Hola, soy Vikram, trabajando como ingeniero de hardware. Trabajo en la configuración de dispositivos de hardware, la conexión de sensores, el sistema de Raspberry Pi y la solución de problemas de hardware. También me encargo de integrar los dispositivos con las plataformas de software y aseguro que todo funcione correctamente durante los tests.

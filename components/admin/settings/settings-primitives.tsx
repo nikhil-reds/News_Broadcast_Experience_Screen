@@ -16,6 +16,8 @@ const iconPaths = {
   mail: "M4 6.5h16v11H4v-11Zm0 .5 8 6 8-6",
   lock: "M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6v-9Z",
   inbox: "M4 13.5 6.5 5h11L20 13.5V19H4v-5.5Zm0 0h4.5a3.5 3.5 0 0 0 7 0H20",
+  eye: "M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Zm9.5 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
+  eyeOff: "m3 3 18 18M10.6 6.2A9.7 9.7 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.1 2.8M6.2 6.2C3.8 7.8 2.5 12 2.5 12s3.5 6 9.5 6a9.7 9.7 0 0 0 4.1-.9M9.9 9.9a3 3 0 0 0 4.2 4.2",
 } as const;
 
 export type IconName = keyof typeof iconPaths;
@@ -46,12 +48,12 @@ export function SettingsPanel({ children, className = "" }: { children: ReactNod
 
 export function SettingsRow({ label, description, children }: { label: string; description?: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-8 sm:px-6">
-      <div className="min-w-0 sm:max-w-md">
+    <div className="flex flex-col gap-3 px-4 py-5 sm:px-6 xl:flex-row xl:items-center xl:justify-between xl:gap-8">
+      <div className="min-w-0 xl:max-w-md">
         <p className="text-sm font-semibold text-admin-text">{label}</p>
         {description ? <p className="mt-1 text-sm leading-5 text-admin-text-muted">{description}</p> : null}
       </div>
-      <div className="min-w-0 sm:text-right">{children}</div>
+      <div className="min-w-0 xl:text-right">{children}</div>
     </div>
   );
 }
@@ -93,9 +95,9 @@ const tileTones = {
   warning: "text-status-warning-text from-status-warning-text/15",
 } as const;
 
-export function StatTile({ label, value, detail, icon, tone = "accent", ring }: { label: string; value: string; detail: string; icon: IconName; tone?: keyof typeof tileTones; ring?: { value: number; max: number } }) {
+export function StatTile({ label, value, detail, icon, tone = "accent", ring, className = "" }: { label: string; value: string; detail: string; icon: IconName; tone?: keyof typeof tileTones; ring?: { value: number; max: number }; className?: string }) {
   return (
-    <div className={`relative flex min-w-0 items-center gap-4 overflow-hidden rounded-2xl border border-admin-border bg-gradient-to-br ${tileTones[tone]} to-admin-surface to-60% p-3 shadow-sm sm:p-5`}>
+    <div className={`relative flex min-w-0 items-center gap-4 overflow-hidden rounded-2xl border border-admin-border bg-gradient-to-br ${tileTones[tone]} to-admin-surface to-60% p-3 shadow-sm sm:p-5 ${className}`}>
       <div className="relative grid size-11 shrink-0 place-items-center sm:size-14">
         {ring ? <span className="absolute inset-0"><ProgressRing value={ring.value} max={ring.max} /></span> : <span className="absolute inset-1 rounded-xl bg-current opacity-10" />}
         <Icon name={icon} className="size-5" />
@@ -149,7 +151,7 @@ export function CodeBlock({ title, lines }: { title: string; lines: string[] }) 
           <span aria-live="polite">{copied ? "Copied" : "Copy"}</span>
         </button>
       </div>
-      <pre className="overflow-x-auto p-4 font-mono text-xs leading-6 text-admin-text-secondary sm:text-sm">
+      <pre className="settings-code-scroll overflow-x-auto p-4 font-mono text-xs leading-6 text-admin-text-secondary sm:text-sm">
         {lines.map((line) => {
           const [key, ...rest] = line.split("=");
           return <code key={line} className="block"><span className="text-admin-accent">{key}</span><span className="text-admin-text-muted">=</span>{rest.join("=")}</code>;

@@ -1,142 +1,67 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { roleDescriptions, roleOptions, type PreviewUser, type UserStatus } from "./settings-data";
-import { Avatar, EmptyState, Icon, SectionHeading, SettingsPanel, StatusDot, type Tone } from "./settings-primitives";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
+import { Avatar, Icon, SectionHeading, SettingsPanel, StatusDot } from "./settings-primitives";
 
-const inputClass = "min-h-11 w-full min-w-0 rounded-xl border border-admin-input bg-admin-surface px-3 text-sm text-admin-text outline-none transition placeholder:text-admin-text-muted focus:border-admin-focus focus:ring-2 focus:ring-admin-focus/20";
-const statusTone: Record<UserStatus, Tone> = { Active: "success", Pending: "warning", Suspended: "danger" };
-const gridCols = "xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_7.5rem_6.5rem]";
+export type RealAdminUser = {
+  id: string; name: string; email: string; status: string; source: "environment" | "database";
+  lastLoginAt: string | null; createdAt: string | null;
+};
+type FieldErrors = Partial<Record<"name" | "email" | "password", string>>;
+const inputClass = "mt-1.5 min-h-11 w-full rounded-xl border border-admin-input bg-admin-surface px-3 text-sm text-admin-text outline-none focus:border-admin-focus focus:ring-2 focus:ring-admin-focus/20";
 
-export function UsersPanel({ users, onAddUser }: { users: PreviewUser[]; onAddUser: (user: { name: string; email: string; role: string }) => void }) {
-  const [query, setQuery] = useState("");
-  const [role, setRole] = useState("All roles");
-  const [status, setStatus] = useState("All statuses");
-  const [dialogOpen, setDialogOpen] = useState(false);
+export function UsersPanel({ initialUsers }: { initialUsers: RealAdminUser[] }) {
+  const [users, setUsers] = useState(initialUsers);
+  const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
-  const closeDialog = useCallback(() => setDialogOpen(false), []);
-  const visible = users.filter((user) => {
-    const matchesQuery = `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(query.trim().toLowerCase());
-    return matchesQuery && (role === "All roles" || user.role === role) && (status === "All statuses" || user.status === status);
-  });
-
-  function addUser(user: { name: string; email: string; role: string }) {
-    onAddUser(user);
-    setNotice(`${user.name} was added to this preview. No invitation was sent.`);
-    setDialogOpen(false);
-  }
-
-  return (
-    <div className="space-y-5">
-      <SectionHeading
-        title="Users"
-        description="Explore team members and preview how access would be assigned."
-        action={<button type="button" onClick={() => setDialogOpen(true)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-admin-primary px-5 text-sm font-semibold text-admin-on-primary shadow-sm transition hover:bg-admin-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-admin-focus sm:w-auto"><Icon name="plus" className="size-4" />Add user</button>}
-      />
-      {notice && <p role="status" className="flex items-start gap-2 rounded-xl border border-status-info-border bg-status-info-bg px-4 py-3 text-sm text-status-info-text"><Icon name="info" className="mt-0.5 size-4" />{notice}</p>}
-      <SettingsPanel className="!p-3 sm:!p-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_11rem_11rem]">
-          <label className="relative block">
-            <span className="sr-only">Search users</span>
-            <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-admin-text-muted" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, email, or role" className={`${inputClass} pl-9`} />
-          </label>
-          <label className="block"><span className="sr-only">Filter by role</span><select value={role} onChange={(event) => setRole(event.target.value)} className={inputClass}><option>All roles</option><option>Super Admin</option>{roleOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
-          <label className="block"><span className="sr-only">Filter by status</span><select value={status} onChange={(event) => setStatus(event.target.value)} className={inputClass}><option>All statuses</option><option>Active</option><option>Pending</option><option>Suspended</option></select></label>
-        </div>
-      </SettingsPanel>
-      <div className="overflow-hidden rounded-2xl border border-admin-border bg-admin-surface shadow-sm">
-        <div className={`hidden grid-cols-1 gap-4 border-b border-admin-border bg-admin-surface-muted px-5 py-3 text-xs font-bold uppercase tracking-wide text-admin-text-muted xl:grid ${gridCols}`}>
-          <span>Member</span><span>Role</span><span>Status</span><span>Last active</span>
-        </div>
-        {visible.length ? visible.map((user) => (
-          <div key={user.email} className={`grid min-w-0 items-center gap-3 border-b border-admin-border-subtle px-4 py-4 transition-colors last:border-b-0 hover:bg-admin-table-hover sm:px-5 xl:gap-4 ${gridCols}`}>
-            <div className="flex min-w-0 items-center gap-3">
-              <Avatar name={user.name} />
-              <div className="min-w-0"><p className="truncate text-sm font-semibold text-admin-text" title={user.name}>{user.name}</p><p className="truncate text-xs text-admin-text-muted" title={user.email}>{user.email}</p></div>
-            </div>
-            <p className="w-fit rounded-lg bg-admin-surface-muted px-2.5 py-1 text-xs font-semibold text-admin-text-secondary ring-1 ring-admin-border">{user.role}</p>
-            <StatusDot tone={statusTone[user.status]}>{user.status}</StatusDot>
-            <p className="text-xs text-admin-text-muted">{user.lastActive}</p>
-          </div>
-        )) : (
-          <div>
-            <EmptyState icon="search" title="No users match these filters" description="Try another search or reset the filters." />
-            <div className="-mt-10 pb-12 text-center"><button type="button" onClick={() => { setQuery(""); setRole("All roles"); setStatus("All statuses"); }} className="text-sm font-semibold text-admin-accent hover:underline">Clear filters</button></div>
-          </div>
-        )}
-      </div>
-      <p className="text-center text-xs text-admin-text-muted sm:text-left">{visible.length} of {users.length} members shown</p>
-      {dialogOpen && <AddUserDialog existingEmails={users.map((user) => user.email)} onClose={closeDialog} onAdd={addUser} />}
-    </div>
-  );
+  return <div className="space-y-5">
+    <SectionHeading title="Users" description="Administrators who can sign in to this application." action={<button type="button" onClick={() => setOpen(true)} className="admin-action min-h-11 w-full gap-2 sm:w-auto"><Icon name="plus" className="size-4" />Add User</button>} />
+    {notice ? <p role="status" className="rounded-xl border border-status-success-border bg-status-success-bg px-4 py-3 text-sm text-status-success-text">{notice}</p> : null}
+    <SettingsPanel className="divide-y divide-admin-border !p-0">
+      {users.map((user) => <article key={user.id} className="grid min-w-0 gap-4 px-4 py-5 sm:px-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(9rem,.6fr)_minmax(10rem,.7fr)] xl:items-center">
+        <div className="flex min-w-0 items-center gap-3"><Avatar name={user.name} /><div className="min-w-0"><p className="break-words text-sm font-semibold capitalize text-admin-text">{user.name}</p><p className="break-all text-xs text-admin-text-muted xl:truncate">{user.email}</p></div></div>
+        <div><span className="mb-1 block text-[.68rem] font-bold uppercase tracking-wide text-admin-text-muted">Access</span><p className="w-fit rounded-lg bg-admin-surface-muted px-2.5 py-1 text-xs font-semibold text-admin-text-secondary ring-1 ring-admin-border">Administrator</p></div>
+        <div><span className="mb-1 block text-[.68rem] font-bold uppercase tracking-wide text-admin-text-muted">Status</span><div className="flex flex-wrap items-center gap-2"><StatusDot tone="success">Active</StatusDot><span className="text-xs text-admin-text-muted">{user.source === "environment" ? "Environment" : user.lastLoginAt ? `Last sign-in ${new Date(user.lastLoginAt).toLocaleDateString()}` : "Not signed in"}</span></div></div>
+      </article>)}
+    </SettingsPanel>
+    {open ? <AddUserDialog existingEmails={users.map((user) => user.email)} onClose={() => setOpen(false)} onCreated={(user) => { setUsers((current) => [...current, user]); setOpen(false); setNotice(`${user.name} can now sign in.`); }} /> : null}
+  </div>;
 }
 
-function AddUserDialog({ existingEmails, onClose, onAdd }: { existingEmails: string[]; onClose: () => void; onAdd: (user: { name: string; email: string; role: string }) => void }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("Viewer");
-  const [error, setError] = useState("");
+function AddUserDialog({ existingEmails, onClose, onCreated }: { existingEmails: string[]; onClose: () => void; onCreated: (user: RealAdminUser) => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const previousFocus = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    nameRef.current?.focus();
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-      if (event.key !== "Tab" || !dialogRef.current) return;
-      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled]), select:not([disabled])"));
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", onKeyDown); previousFocus?.focus(); };
-  }, [onClose]);
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const normalizedEmail = email.trim().toLowerCase();
-    if (existingEmails.some((candidate) => candidate.toLowerCase() === normalizedEmail)) {
-      setError("This email already appears in the preview list.");
-      return;
-    }
-    onAdd({ name: name.trim(), email: normalizedEmail, role });
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [fields, setFields] = useState<FieldErrors>({});
+  useEffect(() => { const previous = document.activeElement as HTMLElement | null; const overflow = document.body.style.overflow; document.body.style.overflow = "hidden"; nameRef.current?.focus(); const key = (event: KeyboardEvent) => { if (event.key === "Escape" && !saving) onClose(); }; window.addEventListener("keydown", key); return () => { document.body.style.overflow = overflow; window.removeEventListener("keydown", key); previous?.focus(); }; }, [onClose, saving]);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (saving) return; setSaving(true); setError(""); setFields({});
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    if (existingEmails.some((email) => email.toLowerCase() === String(data.email).trim().toLowerCase())) { setFields({ email: "This email is already in use." }); setSaving(false); return; }
+    try { const response = await fetch("/api/admin/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); const result = await response.json().catch(() => null); if (!response.ok) { setFields(result?.fields ?? {}); throw new Error(result?.error || "Unable to add user."); } onCreated({ ...result.user, source: "database", lastLoginAt: result.user.lastLoginAt ?? null, createdAt: result.user.createdAt }); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to add user."); setSaving(false); }
   }
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/60 backdrop-blur-[2px] sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="add-user-title" aria-describedby="add-user-description" className="settings-fade flex max-h-[100dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl border border-admin-border bg-admin-surface-solid shadow-2xl sm:max-h-[min(90dvh,42rem)] sm:rounded-3xl">
-        <div className="flex items-start justify-between gap-4 border-b border-admin-border px-5 py-5 sm:px-6">
-          <div className="flex items-start gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-admin-accent/15 text-admin-accent"><Icon name="users" /></span>
-            <div><h3 id="add-user-title" className="text-xl font-bold text-admin-text">Add user</h3><p id="add-user-description" className="mt-1 text-sm text-admin-text-muted">Preview a team member and their assigned role.</p></div>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close add user dialog" className="grid size-10 shrink-0 place-items-center rounded-lg text-xl text-admin-text-muted hover:bg-admin-surface-muted focus-visible:outline-2 focus-visible:outline-admin-focus">×</button>
-        </div>
-        <form onSubmit={submit} className="min-h-0 overflow-y-auto">
-          <div className="space-y-5 px-5 py-5 sm:px-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm font-semibold text-admin-text">Full name<input ref={nameRef} required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Maya Singh" className={`mt-2 ${inputClass}`} /></label>
-              <label className="block text-sm font-semibold text-admin-text">Email address<input required type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} placeholder="name@company.com" aria-invalid={Boolean(error)} aria-describedby={error ? "add-user-error" : undefined} className={`mt-2 ${inputClass}`} /></label>
-            </div>
-            <label className="block text-sm font-semibold text-admin-text">Role<select value={role} onChange={(event) => setRole(event.target.value)} className={`mt-2 ${inputClass}`}>{roleOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
-            <div className="rounded-xl border border-admin-border bg-admin-surface-muted p-4">
-              <p className="text-sm font-semibold text-admin-text">{role}</p>
-              <p className="mt-1 text-sm leading-5 text-admin-text-muted">{roleDescriptions[role] ?? ""}</p>
-            </div>
-            {error && <p id="add-user-error" role="alert" className="text-sm text-status-danger-text">{error}</p>}
-            <p className="text-xs leading-5 text-admin-text-muted">This adds a local preview row only. It does not create an account or send email.</p>
-          </div>
-          <div className="flex flex-col-reverse gap-3 border-t border-admin-border px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-            <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-admin-border px-5 text-sm font-semibold text-admin-text-secondary hover:bg-admin-surface-muted">Cancel</button>
-            <button type="submit" className="min-h-11 rounded-xl bg-admin-primary px-5 text-sm font-semibold text-admin-on-primary hover:bg-admin-primary-hover">Add to preview</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+  function generatePassword() {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*?";
+    const values = crypto.getRandomValues(new Uint32Array(18));
+    const password = Array.from(values, (value) => alphabet[value % alphabet.length]).join("");
+    if (passwordRef.current) {
+      passwordRef.current.value = password;
+      passwordRef.current.focus();
+    }
+    setShowPassword(true);
+    setFields((current) => ({ ...current, password: undefined }));
+  }
+  return createPortal(<div className="admin-theme admin-theme-dark fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-slate-950/75 p-4 text-admin-text backdrop-blur-sm sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}><div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="add-user-title" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-admin-border bg-[#17171e] shadow-2xl sm:max-h-[90dvh]">
+    <header className="flex items-start justify-between gap-4 border-b border-admin-border bg-admin-surface-muted px-4 py-4 sm:px-6"><div><h3 id="add-user-title" className="text-xl font-bold text-admin-text">Add User</h3><p className="mt-1 text-sm text-admin-text-muted">Create an administrator account with sign-in access.</p></div><button type="button" disabled={saving} onClick={onClose} aria-label="Close add user" className="grid size-10 shrink-0 place-items-center rounded-lg text-xl text-admin-text-muted hover:bg-admin-table-hover">×</button></header>
+    <form onSubmit={submit} className="overflow-y-auto p-4 sm:p-6" noValidate>{error ? <p role="alert" className="mb-4 rounded-lg border border-status-danger-border bg-status-danger-bg px-4 py-3 text-sm text-status-danger-text">{error}</p> : null}<div className="space-y-4">
+      <label className="block text-sm font-semibold text-admin-text">Full name<input ref={nameRef} name="name" required maxLength={100} className={inputClass} />{fields.name ? <span className="mt-1 block text-xs text-status-danger-text">{fields.name}</span> : null}</label>
+      <label className="block text-sm font-semibold text-admin-text">Email address<input name="email" type="email" required maxLength={254} className={inputClass} />{fields.email ? <span className="mt-1 block text-xs text-status-danger-text">{fields.email}</span> : null}</label>
+      <div className="block text-sm font-semibold text-admin-text"><label htmlFor="add-user-password">Password</label><div className="relative"><input ref={passwordRef} id="add-user-password" name="password" type={showPassword ? "text" : "password"} required minLength={12} maxLength={128} autoComplete="new-password" className={`${inputClass} pr-12`} /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute right-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-admin-text-muted transition-colors hover:bg-admin-table-hover hover:text-admin-text"><Icon name={showPassword ? "eyeOff" : "eye"} className="size-5" /></button></div><div className="mt-2 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs font-normal text-admin-text-muted">Use at least 12 characters. Share it securely with the user.</span><button type="button" onClick={generatePassword} className="inline-flex min-h-9 shrink-0 items-center gap-2 border border-admin-input px-3 text-xs font-semibold text-admin-text transition-colors hover:bg-admin-table-hover"><Icon name="key" className="size-4" />Generate password</button></div>{fields.password ? <span className="mt-1 block text-xs text-status-danger-text">{fields.password}</span> : null}</div>
+    </div><div className="mt-6 flex flex-col-reverse gap-3 border-t border-admin-border pt-5 sm:flex-row sm:justify-end"><button type="button" disabled={saving} onClick={onClose} className="min-h-11 w-full border border-admin-input px-5 text-sm font-semibold text-admin-text sm:w-auto">Cancel</button><button type="submit" disabled={saving} className="admin-action min-h-11 w-full min-w-32 sm:w-auto">{saving ? "Adding…" : "Add User"}</button></div></form>
+  </div></div>, document.body);
 }

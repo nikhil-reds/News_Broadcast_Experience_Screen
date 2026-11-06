@@ -95,27 +95,27 @@ function statusFor(publication?: ScreenPublication) {
 export function BroadcastOutputList() {
   return (
     <section className="overflow-hidden rounded-2xl border border-admin-border bg-admin-surface/70 shadow-sm">
-      <header className="border-b border-admin-border px-4 py-4 sm:px-5">
+      <header className="border-b border-admin-border px-4 py-4 sm:px-5 lg:px-6">
         <h2 className="text-base font-semibold text-admin-text">Broadcast Screen URLs</h2>
         <p className="mt-1 text-sm text-admin-text-muted">Six device-sized outputs for mobile, tablet, and television displays.</p>
       </header>
-      <div className="grid gap-px bg-admin-border-subtle sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-px bg-admin-border-subtle lg:grid-cols-2 2xl:grid-cols-3">
         {BROADCAST_OUTPUTS.map((output) => {
           const href = `/broadcast${output.number}`;
           return (
-            <article key={output.number} className="min-w-0 bg-admin-surface px-4 py-4 transition-colors hover:bg-admin-table-hover sm:px-5">
+            <article key={output.number} className="flex min-w-0 flex-col bg-admin-surface px-4 py-4 transition-colors hover:bg-admin-table-hover sm:min-h-44 sm:px-5 lg:px-6">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="grid h-14 w-20 shrink-0 place-items-center rounded-lg border border-admin-border bg-black/45" aria-hidden="true">
                   <div className={`rounded border border-violet-300/50 bg-gradient-to-br from-indigo-950 to-fuchsia-950 shadow-[0_0_16px_rgba(139,92,246,.2)] ${output.frame}`} />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-semibold text-admin-text">Broadcast {output.number} · {output.name}</h3>
-                  <p className="mt-0.5 text-xs text-admin-text-muted">{output.aspect} · {output.detail}</p>
+                  <h3 className="text-sm font-semibold leading-snug text-admin-text">Broadcast {output.number} · {output.name}</h3>
+                  <p className="mt-0.5 text-xs leading-relaxed text-admin-text-muted">{output.aspect} · {output.detail}</p>
                 </div>
               </div>
-              <div className="mt-3 flex min-w-0 items-center justify-between gap-3 border-t border-admin-border-subtle pt-3">
-                <code className="min-w-0 truncate text-xs text-admin-text-secondary" title={href}>{href}</code>
-                <Link href={href} target="_blank" aria-label={`Open Broadcast ${output.number} ${output.name}`} className="admin-action min-h-9 shrink-0 px-4 py-1.5">
+              <div className="mt-auto flex min-w-0 flex-col items-stretch gap-3 border-t border-admin-border-subtle pt-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
+                <code className="min-w-0 break-all text-xs text-admin-text-secondary min-[420px]:truncate" title={href}>{href}</code>
+                <Link href={href} target="_blank" aria-label={`Open Broadcast ${output.number} ${output.name}`} className="admin-action min-h-11 shrink-0 px-4 py-1.5 min-[420px]:min-h-9">
                   Open <span aria-hidden="true">↗</span>
                 </Link>
               </div>
@@ -132,38 +132,38 @@ export function ScreenList({ publications }: { publications: ScreenPublication[]
 
   return (
     <section className="overflow-hidden rounded-2xl border border-admin-border bg-admin-surface/70 shadow-sm">
-      <div className="hidden grid-cols-[minmax(18rem,1.2fr)_minmax(10rem,.7fr)_minmax(9rem,.5fr)_auto] gap-4 border-b border-admin-border px-4 py-3 text-xs font-semibold text-admin-text-muted md:grid">
+      <div className="hidden grid-cols-[minmax(18rem,1.2fr)_minmax(10rem,.7fr)_minmax(9rem,.5fr)_auto] gap-4 border-b border-admin-border px-5 py-3 text-xs font-semibold text-admin-text-muted xl:grid">
         <span>Screen ↑</span>
         <span>On screen now</span>
         <span>Status</span>
         <span className="sr-only">Actions</span>
       </div>
-      <div className="divide-y divide-admin-border-subtle">
+      <div className="grid gap-px bg-admin-border-subtle lg:grid-cols-2 xl:block xl:divide-y xl:divide-admin-border-subtle">
         {SCREENS.map((screen) => {
           const publication = publicationByScreen.get(screen.number);
           const status = statusFor(publication);
           const generation = publication?.currentGenerationId;
           return (
-            <article key={screen.number} className="grid min-w-0 gap-3 px-3 py-3 transition-colors hover:bg-admin-table-hover sm:px-4 md:grid-cols-[minmax(18rem,1.2fr)_minmax(10rem,.7fr)_minmax(9rem,.5fr)_auto] md:items-center md:gap-4">
+            <article key={screen.number} className="grid min-w-0 content-start gap-4 bg-admin-surface px-4 py-4 transition-colors hover:bg-admin-table-hover sm:min-h-64 sm:px-5 xl:min-h-0 xl:grid-cols-[minmax(18rem,1.2fr)_minmax(10rem,.7fr)_minmax(9rem,.5fr)_auto] xl:items-center xl:gap-4 xl:px-5 xl:py-3">
               <div className="flex min-w-0 items-center gap-3">
                 <ScreenThumbnail screen={screen} />
                 <div className="min-w-0">
-                  <h2 className="truncate text-sm font-semibold text-admin-text">Screen {screen.number} · {screen.name}</h2>
-                  <p className="truncate text-xs text-admin-text-muted">/screen{screen.number} · {screen.description}</p>
+                  <h2 className="text-sm font-semibold leading-snug text-admin-text xl:truncate">Screen {screen.number} · {screen.name}</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-admin-text-muted xl:truncate">/screen{screen.number} · {screen.description}</p>
                 </div>
               </div>
-              <div className="min-w-0 pl-[5.75rem] md:pl-0">
-                <p className="truncate font-mono text-xs font-semibold text-admin-text-secondary" title={generation ?? "No generation published"}>{generation ? generation.slice(0, 8) : "Awaiting publish"}</p>
+              <div className="min-w-0">
+                <p className="break-all font-mono text-xs font-semibold text-admin-text-secondary xl:truncate" title={generation ?? "No generation published"}>{generation ? generation.slice(0, 8) : "Awaiting publish"}</p>
                 <p className="mt-1 text-xs text-admin-text-muted">{publication && generation ? publishedLabel(publication.updatedAt) : "No output published yet"}</p>
               </div>
-              <div className="pl-[5.75rem] md:pl-0">
+              <div>
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${status.tone}`} title={publication?.pendingFailureReason ?? undefined}>
                   <i className={`size-1.5 rounded-full ${status.dot}`} aria-hidden="true" />
                   {status.label}
                 </span>
               </div>
-              <div className="flex justify-end pl-[5.75rem] md:pl-0">
-                <Link href={`/screen${screen.number}`} target="_blank" aria-label={`Open Screen ${screen.number}`} className="admin-action min-h-9 px-4 py-1.5">
+              <div className="mt-auto flex xl:mt-0 xl:justify-end">
+                <Link href={`/screen${screen.number}`} target="_blank" aria-label={`Open Screen ${screen.number}`} className="admin-action min-h-11 w-full px-4 py-1.5 sm:w-auto xl:min-h-9">
                   Open <span aria-hidden="true">↗</span>
                 </Link>
               </div>

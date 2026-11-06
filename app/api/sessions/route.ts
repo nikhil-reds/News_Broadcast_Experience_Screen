@@ -15,7 +15,7 @@ export async function POST() {
   });
   // A newly shot take becomes the current pipeline immediately. Demo must
   // never keep an older session on screen once recording starts.
-  await stopDemo("new-recording", false).catch(() => {});
+  await stopDemo("new-recording").catch(() => {});
   await setCurrentBroadcastSession(session.id);
   return NextResponse.json({ session });
 }

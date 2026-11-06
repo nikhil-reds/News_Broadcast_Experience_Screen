@@ -8,6 +8,22 @@ datasource db {
   provider = "postgresql"
 }
 
+/// Administrator accounts that can sign in to the control application.
+model AdminUser {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  status       String    @default("active")
+  createdBy    String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@map("admin_users")
+}
+
 /// Stores uploaded or recorded studio master audio files (stored in MinIO `audio` bucket)
 model AudioFile {
   id          String       @id @default(uuid())
@@ -382,4 +398,61 @@ model FlowAsset {
   @@unique([bucket, objectKey])
   @@index([generationId])
   @@map("flow_assets")
+}
+
+/// Feedback captured by an administrator for product and broadcast follow-up.
+model Feedback {
+  id          String   @id @default(uuid())
+  name        String
+  email       String?
+  category    String   @default("general")
+  rating      Int?
+  message     String   @db.Text
+  status      String   @default("new")
+  submittedBy String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([category])
+  @@map("feedback")
+}
+
+/// Current consent state for a participant appearing in broadcast content.
+model Consent {
+  id               String         @id @default(uuid())
+  participantName  String
+  participantEmail String?
+  consentType      String
+  scope            String         @db.Text
+  status           String         @default("pending")
+  notes            String?        @db.Text
+  grantedAt        DateTime?
+  expiresAt        DateTime?
+  withdrawnAt      DateTime?
+  createdBy        String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  events           ConsentEvent[]
+
+  @@index([status, createdAt])
+  @@index([consentType])
+  @@index([participantEmail])
+  @@map("consents")
+}
+
+/// Append-only audit history for consent creation and status changes.
+model ConsentEvent {
+  id          String   @id @default(uuid())
+  consentId   String
+  consent     Consent  @relation(fields: [consentId], references: [id], onDelete: Restrict)
+  action      String
+  fromStatus  String?
+  toStatus    String
+  note        String?  @db.Text
+  performedBy String?
+  createdAt   DateTime @default(now())
+
+  @@index([consentId, createdAt])
+  @@map("consent_events")
 }

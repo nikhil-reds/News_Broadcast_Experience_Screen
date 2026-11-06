@@ -46,6 +46,7 @@ function readCachedPublication<TAssets>(screenId: number): ScreenPublicationStat
 }
 
 function writeCachedPublication<TAssets>(screenId: number, state: ScreenPublicationState<TAssets>) {
+  if (state.generationId?.startsWith("demo-")) return;
   try {
     window.localStorage.setItem(storageKey(screenId), JSON.stringify({ ...state, isLoading: false }));
   } catch {

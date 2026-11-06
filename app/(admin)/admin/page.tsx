@@ -27,17 +27,6 @@ function StatusBar({ items, label }: { items: StatusItem[]; label: string }) {
   );
 }
 
-function MediaCard({ title, value, detail, href }: { title: string; value: number; detail: string; href: string }) {
-  return (
-    <Link href={href} className={styles.mediaCard}>
-      <div className={styles.mediaCardHeader}><h3>{title}</h3><span aria-hidden="true">↗</span></div>
-      <strong>{value.toLocaleString("en-IN")}</strong>
-      <p>{detail}</p>
-      <div className={styles.sparkline} aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div>
-    </Link>
-  );
-}
-
 export default async function AdminDashboardPage({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
   const { range: requestedRange } = await searchParams;
   const range = requestedRange === "24h" || requestedRange === "30d" ? requestedRange : "7d";
@@ -55,7 +44,6 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
   const [
     totalSessions, sessionsToday, sessionsThisWeek, processingSessions, readySessions, failedSessions,
     pendingTasks, processingTasks, completedTasks, failedTasks, cancelledTasks,
-    completedVideoJobs,
     activeScreens, onlineCameras,
   ] = await Promise.all([
     prisma.broadcastSession.count({ where: { createdAt: { gte: periodStart } } }),
@@ -69,7 +57,6 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
     prisma.generationTask.count({ where: { status: "completed", createdAt: { gte: periodStart } } }),
     prisma.generationTask.count({ where: { status: "failed", createdAt: { gte: periodStart } } }),
     prisma.generationTask.count({ where: { status: "cancelled", createdAt: { gte: periodStart } } }),
-    prisma.videoJob.count({ where: { status: "completed", createdAt: { gte: periodStart } } }),
     prisma.broadcastScreen.count({ where: { isActive: true } }),
     prisma.cameraFeed.count({ where: { status: "online" } }),
   ]);
@@ -129,13 +116,6 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
           <div className={styles.bigValue}><strong>{totalTasks.toLocaleString("en-IN")}</strong><span>{completedTasks.toLocaleString("en-IN")} completed</span></div>
           <StatusBar items={taskItems} label="Pipeline task status" />
         </article>
-      </section>
-
-      <section aria-labelledby="media-output-title">
-        <h2 id="media-output-title" className={styles.sectionTitle}>Media output</h2>
-        <div className={styles.mediaGrid}>
-          <MediaCard title="Video exports" value={completedVideoJobs} detail="Completed jobs" href="/admin/video-jobs" />
-        </div>
       </section>
 
       <section aria-labelledby="infrastructure-title">

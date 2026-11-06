@@ -1,0 +1,401 @@
+{
+  "version": 2,
+  "sourceSessionId": "925ca97d-1cb3-4cab-b9c7-7023cd7fed20",
+  "createdAt": "2026-11-05T06:08:32.784Z",
+  "session": {
+    "id": "925ca97d-1cb3-4cab-b9c7-7023cd7fed20",
+    "seq": 147,
+    "status": "ready",
+    "pipelineStatus": "ready",
+    "selectedBackgroundId": "bg-markets-1920x1080",
+    "selectedSubtitleLanguage": "German",
+    "selectedAudioLanguage": "French",
+    "selectedBrightness": 56,
+    "startedAt": "2026-10-27T07:29:28.922Z",
+    "endedAt": "2026-10-27T07:29:54.529Z"
+  },
+  "recordings": [
+    {
+      "filename": "highlight-2026-10-27T12-59-54-536Z.mp4",
+      "url": "/demo/snapshot/assets/09e370b4b21ede069401/highlight-2026-10-27T12-59-54-536Z.mp4",
+      "size": 5560377,
+      "createdAt": "2026-10-27T07:29:58.397Z"
+    },
+    {
+      "filename": "camera-recording-2026-10-27T12-59-54-536Z.mp4",
+      "url": "/demo/snapshot/assets/954d103de6b325de11e5/camera-recording-2026-10-27T12-59-54-536Z.mp4",
+      "size": 7281973,
+      "createdAt": "2026-10-27T07:29:54.807Z"
+    },
+    {
+      "filename": "camera2-recording-2026-10-27T12-59-54-537Z.mp4",
+      "url": "/demo/snapshot/assets/78d9237c3262e8930744/camera2-recording-2026-10-27T12-59-54-537Z.mp4",
+      "size": 6950147,
+      "createdAt": "2026-10-27T07:29:54.734Z"
+    },
+    {
+      "filename": "camera3-recording-2026-10-27T12-59-54-537Z.mp4",
+      "url": "/demo/snapshot/assets/95d6f805e522a7b2a3ad/camera3-recording-2026-10-27T12-59-54-537Z.mp4",
+      "size": 6859766,
+      "createdAt": "2026-10-27T07:29:54.732Z"
+    }
+  ],
+  "audioFiles": [
+    {
+      "filename": "master-audio-2026-10-27T12-59-54-538Z.wav",
+      "url": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav",
+      "size": 371457,
+      "createdAt": "2026-10-27T07:29:54.752Z"
+    }
+  ],
+  "translations": [
+    {
+      "language": "French",
+      "langCode": "fr",
+      "voiceId": "indian-male-01",
+      "url": "/demo/snapshot/assets/6ba53f755e52b7532ef2/39f6794e-306f-42ed-b151-ad5ffcf36a2c.fr.indian-male-01.356712d031b258600f068983b6381f4c2b87fce03bf0cc297430265ff8bc0eb7.wav"
+    },
+    {
+      "language": "Spanish",
+      "langCode": "es",
+      "voiceId": "indian-male-01",
+      "url": "/demo/snapshot/assets/a7c6ce494a3580c8a3ac/186aef7c-93c1-4856-86da-47534b9aa535.es.indian-male-01.54a7663ddf9a8aedb93f8ca1c2f5ea8276f6d8fcb96867684aeccb9e14dbffbe.wav"
+    },
+    {
+      "language": "Hindi",
+      "langCode": "hi",
+      "voiceId": "indian-male-01",
+      "url": "/demo/snapshot/assets/212f8a71e07161163c8e/4c35f086-9d82-4b29-9143-8c44e3caa73d.hi.indian-male-01.c688e9272a1e6a041fe4875aeaf1251fbae4018724e8b64e1dc009e6b7740a50.wav"
+    },
+    {
+      "language": "German",
+      "langCode": "de",
+      "voiceId": "indian-male-01",
+      "url": "/demo/snapshot/assets/6a1469d5d0c516152233/853f3a3a-d8c3-4d3c-a8ac-6e96f3d17783.de.indian-male-01.defbad2e64c1644f1c299c23106f78742e2ff86a30a44a759d9a80f3d6c701e0.wav"
+    }
+  ],
+  "transcripts": {
+    "English": {
+      "text": "So, hi, I'm Vikram, working as a hardware engineer. I work on setting up hardware devices, connecting sensors, testing Raspberry Pi systems, and troubleshooting hardware issues. I also help us to integrate the devices with the software platforms and ensures everything runs smoothly during testing.",
+      "language": "en",
+      "duration": 23.04,
+      "segments": [
+        {
+          "id": 0,
+          "start": 1.62,
+          "end": 4.88,
+          "text": "So, hi, I'm Vikram, working as a hardware engineer."
+        },
+        {
+          "id": 1,
+          "start": 5.62,
+          "end": 13.24,
+          "text": "I work on setting up hardware devices, connecting sensors, testing Raspberry Pi systems, and troubleshooting hardware issues."
+        },
+        {
+          "id": 2,
+          "start": 14.18,
+          "end": 20.72,
+          "text": "I also help us to integrate the devices with the software platforms and ensures everything runs smoothly during testing."
+        }
+      ],
+      "createdAt": "2026-10-27T07:29:58.033Z",
+      "sourceAudio": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav"
+    },
+    "German": {
+      "text": "Also, hallo, ich bin Vikram, ich arbeite als Hardwareingenieur. Ich arbeite daran, Hardwaregeräte einzurichten, Sensoren zu verbinden, Raspberry Pi-Systeme zu testen und Hardwareprobleme zu beheben. Ich helfe auch, die Geräte mit den Softwareplattformen zu integrieren und sorge dafür, dass alles während der Tests läuft.",
+      "language": "de",
+      "duration": 23.04,
+      "segments": [
+        {
+          "id": 0,
+          "start": 1.62,
+          "end": 4.88,
+          "text": "Also, hallo, ich bin Vikram, ich arbeite als Hardwareingenieur."
+        },
+        {
+          "id": 1,
+          "start": 5.62,
+          "end": 13.24,
+          "text": "Ich arbeite daran, Hardwaregeräte einzurichten, Sensoren zu verbinden, Raspberry Pi-Systeme zu testen und Hardwareprobleme zu beheben."
+        },
+        {
+          "id": 2,
+          "start": 14.18,
+          "end": 20.72,
+          "text": "Ich helfe auch, die Geräte mit den Softwareplattformen zu integrieren und sorge dafür, dass alles während der Tests läuft."
+        }
+      ],
+      "createdAt": "2026-10-27T07:30:03.463Z",
+      "sourceAudio": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav"
+    },
+    "Hindi": {
+      "text": "मेरा मैनेजर विक्रम हूं, एक डिवाइस इंजीनियर हूं। मैं डिवाइसों को बनाने, सेन्सरों को जोड़ने, रॉबिटरी पी (Raspberry Pi) सिस्टमों को तिथिता करने और डिवाइस के लिए सेटिंग टेस्ट करने के लिए डिवाइस के साथ सेवा प्लेटफार्मों के साथ संबद्धता की जांच करने के लिए मदद करता हूं। मैं भी डिवाइसों को सेवा प्लेटफार्मों से जोड़ने की जांच करता हूं और तिथिता करने के दौरान सभी को संतुलित रखने की जांच करता हूं।",
+      "language": "hi",
+      "duration": 23.04,
+      "segments": [
+        {
+          "id": 0,
+          "start": 1.62,
+          "end": 4.88,
+          "text": "मेरा मैनेजर विक्रम हूं, एक डिवाइस इंजीनियर हूं।"
+        },
+        {
+          "id": 1,
+          "start": 5.62,
+          "end": 13.24,
+          "text": "मैं डिवाइसों को बनाने, सेन्सरों को जोड़ने, रॉबिटरी पी (Raspberry Pi) सिस्टमों को तिथिता करने और डिवाइस के लिए सेटिंग टेस्ट करने के लिए डिवाइस के साथ सेवा प्लेटफार्मों के साथ संबद्धता की जांच करने के लिए मदद करता हूं।"
+        },
+        {
+          "id": 2,
+          "start": 14.18,
+          "end": 20.72,
+          "text": "मैं भी डिवाइसों को सेवा प्लेटफार्मों से जोड़ने की जांच करता हूं और तिथिता करने के दौरान सभी को संतुलित रखने की जांच करता हूं।"
+        }
+      ],
+      "createdAt": "2026-10-27T07:31:00.355Z",
+      "sourceAudio": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav"
+    },
+    "Spanish": {
+      "text": "Hola, soy Vikram, trabajando como ingeniero de hardware. Trabajo en la configuración de dispositivos de hardware, la conexión de sensores, el sistema de Raspberry Pi y la solución de problemas de hardware. También me encargo de integrar los dispositivos con las plataformas de software y aseguro que todo funcione correctamente durante los tests.",
+      "language": "es",
+      "duration": 23.04,
+      "segments": [
+        {
+          "id": 0,
+          "start": 1.62,
+          "end": 4.88,
+          "text": "Hola, soy Vikram, trabajando como ingeniero de hardware."
+        },
+        {
+          "id": 1,
+          "start": 5.62,
+          "end": 13.24,
+          "text": "Trabajo en la configuración de dispositivos de hardware, la conexión de sensores, el sistema de Raspberry Pi y la solución de problemas de hardware."
+        },
+        {
+          "id": 2,
+          "start": 14.18,
+          "end": 20.72,
+          "text": "También me encargo de integrar los dispositivos con las plataformas de software y aseguro que todo funcione correctamente durante los tests."
+        }
+      ],
+      "createdAt": "2026-10-27T07:31:16.546Z",
+      "sourceAudio": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav"
+    },
+    "French": {
+      "text": "Bonjour, bonjour, je suis Vikram, je travaille en tant qu'ingénieur en matériel. Je travaille sur l'installation des dispositifs matériels, la connexion des capteurs, le test des systèmes Raspberry Pi, et la résolution des problèmes matériels. Je m'assure également que les dispositifs sont intégrés aux plateformes logicielles et que tout fonctionne correctement pendant les tests.",
+      "language": "fr",
+      "duration": 23.04,
+      "segments": [
+        {
+          "id": 0,
+          "start": 1.62,
+          "end": 4.88,
+          "text": "Bonjour, bonjour, je suis Vikram, je travaille en tant qu'ingénieur en matériel."
+        },
+        {
+          "id": 1,
+          "start": 5.62,
+          "end": 13.24,
+          "text": "Je travaille sur l'installation des dispositifs matériels, la connexion des capteurs, le test des systèmes Raspberry Pi, et la résolution des problèmes matériels."
+        },
+        {
+          "id": 2,
+          "start": 14.18,
+          "end": 20.72,
+          "text": "Je m'assure également que les dispositifs sont intégrés aux plateformes logicielles et que tout fonctionne correctement pendant les tests."
+        }
+      ],
+      "createdAt": "2026-10-27T07:31:29.500Z",
+      "sourceAudio": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav"
+    }
+  },
+  "cues": {
+    "English": [
+      {
+        "start": 1.62,
+        "end": 4.88,
+        "text": "So, hi, I'm Vikram, working as a hardware engineer."
+      },
+      {
+        "start": 5.62,
+        "end": 7.776,
+        "text": "I work on setting up hardware devices, connecting sensors, testing Raspberry Pi systems, and troubleshooting hardware issues."
+      },
+      {
+        "start": 7.776,
+        "end": 13.239999999999998,
+        "text": "I work on setting up hardware devices, connecting sensors, testing Raspberry Pi systems, and troubleshooting hardware issues."
+      },
+      {
+        "start": 14.18,
+        "end": 15.550999999999998,
+        "text": "I also help us to integrate the devices with the software platforms and ensures everything runs smoothly during testing."
+      },
+      {
+        "start": 15.551,
+        "end": 20.72,
+        "text": "I also help us to integrate the devices with the software platforms and ensures everything runs smoothly during testing."
+      }
+    ],
+    "German": [
+      {
+        "start": 1.62,
+        "end": 4.88,
+        "text": "Also, hallo, ich bin Vikram, ich arbeite als Hardwareingenieur."
+      },
+      {
+        "start": 5.62,
+        "end": 7.776,
+        "text": "Ich arbeite daran, Hardwaregeräte einzurichten, Sensoren zu verbinden, Raspberry Pi-Systeme zu testen und Hardwareprobleme zu beheben."
+      },
+      {
+        "start": 7.776,
+        "end": 13.239999999999998,
+        "text": "Ich arbeite daran, Hardwaregeräte einzurichten, Sensoren zu verbinden, Raspberry Pi-Systeme zu testen und Hardwareprobleme zu beheben."
+      },
+      {
+        "start": 14.18,
+        "end": 15.550999999999998,
+        "text": "Ich helfe auch, die Geräte mit den Softwareplattformen zu integrieren und sorge dafür, dass alles während der Tests läuft."
+      },
+      {
+        "start": 15.551,
+        "end": 20.72,
+        "text": "Ich helfe auch, die Geräte mit den Softwareplattformen zu integrieren und sorge dafür, dass alles während der Tests läuft."
+      }
+    ],
+    "Hindi": [
+      {
+        "start": 1.62,
+        "end": 4.88,
+        "text": "मेरा मैनेजर विक्रम हूं, एक डिवाइस इंजीनियर हूं।"
+      },
+      {
+        "start": 5.62,
+        "end": 7.776,
+        "text": "मैं डिवाइसों को बनाने, सेन्सरों को जोड़ने, रॉबिटरी पी (Raspberry Pi) सिस्टमों को तिथिता करने और डिवाइस के लिए सेटिंग टेस्ट करने के लिए डिवाइस के साथ सेवा प्लेटफार्मों के साथ संबद्धता की जांच करने के लिए मदद करता हूं।"
+      },
+      {
+        "start": 7.776,
+        "end": 13.239999999999998,
+        "text": "मैं डिवाइसों को बनाने, सेन्सरों को जोड़ने, रॉबिटरी पी (Raspberry Pi) सिस्टमों को तिथिता करने और डिवाइस के लिए सेटिंग टेस्ट करने के लिए डिवाइस के साथ सेवा प्लेटफार्मों के साथ संबद्धता की जांच करने के लिए मदद करता हूं।"
+      },
+      {
+        "start": 14.18,
+        "end": 15.550999999999998,
+        "text": "मैं भी डिवाइसों को सेवा प्लेटफार्मों से जोड़ने की जांच करता हूं और तिथिता करने के दौरान सभी को संतुलित रखने की जांच करता हूं।"
+      },
+      {
+        "start": 15.551,
+        "end": 20.72,
+        "text": "मैं भी डिवाइसों को सेवा प्लेटफार्मों से जोड़ने की जांच करता हूं और तिथिता करने के दौरान सभी को संतुलित रखने की जांच करता हूं।"
+      }
+    ],
+    "Spanish": [
+      {
+        "start": 1.62,
+        "end": 4.88,
+        "text": "Hola, soy Vikram, trabajando como ingeniero de hardware."
+      },
+      {
+        "start": 5.62,
+        "end": 7.776,
+        "text": "Trabajo en la configuración de dispositivos de hardware, la conexión de sensores, el sistema de Raspberry Pi y la solución de problemas de hardware."
+      },
+      {
+        "start": 7.776,
+        "end": 13.239999999999998,
+        "text": "Trabajo en la configuración de dispositivos de hardware, la conexión de sensores, el sistema de Raspberry Pi y la solución de problemas de hardware."
+      },
+      {
+        "start": 14.18,
+        "end": 15.550999999999998,
+        "text": "También me encargo de integrar los dispositivos con las plataformas de software y aseguro que todo funcione correctamente durante los tests."
+      },
+      {
+        "start": 15.551,
+        "end": 20.72,
+        "text": "También me encargo de integrar los dispositivos con las plataformas de software y aseguro que todo funcione correctamente durante los tests."
+      }
+    ],
+    "French": [
+      {
+        "start": 1.62,
+        "end": 4.88,
+        "text": "Bonjour, bonjour, je suis Vikram, je travaille en tant qu'ingénieur en matériel."
+      },
+      {
+        "start": 5.62,
+        "end": 7.776,
+        "text": "Je travaille sur l'installation des dispositifs matériels, la connexion des capteurs, le test des systèmes Raspberry Pi, et la résolution des problèmes matériels."
+      },
+      {
+        "start": 7.776,
+        "end": 13.239999999999998,
+        "text": "Je travaille sur l'installation des dispositifs matériels, la connexion des capteurs, le test des systèmes Raspberry Pi, et la résolution des problèmes matériels."
+      },
+      {
+        "start": 14.18,
+        "end": 15.550999999999998,
+        "text": "Je m'assure également que les dispositifs sont intégrés aux plateformes logicielles et que tout fonctionne correctement pendant les tests."
+      },
+      {
+        "start": 15.551,
+        "end": 20.72,
+        "text": "Je m'assure également que les dispositifs sont intégrés aux plateformes logicielles et que tout fonctionne correctement pendant les tests."
+      }
+    ]
+  },
+  "composites": {
+    "bg-newsroom-1920x1080": {
+      "url": "/demo/snapshot/assets/1136287dfa8f98cb288d.mp4",
+      "fallback": null,
+      "fallbackReason": null
+    },
+    "bg-markets-1920x1080": {
+      "url": "/demo/snapshot/assets/9c712173a3e6ac4cd741.mp4",
+      "fallback": null,
+      "fallbackReason": null
+    },
+    "bg-sports-1920x1080": {
+      "url": "/demo/snapshot/assets/c3363ee8d7e42d86bfaa.mp4",
+      "fallback": null,
+      "fallbackReason": null
+    },
+    "bg-weather-1920x1080": {
+      "url": "/demo/snapshot/assets/bf054fde47f4faaba843.mp4",
+      "fallback": null,
+      "fallbackReason": null
+    }
+  },
+  "selections": {
+    "background": "bg-markets-1920x1080",
+    "subtitle-language": "de",
+    "industry": "retail-ecommerce",
+    "industry-preview": "retail-ecommerce",
+    "brand": "amazon"
+  },
+  "voiceId": "indian-male-01",
+  "assets": {
+    "videos/highlight-2026-10-27T12-59-54-536Z.mp4": "/demo/snapshot/assets/09e370b4b21ede069401/highlight-2026-10-27T12-59-54-536Z.mp4",
+    "videos/camera-recording-2026-10-27T12-59-54-536Z.mp4": "/demo/snapshot/assets/954d103de6b325de11e5/camera-recording-2026-10-27T12-59-54-536Z.mp4",
+    "videos/camera2-recording-2026-10-27T12-59-54-537Z.mp4": "/demo/snapshot/assets/78d9237c3262e8930744/camera2-recording-2026-10-27T12-59-54-537Z.mp4",
+    "videos/camera3-recording-2026-10-27T12-59-54-537Z.mp4": "/demo/snapshot/assets/95d6f805e522a7b2a3ad/camera3-recording-2026-10-27T12-59-54-537Z.mp4",
+    "audio/master-audio-2026-10-27T12-59-54-538Z.wav": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav",
+    "tts-audio/39f6794e-306f-42ed-b151-ad5ffcf36a2c.fr.indian-male-01.356712d031b258600f068983b6381f4c2b87fce03bf0cc297430265ff8bc0eb7.wav": "/demo/snapshot/assets/6ba53f755e52b7532ef2/39f6794e-306f-42ed-b151-ad5ffcf36a2c.fr.indian-male-01.356712d031b258600f068983b6381f4c2b87fce03bf0cc297430265ff8bc0eb7.wav",
+    "tts-audio/186aef7c-93c1-4856-86da-47534b9aa535.es.indian-male-01.54a7663ddf9a8aedb93f8ca1c2f5ea8276f6d8fcb96867684aeccb9e14dbffbe.wav": "/demo/snapshot/assets/a7c6ce494a3580c8a3ac/186aef7c-93c1-4856-86da-47534b9aa535.es.indian-male-01.54a7663ddf9a8aedb93f8ca1c2f5ea8276f6d8fcb96867684aeccb9e14dbffbe.wav",
+    "tts-audio/4c35f086-9d82-4b29-9143-8c44e3caa73d.hi.indian-male-01.c688e9272a1e6a041fe4875aeaf1251fbae4018724e8b64e1dc009e6b7740a50.wav": "/demo/snapshot/assets/212f8a71e07161163c8e/4c35f086-9d82-4b29-9143-8c44e3caa73d.hi.indian-male-01.c688e9272a1e6a041fe4875aeaf1251fbae4018724e8b64e1dc009e6b7740a50.wav",
+    "tts-audio/853f3a3a-d8c3-4d3c-a8ac-6e96f3d17783.de.indian-male-01.defbad2e64c1644f1c299c23106f78742e2ff86a30a44a759d9a80f3d6c701e0.wav": "/demo/snapshot/assets/6a1469d5d0c516152233/853f3a3a-d8c3-4d3c-a8ac-6e96f3d17783.de.indian-male-01.defbad2e64c1644f1c299c23106f78742e2ff86a30a44a759d9a80f3d6c701e0.wav",
+    "transcripts/master-audio-2026-10-27T12-59-54-538Z.wav.de.txt": "/demo/snapshot/assets/778ea46f965b842f9f82.txt",
+    "transcripts/master-audio-2026-10-27T12-59-54-538Z.wav.hi.txt": "/demo/snapshot/assets/7e05c92f0119770ad402.txt",
+    "transcripts/master-audio-2026-10-27T12-59-54-538Z.wav.es.txt": "/demo/snapshot/assets/cc05890673c4bb75ab3e.txt",
+    "transcripts/master-audio-2026-10-27T12-59-54-538Z.wav.fr.txt": "/demo/snapshot/assets/49dfb99bac4131930433.txt",
+    "transcripts/highlight-2026-10-27T12-59-54-536Z.mp4.json": "/demo/snapshot/assets/dc4456eededf6fdecd7a.json",
+    "videos/composites/rvm-v1/highlight-2026-10-27T12-59-54-536Z/bg-newsroom-1920x1080.mp4": "/demo/snapshot/assets/1136287dfa8f98cb288d.mp4",
+    "videos/composites/rvm-v1/highlight-2026-10-27T12-59-54-536Z/bg-markets-1920x1080.mp4": "/demo/snapshot/assets/9c712173a3e6ac4cd741.mp4",
+    "videos/composites/rvm-v1/highlight-2026-10-27T12-59-54-536Z/bg-sports-1920x1080.mp4": "/demo/snapshot/assets/c3363ee8d7e42d86bfaa.mp4",
+    "videos/composites/rvm-v1/highlight-2026-10-27T12-59-54-536Z/bg-weather-1920x1080.mp4": "/demo/snapshot/assets/bf054fde47f4faaba843.mp4"
+  }
+}

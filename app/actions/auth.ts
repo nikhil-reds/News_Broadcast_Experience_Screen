@@ -19,7 +19,7 @@ export async function signInAction(
     return { error: "Enter both email and password." };
   }
 
-  if (!validateAdminCredentials(email, password)) {
+  if (!await validateAdminCredentials(email, password)) {
     return { error: "Invalid admin credentials." };
   }
 

@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "npm run build && npm start",
+    "demo:save": "node script/save-demo-snapshot.mjs",
+    "demo:test": "node script/test-saved-demo.mjs",
+    "dev": "next dev --webpack",
     "worker:all": "node script/run-workers.mjs",
     "worker:health": "tsx script/worker-health.ts",
     "worker:performance": "tsx script/worker-performance/run-workers.ts",

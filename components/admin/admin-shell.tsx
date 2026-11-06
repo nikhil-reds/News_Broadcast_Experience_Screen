@@ -44,7 +44,7 @@ export function AdminShell({
           <button
             type="button"
             aria-label="Close navigation"
-            className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-[2px] lg:hidden"
+            className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-[2px] md:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         ) : null}

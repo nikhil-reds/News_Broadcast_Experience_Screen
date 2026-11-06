@@ -1,0 +1,48 @@
+{
+  "title": "Continuous multi-camera programme edit",
+  "model": "qwen2.5vl:7b",
+  "selectionMode": "fallback",
+  "fallbackReason": "Qwen-VL HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (7016 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":7016,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+  "sessionId": "925ca97d-1cb3-4cab-b9c7-7023cd7fed20",
+  "masterAudio": {
+    "filename": "master-audio-2026-10-27T12-59-54-538Z.wav",
+    "objectKey": "master-audio-2026-10-27T12-59-54-538Z.wav",
+    "url": "/api/asset/audio/master-audio-2026-10-27T12-59-54-538Z.wav"
+  },
+  "sync": {
+    "camera1Offset": 0,
+    "camera2Offset": 0,
+    "camera3Offset": 0,
+    "audioOffset": 0
+  },
+  "sources": [
+    "camera-recording-2026-10-27T12-59-54-536Z.mp4",
+    "camera2-recording-2026-10-27T12-59-54-537Z.mp4",
+    "camera3-recording-2026-10-27T12-59-54-537Z.mp4"
+  ],
+  "segments": [
+    {
+      "camera": 1,
+      "start": 0,
+      "end": 7.776,
+      "reason": "Continuous fallback primary presenter angle"
+    },
+    {
+      "camera": 2,
+      "start": 7.776,
+      "end": 15.551,
+      "reason": "Continuous fallback alternate presenter angle"
+    },
+    {
+      "camera": 3,
+      "start": 15.551,
+      "end": 23.3266,
+      "reason": "Continuous fallback closing presenter angle"
+    }
+  ],
+  "validation": {
+    "videoDuration": 23.266667,
+    "audioDuration": 23.310667,
+    "difference": 0.04399999999999693
+  }
+}

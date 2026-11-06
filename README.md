@@ -50,6 +50,28 @@ media jobs. Set `WORKER_PERF_RUNS=3` for repeated runs or
 `WORKER_PERF_TIMEOUT_MS=60000` to change the timeout. Results are written to
 `script/worker-performance/results/latest.json` and `latest.csv`.
 
+## Saved demo
+
+The sidebar's **Demo** button starts a fresh 15-minute run of the saved
+`public/demo/snapshot` package. Screens 01–12 still advance with Apply,
+Broadcast, and Publish. Camera clips, the highlight reel, rendered backgrounds,
+speech, transcripts, captions, and the initial selections come from that copy.
+Demo requests never enqueue processing; options absent from the saved package
+are unavailable. The web server and Redis are required; media workers are not.
+
+Demo has its own session, selections, and workflow. **End Demo** and automatic
+expiry remove that overlay, returning the displays to the live session and
+progress that Demo did not modify. Starting a new recording also ends Demo.
+The timer is shared by the server, survives refreshes, and expires even if the
+admin page is closed; open displays enforce the same deadline when polling.
+
+To deliberately replace the saved package with the current, fully processed
+footage, end Demo and run `npm run demo:save`. This copies existing outputs;
+it does not run the pipeline. Start Demo again to replay the new snapshot.
+With the production server, rebuild and restart after adding new public files.
+`npm run demo:test` checks the full saved workflow and live-state isolation
+without connecting to production services or starting any workers.
+
 ## Complete script and worker reference
 
 The following table lists every executable file currently used for worker

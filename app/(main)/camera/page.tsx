@@ -133,7 +133,7 @@ export default function CameraPage() {
     <main className={`${poppins.className} ${styles.page}`}>
       <div className={styles.content}>
         <header className={styles.header}>
-          <div><h1 className={`${abroSans.className} admin-title`}>Studio</h1><p className="admin-page-description">Capture cameras and master audio for a session</p></div>
+          <div><h1 className={`${abroSans.variable} ${abroSans.className} admin-title`}>Studio</h1><p className="admin-page-description">Capture cameras and master audio for a session</p></div>
           <span className={styles.summary} role="status"><i className={styles.dot} />{readyCount} of 4 sources ready</span>
         </header>
         {startError && <p role="alert" className={styles.error}>{startError}</p>}
