@@ -8,7 +8,7 @@ import { adminNavigation } from "@/lib/admin-navigation";
 import { readDemoDeadline, readServerDemoDeadline, subscribeToDemoDeadline, writeDemoDeadline } from "@/lib/demo-timer";
 import type { DemoState } from "@/lib/saved-demo-control";
 
-type AdminSidebarProps = { email: string; permissions: string[]; open: boolean; onClose: () => void };
+type AdminSidebarProps = { email: string; permissions: string[]; open: boolean; collapsed: boolean; onCollapseToggle: () => void; onClose: () => void };
 
 const DEMO_DURATION_SECONDS = 15 * 60;
 
@@ -96,7 +96,7 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminSidebar({ email, permissions, open, onClose }: AdminSidebarProps) {
+export function AdminSidebar({ email, permissions, open, collapsed, onCollapseToggle, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const demoEndsAt = useSyncExternalStore(subscribeToDemoDeadline, readDemoDeadline, readServerDemoDeadline);
   const [demoNow, setDemoNow] = useState(() => Date.now());
@@ -194,18 +194,21 @@ export function AdminSidebar({ email, permissions, open, onClose }: AdminSidebar
 
   return (
     <>
-    <aside id="admin-navigation" aria-label="Admin navigation panel" className={`admin-sidebar-gradient fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(20rem,88vw)] shrink-0 flex-col border-r border-white/10 text-white shadow-2xl transition-transform duration-200 motion-reduce:transition-none md:sticky md:z-auto md:h-screen md:w-64 md:shadow-none ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
-      <div className="flex shrink-0 items-start justify-between border-b border-white/10 px-5 pb-3 pt-3 md:justify-start">
-        <div className="min-w-0">
+    <aside id="admin-navigation" aria-label="Admin navigation panel" className={`admin-sidebar-gradient fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(20rem,88vw)] shrink-0 flex-col border-r border-white/10 text-white shadow-2xl transition-[width,transform] duration-200 motion-reduce:transition-none md:sticky md:z-auto md:h-screen md:shadow-none ${collapsed ? "md:w-[4.5rem]" : "md:w-64"} ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
+      <div className={`flex shrink-0 items-start justify-between border-b border-white/10 pb-3 pt-3 ${collapsed ? "md:px-3" : "px-5"}`}>
+        <div className={`min-w-0 ${collapsed ? "md:hidden" : ""}`}>
           <span className="admin-sidebar-title block truncate text-[1.32rem] font-bold leading-8 tracking-tight text-white">News Simulation</span>
           <span className="block truncate text-xs font-medium leading-4 text-slate-400">Smarter broadcast experience</span>
         </div>
         <button type="button" onClick={onClose} aria-label="Close navigation" className="rounded-md p-2 text-slate-300 hover:bg-white/10 hover:text-white md:hidden">
           <span aria-hidden="true" className="text-xl leading-none">×</span>
         </button>
+        <button type="button" onClick={onCollapseToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar to icon bar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="hidden size-10 shrink-0 place-items-center rounded-xl text-slate-300 transition hover:bg-white/10 hover:text-white md:grid">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className={`size-5 transition-transform ${collapsed ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
       </div>
 
-      <nav aria-label="Admin navigation" className="flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4">
+      <nav aria-label="Admin navigation" className={`flex-1 space-y-1 overflow-y-auto overflow-x-hidden overscroll-contain py-4 ${collapsed ? "md:px-2" : "px-3"}`}>
         {adminNavigation.filter((item) => permissions.includes(item.permission)).map((item) => {
           const active = isActivePath(pathname, item.href);
           return (
@@ -215,7 +218,7 @@ export function AdminSidebar({ email, permissions, open, onClose }: AdminSidebar
               aria-current={active ? "page" : undefined}
               onClick={onClose}
               title={item.label}
-              className={`group flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition ${
+              className={`group flex items-center rounded-md py-3 text-sm font-medium transition ${collapsed ? "md:justify-center md:px-2" : "gap-3 px-3"} ${
                 active
                   ? "bg-white text-black shadow-sm"
                   : "text-slate-300 hover:bg-white/10 hover:text-white"
@@ -233,13 +236,13 @@ export function AdminSidebar({ email, permissions, open, onClose }: AdminSidebar
               >
                 {icons[item.icon]}
               </svg>
-              <span>{item.label}</span>
+              <span className={collapsed ? "md:hidden" : ""}>{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      {permissions.includes("studio.control") ? <div className="shrink-0 px-3 pb-3">
+      {permissions.includes("studio.control") ? <div className={`shrink-0 pb-3 ${collapsed ? "md:px-2" : "px-3"}`}>
         <button
           type="button"
           aria-label={!demoReady ? "Connecting to Demo" : demoStarting ? "Switching demo footage" : demoActive ? `End demo: ${demoTime} remaining` : "Start 15-minute demo timer"}
@@ -247,11 +250,11 @@ export function AdminSidebar({ email, permissions, open, onClose }: AdminSidebar
           onClick={toggleDemoTimer}
           disabled={demoStarting || !demoReady}
           aria-busy={demoStarting}
-          className="group inline-flex h-11 w-full items-center justify-between gap-3 rounded-full bg-white py-1 pl-5 pr-1 text-sm font-medium text-black shadow-[0_8px_28px_rgba(0,0,0,.22)] transition hover:bg-[#f0edf2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          className={`group inline-flex h-11 w-full items-center rounded-full bg-white py-1 text-sm font-medium text-black shadow-[0_8px_28px_rgba(0,0,0,.22)] transition hover:bg-[#f0edf2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${collapsed ? "md:justify-center md:px-1" : "justify-between gap-3 pl-5 pr-1"}`}
         >
-          <span className="whitespace-nowrap">{!demoReady ? "Connecting…" : demoStarting ? (demoActive ? "Ending…" : "Starting…") : demoActive ? "End Demo" : "Demo"}</span>
+          <span className={`whitespace-nowrap ${collapsed ? "md:hidden" : ""}`}>{!demoReady ? "Connecting…" : demoStarting ? (demoActive ? "Ending…" : "Starting…") : demoActive ? "End Demo" : "Demo"}</span>
           {demoTime !== null && (
-            <span className="flex flex-col items-center text-xs font-semibold tabular-nums">
+            <span className={`flex flex-col items-center text-xs font-semibold tabular-nums ${collapsed ? "md:hidden" : ""}`}>
               <span role="timer" aria-label="Demo time remaining">{demoTime}</span>
             </span>
           )}
@@ -263,15 +266,15 @@ export function AdminSidebar({ email, permissions, open, onClose }: AdminSidebar
         </button>
       </div> : null}
 
-      <div className="shrink-0 space-y-3 border-t border-white/10 p-3">
-        <p className="truncate px-1 text-xs text-slate-400" title={email}>
+      <div className={`shrink-0 space-y-3 border-t border-white/10 p-3 ${collapsed ? "md:px-2" : ""}`}>
+        <p className={`truncate px-1 text-xs text-slate-400 ${collapsed ? "md:hidden" : ""}`} title={email}>
           Signed in as <span className="font-medium text-slate-200">{email}</span>
         </p>
         <form action={signOutAction}>
           <button
             type="submit"
             aria-label="Sign out"
-            className="flex w-full items-center justify-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 lg:px-3"
+            className={`flex w-full items-center justify-center rounded-md bg-red-600 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 ${collapsed ? "md:px-2" : "gap-2 px-3 lg:px-3"}`}
           >
             <svg
               aria-hidden="true"
@@ -286,7 +289,7 @@ export function AdminSidebar({ email, permissions, open, onClose }: AdminSidebar
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <path d="m16 17 5-5-5-5M21 12H9" />
             </svg>
-            <span>Sign out</span>
+            <span className={collapsed ? "md:hidden" : ""}>Sign out</span>
           </button>
         </form>
       </div>

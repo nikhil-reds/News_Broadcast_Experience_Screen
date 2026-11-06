@@ -20,6 +20,11 @@ export function AdminShell({
   theme: AdminTheme;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  function toggleSidebarCollapsed() {
+    setSidebarCollapsed((collapsed) => !collapsed);
+  }
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -41,7 +46,7 @@ export function AdminShell({
     <div className={`${poppins.className} ${abroSans.variable} admin-theme admin-theme-${theme} relative min-h-dvh bg-admin-page text-admin-text`}>
       <div aria-hidden="true" className="mesh-bg mesh-grid pointer-events-none fixed inset-0 z-0" />
       <div className="relative z-10 flex min-h-dvh">
-        <AdminSidebar email={email} permissions={permissions} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AdminSidebar email={email} permissions={permissions} open={sidebarOpen} collapsed={sidebarCollapsed} onCollapseToggle={toggleSidebarCollapsed} onClose={() => setSidebarOpen(false)} />
         {sidebarOpen ? (
           <button
             type="button"
