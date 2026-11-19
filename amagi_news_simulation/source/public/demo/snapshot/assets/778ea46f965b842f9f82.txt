@@ -1,0 +1,1 @@
+Also, hallo, ich bin Vikram, ich arbeite als Hardwareingenieur. Ich arbeite daran, Hardwaregeräte einzurichten, Sensoren zu verbinden, Raspberry Pi-Systeme zu testen und Hardwareprobleme zu beheben. Ich helfe auch, die Geräte mit den Softwareplattformen zu integrieren und sorge dafür, dass alles während der Tests läuft.

@@ -1,0 +1,1 @@
+Bonjour, bonjour, je suis Vikram, je travaille en tant qu'ingénieur en matériel. Je travaille sur l'installation des dispositifs matériels, la connexion des capteurs, le test des systèmes Raspberry Pi, et la résolution des problèmes matériels. Je m'assure également que les dispositifs sont intégrés aux plateformes logicielles et que tout fonctionne correctement pendant les tests.
