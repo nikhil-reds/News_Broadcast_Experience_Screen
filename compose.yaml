@@ -56,7 +56,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    image: docker.io/pgsty/silo:RELEASE.2026-11-12T00-00-00Z
     container_name: minio
     restart: unless-stopped
     ports:
