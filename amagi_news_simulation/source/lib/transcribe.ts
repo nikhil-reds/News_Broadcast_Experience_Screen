@@ -1,0 +1,272 @@
+import { withFlowWork } from "@/lib/flow-lifecycle";
+import { prisma } from "@/lib/prisma";
+import {
+  AUDIO_BUCKET,
+  TRANSCRIPTS_BUCKET,
+  getObjectBuffer,
+  uploadObject,
+} from "@/lib/minio";
+import { enqueueTranslations } from "@/lib/queue";
+import { markTaskProcessing, markTaskCompleted } from "@/lib/generation";
+import { withHeartbeat } from "@/lib/generation-heartbeat";
+import { ensureSpeakerProfile } from "@/lib/speaker-profile";
+
+/**
+ * Bounds the Whisper HTTP call so a hung Docker container sits for a bounded
+ * time before throwing instead of forever — audio files can be long, so this
+ * is generous. A throw here is what lets BullMQ's existing attempts/backoff
+ * (see lib/queue.ts) actually retry a wedged call; see app/worker/watchdog.ts
+ * for the stuck-job detector this pairs with.
+ */
+export const WHISPER_TIMEOUT_MS = parseInt(
+  process.env.WHISPER_TIMEOUT_MS || String(5 * 60 * 1000),
+  10
+);
+
+export interface TranscriptSegment {
+  id: number;
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface TranscribeResult {
+  filename: string;
+  sourceAudio: string;
+  text: string;
+  duration: number;
+  segments: TranscriptSegment[];
+  sttEngine: string;
+  txtUrl: string;
+  txtObjectKey: string;
+  transcriptId: string;
+  createdAt: string;
+  translationsQueued: boolean;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown error";
+}
+
+interface WhisperSegmentPayload {
+  start?: number | string;
+  end?: number | string;
+  text?: string;
+}
+
+interface WhisperPayload {
+  text?: string;
+  duration?: number | string;
+  segments?: WhisperSegmentPayload[];
+}
+
+function formatSrtTime(seconds: number): string {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const millis = Math.floor((seconds % 1) * 1000);
+  const p = (n: number, l = 2) => String(n).padStart(l, "0");
+  return `${p(hrs)}:${p(mins)}:${p(secs)},${p(millis, 3)}`;
+}
+
+export function generateSrt(segments: TranscriptSegment[]): string {
+  return segments
+    .map(
+      (seg, idx) =>
+        `${idx + 1}\n${formatSrtTime(seg.start)} --> ${formatSrtTime(seg.end)}\n${seg.text.trim()}\n`
+    )
+    .join("\n");
+}
+
+/**
+ * Call the Docker Faster-Whisper container with raw audio bytes.
+ * Whisper decodes/resamples internally, so no local ffmpeg is needed.
+ */
+export async function runWhisper(
+  audioBuffer: Buffer,
+  filename: string
+): Promise<{ segments: TranscriptSegment[]; duration: number }> {
+  const whisperUrls = [
+    process.env.WHISPER_DOCKER_URL || "http://localhost:8000/transcribe",
+    "http://127.0.0.1:8000/transcribe",
+    "http://whisper:8000/transcribe",
+  ];
+
+  const endpointErrors: string[] = [];
+
+  for (const whisperUrl of whisperUrls) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), WHISPER_TIMEOUT_MS);
+    try {
+      const form = new FormData();
+      form.append("file", new Blob([new Uint8Array(audioBuffer)], { type: "audio/wav" }), filename);
+      form.append("task", "transcribe");
+
+      const res = await fetch(whisperUrl, {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        endpointErrors.push(`${whisperUrl} returned HTTP ${res.status}`);
+        continue;
+      }
+      const data = (await res.json()) as WhisperPayload;
+      const duration = data.duration ? Number(Number(data.duration).toFixed(2)) : 0;
+
+      if (Array.isArray(data.segments) && data.segments.length > 0) {
+        const segments: TranscriptSegment[] = data.segments.map((s, idx) => ({
+          id: idx,
+          start: Number(Number(s.start || 0).toFixed(2)),
+          end: Number(Number(s.end || 0).toFixed(2)),
+          text: String(s.text || "").trim(),
+        }));
+        return { segments, duration };
+      }
+      // Whisper was reachable and returned a valid empty result. Preserve
+      // this as a real no-speech result; the caller decides whether an empty
+      // transcript is acceptable for the workflow.
+      if (data && "segments" in data) return { segments: [], duration };
+
+      endpointErrors.push(`${whisperUrl} returned no segments field`);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        // A hung Whisper call must throw (not silently fall through to the
+        // next fallback URL) so BullMQ's attempts/backoff actually retries —
+        // see app/worker/watchdog.ts for the stuck-job detector this pairs with.
+        throw new Error(
+          `Whisper transcription timed out after ${Math.round(WHISPER_TIMEOUT_MS / 60000)} minutes`
+        );
+      }
+      const message = errorMessage(err);
+      endpointErrors.push(`${whisperUrl}: ${message}`);
+      console.log(`Whisper endpoint ${whisperUrl} unavailable: ${message}`);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+  throw new Error(
+    `Whisper service unavailable; tried ${whisperUrls.join(", ")}. ` +
+      endpointErrors.join(" | ")
+  );
+}
+
+/**
+ * Full pipeline for one audio object already stored in the MinIO `audio` bucket:
+ * fetch bytes -> Whisper -> save English .txt to the `transcripts` bucket ->
+ * persist Transcript + segments to Postgres.
+ */
+export async function transcribeAndStore(filename: string): Promise<TranscribeResult> {
+  const audio = await prisma.audioFile.findUnique({ where: { filename } });
+  return withFlowWork(audio?.sessionId, () => transcribeAndStoreInFlow(filename));
+}
+async function transcribeAndStoreInFlow(filename: string): Promise<TranscribeResult> {
+  // AudioFile.sessionId IS the generationId for this chain (set by
+  // POST /api/save-audio when the recording was uploaded) — look it up
+  // up front so the "processing" mark below is scoped to the right
+  // generation even before this function's own upsert runs.
+  const existingAudio = await prisma.audioFile.findUnique({ where: { filename } });
+  const generationId = existingAudio?.sessionId ?? null;
+  await markTaskProcessing(generationId, "transcription");
+
+  const audioBuffer = await getObjectBuffer(AUDIO_BUCKET, filename);
+  const sourceAudio = `/api/asset/${AUDIO_BUCKET}/${encodeURIComponent(filename)}`;
+
+  const { segments, duration } = await withHeartbeat(
+    { generationId, taskType: "transcription" },
+    () => runWhisper(audioBuffer, filename)
+  );
+
+  if (segments.length === 0) {
+    throw new Error(`Whisper returned no speech segments for "${filename}"`);
+  }
+
+  const text = segments.map((s) => s.text).join(" ");
+  const srtContent = generateSrt(segments);
+  const sttEngine =
+    segments.length > 0
+      ? "Docker Live Faster-Whisper Container (Port 8000)"
+      : "No speech detected";
+
+  // Save the English transcript text file to MinIO (`transcripts` bucket).
+  const txtObjectKey = `${filename}.txt`;
+  await uploadObject(
+    TRANSCRIPTS_BUCKET,
+    txtObjectKey,
+    Buffer.from(text, "utf-8"),
+    "text/plain; charset=utf-8"
+  );
+  const txtUrl = `/api/asset/${TRANSCRIPTS_BUCKET}/${encodeURIComponent(txtObjectKey)}`;
+
+  // Persist to Postgres.
+  const audio = await prisma.audioFile.upsert({
+    where: { filename },
+    create: {
+      filename,
+      url: sourceAudio,
+      bucket: AUDIO_BUCKET,
+      objectKey: filename,
+      size: audioBuffer.length,
+      duration: duration || null,
+    },
+    update: { duration: duration || null, url: sourceAudio },
+  });
+
+  const speakerProfile = await ensureSpeakerProfile(filename).catch((err: unknown) => {
+    console.error(`Failed to analyze speaker profile for "${filename}": ${errorMessage(err)}`);
+    return null;
+  });
+
+  await prisma.transcript.deleteMany({ where: { audioFileId: audio.id } });
+  const saved = await prisma.transcript.create({
+    data: {
+      sourceAudio,
+      audioFileId: audio.id,
+      generationId,
+      language: "en",
+      duration,
+      sttEngine,
+      text,
+      srtContent,
+      segments: {
+        create: segments.map((s, i) => ({
+          segmentIndex: i,
+          start: s.start,
+          end: s.end,
+          text: s.text,
+          speaker: speakerProfile?.gender ?? undefined,
+        })),
+      },
+    },
+  });
+
+  await markTaskCompleted(generationId, "transcription");
+
+  // English .txt is saved and the transcript is persisted — fan out to the 4
+  // per-language translation workers (german/hindi/french/spanish-transcript).
+  // Best-effort: a queue/Redis outage must not fail the transcription itself.
+  let translationsQueued = false;
+  if (segments.length > 0) {
+    try {
+      await enqueueTranslations(filename, segments, saved.id, generationId);
+      translationsQueued = true;
+    } catch (err: unknown) {
+      console.error(`Failed to enqueue translations for "${filename}": ${errorMessage(err)}`);
+    }
+  }
+
+  return {
+    filename,
+    sourceAudio,
+    text,
+    duration,
+    segments,
+    sttEngine,
+    txtUrl,
+    txtObjectKey,
+    transcriptId: saved.id,
+    createdAt: saved.createdAt.toISOString(),
+    translationsQueued,
+  };
+}
