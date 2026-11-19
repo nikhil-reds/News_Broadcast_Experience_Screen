@@ -1,0 +1,44 @@
+{
+  "name": "news simulation",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "demo:save": "node script/save-demo-snapshot.mjs",
+    "demo:test": "node script/test-saved-demo.mjs",
+    "test:rbac": "tsx --test test/rbac-policy.test.ts",
+    "dev": "next dev --webpack",
+    "worker:all": "node script/run-workers.mjs",
+    "worker:health": "tsx script/worker-health.ts",
+    "worker:performance": "tsx script/worker-performance/run-workers.ts",
+    "pipeline:performance": "tsx script/worker-performance/run-pipeline.ts",
+    "build": "next build --webpack",
+    "start": "next start",
+    "dev:hot": "next dev --webpack"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "@types/ws": "^8.18.1",
+    "bullmq": "^5.81.2",
+    "minio": "^8.0.7",
+    "next": "16.2.12",
+    "pg": "^8.22.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "sharp": "^0.35.3",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.12",
+    "prisma": "^7.9.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.1",
+    "typescript": "^5"
+  }
+}
