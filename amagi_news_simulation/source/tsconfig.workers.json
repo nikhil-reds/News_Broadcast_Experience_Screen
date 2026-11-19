@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".tmp/worker-logs/compiled",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "jsx": "react-jsx",
+    "incremental": false,
+    "tsBuildInfoFile": ".tmp/worker-logs/tsconfig.workers.tsbuildinfo"
+  },
+  "include": [
+    "app/worker/audio-transcription.ts",
+    "app/worker/translations.ts",
+    "app/worker/tts.ts",
+    "app/worker/german-transcript.ts",
+    "app/worker/hindi-transcript.ts",
+    "app/worker/french-transcript.ts",
+    "app/worker/spanish-transcript.ts",
+    "app/worker/german-audio.ts",
+    "app/worker/hindi-audio.ts",
+    "app/worker/french-audio.ts",
+    "app/worker/spanish-audio.ts",
+    "lib/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next"]
+}
