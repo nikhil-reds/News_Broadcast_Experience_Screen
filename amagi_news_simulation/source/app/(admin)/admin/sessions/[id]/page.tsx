@@ -1,0 +1,81 @@
+import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { notFound } from "next/navigation";
+import { AdminSection, DetailGrid, DetailItem } from "@/components/admin/admin-section";
+import { AdminTable, Td } from "@/components/admin/admin-table";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { formatBytes, formatDate } from "@/lib/admin-format";
+import { prisma } from "@/lib/prisma";
+
+export default async function AdminSessionDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const session = await prisma.broadcastSession.findUnique({
+    where: { id },
+    include: {
+      videoRecordings: true,
+      audioFiles: true,
+      generationTasks: { orderBy: { updatedAt: "desc" } },
+      videoJobs: { orderBy: { updatedAt: "desc" } },
+      transcripts: true,
+      transcriptTranslations: true,
+    },
+  });
+
+  if (!session) notFound();
+
+  return (
+    <div className="space-y-6">
+      <AdminPageHeader
+        backHref="/admin/sessions"
+        backLabel="Back to sessions"
+        title={<>Session #{session.seq}</>}
+        description="Full generation record and related pipeline assets."
+      />
+
+      <AdminSection title="Session Details">
+        <DetailGrid>
+          <DetailItem label="Status" value={<StatusBadge value={session.status} />} />
+          <DetailItem label="Pipeline" value={<StatusBadge value={session.pipelineStatus} />} />
+          <DetailItem label="Background" value={session.selectedBackgroundId ?? "None"} />
+          <DetailItem label="Subtitle Language" value={session.selectedSubtitleLanguage} />
+          <DetailItem label="Audio Language" value={session.selectedAudioLanguage} />
+          <DetailItem label="Brightness" value={`${session.selectedBrightness}%`} />
+          <DetailItem label="Started" value={formatDate(session.startedAt)} />
+          <DetailItem label="Ended" value={formatDate(session.endedAt)} />
+          <DetailItem label="Session ID" value={session.id} />
+        </DetailGrid>
+      </AdminSection>
+
+      <AdminSection title="Recordings">
+        <AdminTable headers={["Filename", "Type", "Size", "Created"]} empty={session.videoRecordings.length === 0}>
+          {session.videoRecordings.map((recording) => (
+            <tr key={recording.id}>
+              <Td><Link className="text-admin-accent" href={recording.url}>{recording.filename}</Link></Td>
+              <Td>{recording.contentType ?? "Unknown"}</Td>
+              <Td>{formatBytes(recording.size)}</Td>
+              <Td>{formatDate(recording.createdAt)}</Td>
+            </tr>
+          ))}
+        </AdminTable>
+      </AdminSection>
+
+      <AdminSection title="Pipeline Tasks">
+        <AdminTable headers={["Task", "Status", "Attempt", "Progress", "Updated"]} empty={session.generationTasks.length === 0}>
+          {session.generationTasks.map((task) => (
+            <tr key={task.id}>
+              <Td><Link href={`/admin/generation-tasks/${task.id}`} className="font-semibold text-admin-accent">{task.taskType}</Link></Td>
+              <Td><StatusBadge value={task.status} /></Td>
+              <Td>{task.attempt}/{task.maxAttempts}</Td>
+              <Td>{task.progressPercent ?? 0}%</Td>
+              <Td>{formatDate(task.updatedAt)}</Td>
+            </tr>
+          ))}
+        </AdminTable>
+      </AdminSection>
+    </div>
+  );
+}
