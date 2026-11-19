@@ -1,0 +1,91 @@
+@font-face {
+  font-family: "Workflow Abro Sans";
+  src: url("/fonts/AbroSans/OpenType-TT/AbroSans-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 168px;
+  height: 54px;
+  padding: 5px 5px 5px 29px;
+  border: 1px solid rgb(0 0 0 / 14%);
+  border-radius: 999px;
+  background: #fff;
+  color: #171717;
+  font-family: "Workflow Abro Sans", sans-serif;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 17%);
+  cursor: pointer;
+  transition: background-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.button:hover:not(:disabled) {
+  background: #f6f6f6;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 24%);
+}
+
+.button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+  box-shadow: 0 0 0 7px #171717;
+}
+
+.button:disabled {
+  cursor: default;
+}
+
+.button:disabled:not(.applied) {
+  opacity: 0.5;
+}
+
+.applied {
+  border: 2px solid #4a9d2e;
+  padding: 4px 4px 4px 22px;
+  background: #196b0c;
+  color: #fff;
+  box-shadow: 0 2px 5px rgb(0 0 0 / 10%);
+}
+
+.icon {
+  display: inline-flex;
+  flex: 0 0 40px;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #000;
+  color: #fff;
+}
+
+.applied .icon {
+  background: #fff;
+  color: #171717;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button { transition: none; }
+}
+
+.applyButton {
+  width: 192px;
+  gap: 8px;
+  transition: transform 200ms cubic-bezier(.2,1.6,.4,1), background-color 160ms ease;
+}
+.applyButton:active:not(:disabled) { transform: scale(.96); }
+.button.applying:disabled { opacity: 1; }
+.ring { transform-origin: center; animation: turn 900ms linear infinite; }
+@keyframes turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .applyButton, .ring { transition: none; animation: none; }
+  .applyButton:active:not(:disabled) { transform: none; }
+}
