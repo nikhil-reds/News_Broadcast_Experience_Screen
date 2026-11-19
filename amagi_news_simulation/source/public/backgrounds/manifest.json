@@ -1,0 +1,26 @@
+[
+  {
+    "id": "bg-newsroom-1920x1080",
+    "label": "Newsroom",
+    "image": "/backgrounds/bg-newsroom-1920x1080.png",
+    "thumb": "/backgrounds/bg-newsroom-1920x1080.png"
+  },
+  {
+    "id": "bg-markets-1920x1080",
+    "label": "Markets",
+    "image": "/backgrounds/bg-markets-1920x1080.png",
+    "thumb": "/backgrounds/bg-markets-1920x1080.png"
+  },
+  {
+    "id": "bg-sports-1920x1080",
+    "label": "Sports",
+    "image": "/backgrounds/bg-sports-1920x1080.png",
+    "thumb": "/backgrounds/bg-sports-1920x1080.png"
+  },
+  {
+    "id": "bg-weather-1920x1080",
+    "label": "Weather",
+    "image": "/backgrounds/bg-weather-1920x1080.png",
+    "thumb": "/backgrounds/bg-weather-1920x1080.png"
+  }
+]
