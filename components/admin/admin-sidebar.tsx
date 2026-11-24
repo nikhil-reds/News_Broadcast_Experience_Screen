@@ -55,12 +55,6 @@ const icons: Record<string, ReactNode> = {
       <path d="m22 8-6 4 6 4z" />
     </>
   ),
-  tasks: (
-    <>
-      <path d="M9 11l3 3 8-8" />
-      <path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h9" />
-    </>
-  ),
   workers: (
     <>
       <rect x="4" y="4" width="16" height="6" rx="1" />
@@ -102,6 +96,8 @@ export function AdminSidebar({ email, permissions, open, collapsed, onCollapseTo
   const [demoNow, setDemoNow] = useState(() => Date.now());
   const [demoToast, setDemoToast] = useState<string | null>(null);
   const [demoStarting, setDemoStarting] = useState(false);
+  const [demoStartingSource, setDemoStartingSource] = useState<DemoState["source"]>(null);
+  const [demoSource, setDemoSource] = useState<DemoState["source"]>(null);
   const demoStartInFlight = useRef(false);
   const demoServerRevision = useRef(-1);
   const [demoReady, setDemoReady] = useState(false);
@@ -112,6 +108,7 @@ export function AdminSidebar({ email, permissions, open, collapsed, onCollapseTo
     const previous = readDemoDeadline();
     const deadline = state.active && state.endsAt ? Date.parse(state.endsAt) : null;
     if (previous !== deadline) writeDemoDeadline(deadline);
+    setDemoSource(state.active ? state.source : null);
     if (previous !== null && !state.active && state.stoppedReason === "timeout") {
       setDemoToast("Demo closed at 00:00 remaining. The live footage and screen progress have been restored.");
     }
@@ -165,6 +162,7 @@ export function AdminSidebar({ email, permissions, open, collapsed, onCollapseTo
     const ending = currentDeadline !== null;
     demoStartInFlight.current = true;
     setDemoStarting(true);
+    setDemoStartingSource(ending ? null : "saved");
     try {
       const response = await fetch("/api/admin/demo", {
         method: ending ? "DELETE" : "POST",
@@ -184,6 +182,36 @@ export function AdminSidebar({ email, permissions, open, collapsed, onCollapseTo
     } finally {
       demoStartInFlight.current = false;
       setDemoStarting(false);
+      setDemoStartingSource(null);
+    }
+  }
+
+  async function startFixedDemo(source: "latest" | "newest") {
+    if (demoStartInFlight.current || !demoReady || readDemoDeadline() !== null) return;
+    const label = source === "newest" ? "Newest Demo" : "Latest Demo";
+    demoStartInFlight.current = true;
+    setDemoStarting(true);
+    setDemoStartingSource(source);
+    try {
+      const response = await fetch("/api/admin/demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source }),
+        signal: AbortSignal.timeout(20000),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || typeof result?.active !== "boolean") {
+        throw new Error(result?.error || `Unable to start ${label}. Please try again.`);
+      }
+      setDemoNow(Date.now());
+      syncDemoState(result);
+      setDemoToast(`${label} started for 15 min. Fixed public footage loaded. Click Apply on Screen 01 to begin.`);
+    } catch (error) {
+      setDemoToast(error instanceof Error ? error.message : `Unable to start ${label}. Please try again.`);
+    } finally {
+      demoStartInFlight.current = false;
+      setDemoStarting(false);
+      setDemoStartingSource(null);
     }
   }
 
@@ -242,7 +270,39 @@ export function AdminSidebar({ email, permissions, open, collapsed, onCollapseTo
         })}
       </nav>
 
-      {permissions.includes("studio.control") ? <div className={`shrink-0 pb-3 ${collapsed ? "md:px-2" : "px-3"}`}>
+      {permissions.includes("studio.control") ? <div className={`shrink-0 space-y-2 pb-3 ${collapsed ? "md:px-2" : "px-3"}`}>
+        <button
+          type="button"
+          aria-label={demoActive ? (demoSource === "newest" ? "Newest Demo is active" : "End the active demo before starting Newest Demo") : "Start fixed Newest Demo"}
+          title={demoActive ? (demoSource === "newest" ? `Newest Demo active: ${demoTime} remaining` : "End the active demo before starting Newest Demo") : "Start fixed Newest Demo"}
+          onClick={() => startFixedDemo("newest")}
+          disabled={demoStarting || !demoReady || demoActive}
+          aria-busy={demoStartingSource === "newest"}
+          className={`group inline-flex h-11 w-full items-center rounded-full border border-violet-300/35 bg-violet-400/15 py-1 text-sm font-medium text-white shadow-[0_8px_28px_rgba(0,0,0,.16)] transition hover:bg-violet-300/25 disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${collapsed ? "md:justify-center md:px-1" : "justify-between gap-3 pl-5 pr-1"}`}
+        >
+          <span className={`whitespace-nowrap ${collapsed ? "md:hidden" : ""}`}>{demoStartingSource === "newest" ? "Starting…" : demoSource === "newest" ? "Newest Demo Active" : "Newest Demo"}</span>
+          <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-950 transition-transform duration-300 group-hover:-rotate-45 group-disabled:transform-none">
+            <svg viewBox="0 0 24 24" className="size-4.5 fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 7h16v11H4zM8 4h8M8 11l3 2 4-3M18 2v4m-2-2h4" />
+            </svg>
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-label={demoActive ? (demoSource === "latest" ? "Latest Demo is active" : "End the active demo before starting Latest Demo") : "Start fixed Latest Demo"}
+          title={demoActive ? (demoSource === "latest" ? `Latest Demo active: ${demoTime} remaining` : "End the active demo before starting Latest Demo") : "Start fixed Latest Demo"}
+          onClick={() => startFixedDemo("latest")}
+          disabled={demoStarting || !demoReady || demoActive}
+          aria-busy={demoStartingSource === "latest"}
+          className={`group inline-flex h-11 w-full items-center rounded-full border border-white/20 bg-white/10 py-1 text-sm font-medium text-white shadow-[0_8px_28px_rgba(0,0,0,.16)] transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${collapsed ? "md:justify-center md:px-1" : "justify-between gap-3 pl-5 pr-1"}`}
+        >
+          <span className={`whitespace-nowrap ${collapsed ? "md:hidden" : ""}`}>{demoStartingSource === "latest" ? "Starting…" : demoSource === "latest" ? "Latest Demo Active" : "Latest Demo"}</span>
+          <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-black transition-transform duration-300 group-hover:-rotate-45 group-disabled:transform-none">
+            <svg viewBox="0 0 24 24" className="size-4.5 fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 7h16v11H4zM8 4h8M8 11l3 2 4-3" />
+            </svg>
+          </span>
+        </button>
         <button
           type="button"
           aria-label={!demoReady ? "Connecting to Demo" : demoStarting ? "Switching demo footage" : demoActive ? `End demo: ${demoTime} remaining` : "Start 15-minute demo timer"}

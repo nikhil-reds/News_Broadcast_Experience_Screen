@@ -1,0 +1,340 @@
+{
+  "version": 2,
+  "sourceSessionId": "72d17a44-1c16-4c1c-97dc-8fdc4934919c",
+  "createdAt": "2026-11-24T12:03:40.556Z",
+  "session": {
+    "id": "72d17a44-1c16-4c1c-97dc-8fdc4934919c",
+    "seq": 7,
+    "status": "ready",
+    "pipelineStatus": "ready",
+    "selectedBackgroundId": "bg-newsroom-1920x1080",
+    "selectedSubtitleLanguage": "English",
+    "selectedAudioLanguage": "English",
+    "selectedBrightness": 100,
+    "startedAt": "2026-11-24T06:19:49.564Z",
+    "endedAt": "2026-11-24T06:20:06.893Z"
+  },
+  "recordings": [
+    {
+      "filename": "highlight-2026-11-24T11-50-06-672Z.mp4",
+      "url": "/demo/latest/assets/aaaacaffe0faef8e734e/highlight-2026-11-24T11-50-06-672Z.mp4",
+      "size": 2419562,
+      "createdAt": "2026-11-24T06:20:09.487Z"
+    },
+    {
+      "filename": "camera3-recording-2026-11-24T11-50-06-673Z.mp4",
+      "url": "/demo/latest/assets/3e3cec1d2ff1a7c2a879/camera3-recording-2026-11-24T11-50-06-673Z.mp4",
+      "size": 5006325,
+      "createdAt": "2026-11-24T06:20:06.869Z"
+    },
+    {
+      "filename": "camera-recording-2026-11-24T11-50-06-672Z.mp4",
+      "url": "/demo/latest/assets/41ead2924b8d46f6fef4/camera-recording-2026-11-24T11-50-06-672Z.mp4",
+      "size": 5422104,
+      "createdAt": "2026-11-24T06:20:06.862Z"
+    },
+    {
+      "filename": "camera2-recording-2026-11-24T11-50-06-673Z.mp4",
+      "url": "/demo/latest/assets/1207d62a26a59be8b064/camera2-recording-2026-11-24T11-50-06-673Z.mp4",
+      "size": 5146599,
+      "createdAt": "2026-11-24T06:20:06.853Z"
+    }
+  ],
+  "audioFiles": [
+    {
+      "filename": "master-audio-2026-11-24T11-50-06-673Z.wav",
+      "url": "/demo/latest/assets/e14fd672f5f375a37c7c/master-audio-2026-11-24T11-50-06-673Z.wav",
+      "size": 248750,
+      "createdAt": "2026-11-24T06:20:06.818Z"
+    }
+  ],
+  "translations": [
+    {
+      "language": "Spanish",
+      "langCode": "es",
+      "voiceId": "indian-male-01",
+      "url": "/demo/latest/assets/173df02a3b165752257f/0bb3c61e-0c09-4d57-a220-50fc6c4d6f54.es.indian-male-01.21eea6aef5cbb14bdb693d9988c1fcfddfdd789cab947e8484297eda4fd7730b.wav"
+    },
+    {
+      "language": "Hindi",
+      "langCode": "hi",
+      "voiceId": "indian-male-01",
+      "url": "/demo/latest/assets/6fb259b35c268e660b17/2e7549bb-bcfb-4425-aeb2-e8ab6bd2ff08.hi.indian-male-01.f86c4ac3af630b03b92922fb92494ecea250260762ae6439b74a8148d510b191.wav"
+    },
+    {
+      "language": "German",
+      "langCode": "de",
+      "voiceId": "indian-male-01",
+      "url": "/demo/latest/assets/f7265735f80bf02a40a2/5fd1a091-f909-4822-b285-9a088b87a895.de.indian-male-01.540392ad00630234c0c7e246876b6eaf890e63c194b0acefea7da9495a3a069a.wav"
+    },
+    {
+      "language": "French",
+      "langCode": "fr",
+      "voiceId": "indian-male-01",
+      "url": "/demo/latest/assets/08bebbe4372bb83dccde/c46bd285-cc21-4411-8e68-a13fe81e6000.fr.indian-male-01.8b016f5ea86b7c0386188a69e98631863a6019cfd332746e65ec1dfa6abb96c7.wav"
+    }
+  ],
+  "transcripts": {
+    "English": {
+      "text": "Good morning. I am Aniket Sen and you're watching Metro Morning News. We start with a major transit update this morning. What is this assistant on over here?",
+      "language": "en",
+      "duration": 17.04,
+      "segments": [
+        {
+          "id": 0,
+          "start": 3.15,
+          "end": 10.15,
+          "text": "Good morning. I am Aniket Sen and you're watching Metro Morning News. We start with a major transit update this morning."
+        },
+        {
+          "id": 1,
+          "start": 11.25,
+          "end": 12.99,
+          "text": "What is this assistant on over here?"
+        }
+      ],
+      "createdAt": "2026-11-24T06:20:09.387Z",
+      "sourceAudio": "/demo/latest/assets/e14fd672f5f375a37c7c/master-audio-2026-11-24T11-50-06-673Z.wav"
+    },
+    "German": {
+      "text": "Guten Morgen. Ich bin Aniket Sen und Sie schauen die Metro Morning News. Wir beginnen mit einer wichtigen Verkehrsinformation heute. Was macht dieser Assistenten hier eigentlich?",
+      "language": "de",
+      "duration": 17.04,
+      "segments": [
+        {
+          "id": 0,
+          "start": 3.15,
+          "end": 10.15,
+          "text": "Guten Morgen. Ich bin Aniket Sen und Sie schauen die Metro Morning News. Wir beginnen mit einer wichtigen Verkehrsinformation heute."
+        },
+        {
+          "id": 1,
+          "start": 11.25,
+          "end": 12.99,
+          "text": "Was macht dieser Assistenten hier eigentlich?"
+        }
+      ],
+      "createdAt": "2026-11-24T06:20:15.416Z",
+      "sourceAudio": "/demo/latest/assets/e14fd672f5f375a37c7c/master-audio-2026-11-24T11-50-06-673Z.wav"
+    },
+    "Spanish": {
+      "text": "Buenos días. Soy Aniket Sen y usted está viendo Metro Morning News. Comenzamos con una actualización importante sobre el transporte esta mañana. ¿Qué hace este asistente aquí?",
+      "language": "es",
+      "duration": 17.04,
+      "segments": [
+        {
+          "id": 0,
+          "start": 3.15,
+          "end": 10.15,
+          "text": "Buenos días. Soy Aniket Sen y usted está viendo Metro Morning News. Comenzamos con una actualización importante sobre el transporte esta mañana."
+        },
+        {
+          "id": 1,
+          "start": 11.25,
+          "end": 12.99,
+          "text": "¿Qué hace este asistente aquí?"
+        }
+      ],
+      "createdAt": "2026-11-24T06:20:17.933Z",
+      "sourceAudio": "/demo/latest/assets/e14fd672f5f375a37c7c/master-audio-2026-11-24T11-50-06-673Z.wav"
+    },
+    "French": {
+      "text": "Bonjour, je suis Aniket Sen et vous regardez Metro Morning News. Nous commençons par une mise à jour importante concernant les transports ce matin. Qu'est-ce que cet assistant en train de faire ici?",
+      "language": "fr",
+      "duration": 17.04,
+      "segments": [
+        {
+          "id": 0,
+          "start": 3.15,
+          "end": 10.15,
+          "text": "Bonjour, je suis Aniket Sen et vous regardez Metro Morning News. Nous commençons par une mise à jour importante concernant les transports ce matin."
+        },
+        {
+          "id": 1,
+          "start": 11.25,
+          "end": 12.99,
+          "text": "Qu'est-ce que cet assistant en train de faire ici?"
+        }
+      ],
+      "createdAt": "2026-11-24T06:20:20.872Z",
+      "sourceAudio": "/demo/latest/assets/e14fd672f5f375a37c7c/master-audio-2026-11-24T11-50-06-673Z.wav"
+    },
+    "Hindi": {
+      "text": "शामपर शुक्रिया। मैं अनिकेत सेन हूँ और आपकी मेट्रो मैनिंग न्यूज पर देख रहे हैं। आज सुबह को यहाँ एक महत्वपूर्ण ट्रांसिट अपडेट शुरू करते हैं। यह ये एसाइन्स यहाँ कैसे है?",
+      "language": "hi",
+      "duration": 17.04,
+      "segments": [
+        {
+          "id": 0,
+          "start": 3.15,
+          "end": 10.15,
+          "text": "शामपर शुक्रिया। मैं अनिकेत सेन हूँ और आपकी मेट्रो मैनिंग न्यूज पर देख रहे हैं। आज सुबह को यहाँ एक महत्वपूर्ण ट्रांसिट अपडेट शुरू करते हैं।"
+        },
+        {
+          "id": 1,
+          "start": 11.25,
+          "end": 12.99,
+          "text": "यह ये एसाइन्स यहाँ कैसे है?"
+        }
+      ],
+      "createdAt": "2026-11-24T06:20:28.992Z",
+      "sourceAudio": "/demo/latest/assets/e14fd672f5f375a37c7c/master-audio-2026-11-24T11-50-06-673Z.wav"
+    }
+  },
+  "cues": {
+    "English": [
+      {
+        "start": 3.15,
+        "end": 5.688,
+        "text": "Good morning. I am Aniket Sen and you're watching Metro Morning News. We start with a major transit update this morning."
+      },
+      {
+        "start": 5.688,
+        "end": 10.150000000000002,
+        "text": "Good morning. I am Aniket Sen and you're watching Metro Morning News. We start with a major transit update this morning."
+      },
+      {
+        "start": 11.25,
+        "end": 11.375,
+        "text": "What is this assistant on over here?"
+      },
+      {
+        "start": 11.375,
+        "end": 12.990000000000002,
+        "text": "What is this assistant on over here?"
+      }
+    ],
+    "German": [
+      {
+        "start": 3.15,
+        "end": 5.688,
+        "text": "Guten Morgen. Ich bin Aniket Sen und Sie schauen die Metro Morning News. Wir beginnen mit einer wichtigen Verkehrsinformation heute."
+      },
+      {
+        "start": 5.688,
+        "end": 10.150000000000002,
+        "text": "Guten Morgen. Ich bin Aniket Sen und Sie schauen die Metro Morning News. Wir beginnen mit einer wichtigen Verkehrsinformation heute."
+      },
+      {
+        "start": 11.25,
+        "end": 11.375,
+        "text": "Was macht dieser Assistenten hier eigentlich?"
+      },
+      {
+        "start": 11.375,
+        "end": 12.990000000000002,
+        "text": "Was macht dieser Assistenten hier eigentlich?"
+      }
+    ],
+    "Spanish": [
+      {
+        "start": 3.15,
+        "end": 5.688,
+        "text": "Buenos días. Soy Aniket Sen y usted está viendo Metro Morning News. Comenzamos con una actualización importante sobre el transporte esta mañana."
+      },
+      {
+        "start": 5.688,
+        "end": 10.150000000000002,
+        "text": "Buenos días. Soy Aniket Sen y usted está viendo Metro Morning News. Comenzamos con una actualización importante sobre el transporte esta mañana."
+      },
+      {
+        "start": 11.25,
+        "end": 11.375,
+        "text": "¿Qué hace este asistente aquí?"
+      },
+      {
+        "start": 11.375,
+        "end": 12.990000000000002,
+        "text": "¿Qué hace este asistente aquí?"
+      }
+    ],
+    "French": [
+      {
+        "start": 3.15,
+        "end": 5.688,
+        "text": "Bonjour, je suis Aniket Sen et vous regardez Metro Morning News. Nous commençons par une mise à jour importante concernant les transports ce matin."
+      },
+      {
+        "start": 5.688,
+        "end": 10.150000000000002,
+        "text": "Bonjour, je suis Aniket Sen et vous regardez Metro Morning News. Nous commençons par une mise à jour importante concernant les transports ce matin."
+      },
+      {
+        "start": 11.25,
+        "end": 11.375,
+        "text": "Qu'est-ce que cet assistant en train de faire ici?"
+      },
+      {
+        "start": 11.375,
+        "end": 12.990000000000002,
+        "text": "Qu'est-ce que cet assistant en train de faire ici?"
+      }
+    ],
+    "Hindi": [
+      {
+        "start": 3.15,
+        "end": 5.688,
+        "text": "शामपर शुक्रिया। मैं अनिकेत सेन हूँ और आपकी मेट्रो मैनिंग न्यूज पर देख रहे हैं। आज सुबह को यहाँ एक महत्वपूर्ण ट्रांसिट अपडेट शुरू करते हैं।"
+      },
+      {
+        "start": 5.688,
+        "end": 10.150000000000002,
+        "text": "शामपर शुक्रिया। मैं अनिकेत सेन हूँ और आपकी मेट्रो मैनिंग न्यूज पर देख रहे हैं। आज सुबह को यहाँ एक महत्वपूर्ण ट्रांसिट अपडेट शुरू करते हैं।"
+      },
+      {
+        "start": 11.25,
+        "end": 11.375,
+        "text": "यह ये एसाइन्स यहाँ कैसे है?"
+      },
+      {
+        "start": 11.375,
+        "end": 12.990000000000002,
+        "text": "यह ये एसाइन्स यहाँ कैसे है?"
+      }
+    ]
+  },
+  "composites": {
+    "bg-newsroom-1920x1080": {
+      "url": "/demo/latest/assets/e53dbd3d2a76540c4aba.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+    },
+    "bg-markets-1920x1080": {
+      "url": "/demo/latest/assets/c29a26bf2e8a1a7ee4eb.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+    },
+    "bg-sports-1920x1080": {
+      "url": "/demo/latest/assets/43df9933da3d9eb12029.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+    },
+    "bg-weather-1920x1080": {
+      "url": "/demo/latest/assets/bc72f981a225010f4109.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+    }
+  },
+  "selections": {},
+  "voiceId": "indian-male-01",
+  "assets": {
+    "videos/highlight-2026-11-24T11-50-06-672Z.mp4": "/demo/latest/assets/aaaacaffe0faef8e734e/highlight-2026-11-24T11-50-06-672Z.mp4",
+    "videos/camera3-recording-2026-11-24T11-50-06-673Z.mp4": "/demo/latest/assets/3e3cec1d2ff1a7c2a879/camera3-recording-2026-11-24T11-50-06-673Z.mp4",
+    "videos/camera-recording-2026-11-24T11-50-06-672Z.mp4": "/demo/latest/assets/41ead2924b8d46f6fef4/camera-recording-2026-11-24T11-50-06-672Z.mp4",
+    "videos/camera2-recording-2026-11-24T11-50-06-673Z.mp4": "/demo/latest/assets/1207d62a26a59be8b064/camera2-recording-2026-11-24T11-50-06-673Z.mp4",
+    "audio/master-audio-2026-11-24T11-50-06-673Z.wav": "/demo/latest/assets/e14fd672f5f375a37c7c/master-audio-2026-11-24T11-50-06-673Z.wav",
+    "tts-audio/0bb3c61e-0c09-4d57-a220-50fc6c4d6f54.es.indian-male-01.21eea6aef5cbb14bdb693d9988c1fcfddfdd789cab947e8484297eda4fd7730b.wav": "/demo/latest/assets/173df02a3b165752257f/0bb3c61e-0c09-4d57-a220-50fc6c4d6f54.es.indian-male-01.21eea6aef5cbb14bdb693d9988c1fcfddfdd789cab947e8484297eda4fd7730b.wav",
+    "tts-audio/2e7549bb-bcfb-4425-aeb2-e8ab6bd2ff08.hi.indian-male-01.f86c4ac3af630b03b92922fb92494ecea250260762ae6439b74a8148d510b191.wav": "/demo/latest/assets/6fb259b35c268e660b17/2e7549bb-bcfb-4425-aeb2-e8ab6bd2ff08.hi.indian-male-01.f86c4ac3af630b03b92922fb92494ecea250260762ae6439b74a8148d510b191.wav",
+    "tts-audio/5fd1a091-f909-4822-b285-9a088b87a895.de.indian-male-01.540392ad00630234c0c7e246876b6eaf890e63c194b0acefea7da9495a3a069a.wav": "/demo/latest/assets/f7265735f80bf02a40a2/5fd1a091-f909-4822-b285-9a088b87a895.de.indian-male-01.540392ad00630234c0c7e246876b6eaf890e63c194b0acefea7da9495a3a069a.wav",
+    "tts-audio/c46bd285-cc21-4411-8e68-a13fe81e6000.fr.indian-male-01.8b016f5ea86b7c0386188a69e98631863a6019cfd332746e65ec1dfa6abb96c7.wav": "/demo/latest/assets/08bebbe4372bb83dccde/c46bd285-cc21-4411-8e68-a13fe81e6000.fr.indian-male-01.8b016f5ea86b7c0386188a69e98631863a6019cfd332746e65ec1dfa6abb96c7.wav",
+    "transcripts/master-audio-2026-11-24T11-50-06-673Z.wav.de.txt": "/demo/latest/assets/468d58552952e8fae9b4.txt",
+    "transcripts/master-audio-2026-11-24T11-50-06-673Z.wav.es.txt": "/demo/latest/assets/a61f057909e343758f73.txt",
+    "transcripts/master-audio-2026-11-24T11-50-06-673Z.wav.fr.txt": "/demo/latest/assets/1c8340bc04841ac9d299.txt",
+    "transcripts/master-audio-2026-11-24T11-50-06-673Z.wav.hi.txt": "/demo/latest/assets/1cda2a4ea731dda9297f.txt",
+    "transcripts/highlight-2026-11-24T11-50-06-672Z.mp4.json": "/demo/latest/assets/6749e567dee7ae1adc73.json",
+    "videos/composites/rvm-v1/highlight-2026-11-24T11-50-06-672Z/bg-newsroom-1920x1080.mp4": "/demo/latest/assets/e53dbd3d2a76540c4aba.mp4",
+    "videos/composites/rvm-v1/highlight-2026-11-24T11-50-06-672Z/bg-markets-1920x1080.mp4": "/demo/latest/assets/c29a26bf2e8a1a7ee4eb.mp4",
+    "videos/composites/rvm-v1/highlight-2026-11-24T11-50-06-672Z/bg-sports-1920x1080.mp4": "/demo/latest/assets/43df9933da3d9eb12029.mp4",
+    "videos/composites/rvm-v1/highlight-2026-11-24T11-50-06-672Z/bg-weather-1920x1080.mp4": "/demo/latest/assets/bc72f981a225010f4109.mp4"
+  }
+}

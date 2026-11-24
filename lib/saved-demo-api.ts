@@ -33,12 +33,12 @@ export async function savedDemoResponse(request: NextRequest): Promise<Response 
   if (!playback.active || !playback.sessionId || !playback.session || !playback.workflow) {
     // Stale requests from unmounting demo screens must not reach live write endpoints.
     if (decodeURIComponent(path).includes("demo-") || query.get("sessionId")?.startsWith("demo-") || String(body.sessionId ?? "").startsWith("demo-") ||
-        [...query.values(), ...Object.values(body)].some(value => typeof value === "string" && (value.includes("/demo/snapshot/") || value.includes("-demo-")))) {
+        [...query.values(), ...Object.values(body)].some(value => typeof value === "string" && (value.includes("/demo/snapshot/") || value.includes("/demo/latest/") || value.includes("/demo/newest/") || value.includes("-demo-")))) {
       return json({ error: "The demo has ended. Refresh the screen." }, 409);
     }
     return null;
   }
-  const snapshot = await savedDemoPackage();
+  const snapshot = await savedDemoPackage(playback.source ?? "saved");
   const id = playback.sessionId;
   const workflow = playback.workflow;
   const method = request.method;

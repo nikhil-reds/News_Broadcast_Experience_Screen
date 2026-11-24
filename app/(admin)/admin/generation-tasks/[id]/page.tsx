@@ -20,8 +20,8 @@ export default async function AdminGenerationTaskDetailPage({
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        backHref="/admin/generation-logs"
-        backLabel="Back to generation logs"
+        backHref={`/admin/sessions/${task.generationId}`}
+        backLabel="Back to session"
         title={task.taskType}
         description="Pipeline task diagnostics and recovery context."
       />

@@ -288,7 +288,7 @@ export default function Screen8Page() {
               style={{ filter: `brightness(${brightness}%)` }}
             />
           ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm">
+              <div className="w-full h-full flex items-center justify-center text-slate-600 text-[11px]">
               No highlight reel yet — record all 3 cameras to generate one.
             </div>
           )}

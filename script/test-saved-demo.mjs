@@ -121,6 +121,43 @@ async function main() {
   const restarted = await control.startDemo(); assert.equal(Date.parse(restarted.endsAt) - now, 900000);
   await control.stopDemo('manual');
   assertLiveUnchanged();
-  console.log('PASS: saved assets, all 12 Apply steps, broadcasts, selection isolation, manual end, expiry, fresh restart and late-request protection. No worker/database/storage clients imported.');
+  const latest = await control.savedDemoPackage('latest');
+  for (const url of Object.values(latest.assets)) {
+    assert.ok(url.startsWith('/demo/latest/'));
+    assert.ok(fs.statSync(path.join(root, 'public', decodeURIComponent(url))).size > 0);
+  }
+  const latestDemo = await control.startDemo('latest');
+  assert.equal(latestDemo.source, 'latest');
+  const latestCamera = (await request('/api/save-recording?camera=1')).data.recordings[0];
+  assert.ok(latestCamera.url.startsWith('/demo/latest/'));
+  for (let screen = 1; screen <= 12; screen++) {
+    const view = await request(`/api/screen-workflow?screen=${screen}`);
+    assert.ok(view.data.active.includes(screen));
+    const publication = await request(`/api/screens/${screen}/publication`);
+    assert.ok(publication.data.assets.videoUrl.startsWith('/demo/latest/'));
+    const applied = await request('/api/screen-workflow', 'POST', { sessionId: latestDemo.sessionId, screen });
+    assert.equal(applied.status, 200);
+  }
+  await control.stopDemo('manual');
+  assertLiveUnchanged();
+  assert.notEqual(snapshot.sourceSessionId, latest.sourceSessionId);
+  const newest = await control.savedDemoPackage('newest');
+  assert.notEqual(newest.sourceSessionId, snapshot.sourceSessionId);
+  assert.notEqual(newest.sourceSessionId, latest.sourceSessionId);
+  for (const url of Object.values(newest.assets)) {
+    assert.ok(url.startsWith('/demo/newest/'));
+    assert.ok(fs.statSync(path.join(root, 'public', decodeURIComponent(url))).size > 0);
+  }
+  const newestDemo = await control.startDemo('newest');
+  assert.equal(newestDemo.source, 'newest');
+  for (let screen = 1; screen <= 12; screen++) {
+    const publication = await request(`/api/screens/${screen}/publication`);
+    assert.ok(publication.data.assets.videoUrl.startsWith('/demo/newest/'));
+    const applied = await request('/api/screen-workflow', 'POST', { sessionId: newestDemo.sessionId, screen });
+    assert.equal(applied.status, 200);
+  }
+  await control.stopDemo('manual');
+  assertLiveUnchanged();
+  console.log('PASS: fixed Demo, Latest Demo, and Newest Demo assets; all 12 Apply steps, broadcasts, selection isolation, expiry, restart and late-request protection. No worker/database/storage clients imported.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

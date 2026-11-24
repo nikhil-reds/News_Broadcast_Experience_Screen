@@ -11,11 +11,12 @@ const DISPLAY_PROFILES: Record<string, BroadcastDisplayProfile> = {
   "/broadcast04": "landscape-tablet",
   "/broadcast05": "landscape-tablet",
   "/broadcast06": "tv",
+  "/broadcast07": "portrait-mobile",
 };
 
 export default function BroadcastOutput() {
   const pathname = usePathname();
-  const soundEnabled = pathname === "/broadcast05";
+  const soundEnabled = pathname === "/broadcast05" || pathname === "/broadcast07";
   const displayProfile = DISPLAY_PROFILES[pathname] ?? "tv";
   const [feed, setFeed] = useState<{ sessionId: string; publishedAt: number; startedAt: number } | null>(null);
   useEffect(() => {
@@ -37,7 +38,9 @@ export default function BroadcastOutput() {
     return () => { disposed = true; window.clearTimeout(timer); };
   }, []);
   return feed ? <Screen11HighlightPlayer key={feed.sessionId} {...feed} soundEnabled={soundEnabled} displayProfile={displayProfile} /> :
-    <main className="grid h-screen place-items-center bg-black">
-      <img src="/amagi-logo-white.svg" alt="Amagi" className="w-64 max-w-[60vw]" />
+    <main className="h-dvh w-full overflow-hidden bg-black">
+      <video autoPlay muted loop playsInline preload="auto" aria-label="Amagi demo logo" className="h-full w-full object-cover">
+        <source src="/bg-video/amagi_demo_logo.mp4" type="video/mp4" />
+      </video>
     </main>;
 }

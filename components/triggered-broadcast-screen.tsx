@@ -3,7 +3,7 @@
 import styles from "./workflow-button.module.css";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { workflowRun, type WorkflowView } from "@/lib/screen-workflow";
+import { mergeWorkflowView, screenWorkflowStatus, workflowEpoch, workflowRun, type WorkflowView } from "@/lib/screen-workflow";
 import { poppins } from "@/lib/poppins";
 import { flushScreenSelections } from "@/lib/screen-selection-writes";
 import { WorkflowDirtyContext, WorkflowReadyContext } from "@/lib/workflow-ready";
@@ -14,6 +14,23 @@ export default function TriggeredBroadcastScreen({ children }: { children: React
   if (!match) return children;
   return <ScreenWorkflowGate key={pathname} screen={Number(match[1])}>{children}</ScreenWorkflowGate>;
 }
+
+function screenCanReveal(view: WorkflowView, screen: number) {
+  if (!view.state) return false;
+  if (view.state.applied.includes(screen)) return true;
+  return view.active.includes(screen) && (screen === 7 || Boolean(view.ready));
+}
+
+function workflowViewChanged(previous: WorkflowView | null, next: WorkflowView) {
+  if (!previous) return true;
+  return previous.state?.sessionId !== next.state?.sessionId ||
+    previous.state?.revision !== next.state?.revision ||
+    previous.state?.restartAt !== next.state?.restartAt ||
+    previous.ready !== next.ready ||
+    JSON.stringify(previous.active) !== JSON.stringify(next.active) ||
+    JSON.stringify(previous.readyDisplays ?? []) !== JSON.stringify(next.readyDisplays ?? []);
+}
+
 function ScreenWorkflowGate({ screen, children }: { screen: number; children: ReactNode }) {
   const [handoff, setHandoff] = useState<{
     started: number; sessionId: string; run: number; targets: number[]; saved: boolean;
@@ -28,6 +45,8 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
   const [error, setError] = useState("");
   const [selectionReady, setSelectionReady] = useState(false);
   const [mediaReady, setMediaReady] = useState(false);
+  const [revealedEpoch, setRevealedEpoch] = useState<string | null>(null);
+  const revealedEpochRef = useRef<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const suspendedMedia = useRef<Array<{
     index: number;
@@ -36,12 +55,34 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
   }>>([]);
   const inFlight = useRef(false);
   const latest = useRef<WorkflowView | null>(null);
-  const applied = view?.state?.applied.includes(screen) ?? false;
-  const active = view?.active.includes(screen) ?? false;
-  const retained = screen <= 10 && applied;
-  const visible = retained || (active && (screen === 7 || Boolean(view?.ready)));
+  const { latched, applied, active, displayRetained } = screenWorkflowStatus(view, screen, revealedEpoch);
+  // Every completed screen keeps its content mounted. Screens 11 and 12 are
+  // final-output actions rather than handoffs, so replacing them with the
+  // branded waiting loop after Broadcast/Publish loses the live programme.
+  const visible = displayRetained || (active && (screen === 7 || Boolean(view?.ready)));
   const needsVideo = [1, 2, 3, 6, 7, 8, 11, 12].includes(screen);
-  const enabled = connected && ((active && Boolean(view?.ready)) || (retained && (dirty || Boolean(error)))) && (!needsVideo || mediaReady) && (![5, 6, 7, 8].includes(screen) || selectionReady) && !busy && !handoff;
+  const enabled = connected && ((active && Boolean(view?.ready)) || (displayRetained && (dirty || Boolean(error)))) && (!needsVideo || mediaReady) && (![5, 6, 7, 8].includes(screen) || selectionReady) && !busy && !handoff;
+
+  const revealStorageKey = `broadcast:screen-workflow:revealed:${screen}`;
+  const clearReveal = useCallback(() => {
+    revealedEpochRef.current = null;
+    setRevealedEpoch(null);
+    try { window.localStorage.removeItem(revealStorageKey); } catch { /* Storage can be unavailable in kiosk privacy modes. */ }
+  }, [revealStorageKey]);
+  const rememberReveal = useCallback((next: WorkflowView) => {
+    if (!next.state) return;
+    const epoch = workflowEpoch(next.state);
+    revealedEpochRef.current = epoch;
+    setRevealedEpoch(epoch);
+    try { window.localStorage.setItem(revealStorageKey, epoch); } catch { /* The in-memory latch still protects this tab. */ }
+  }, [revealStorageKey]);
+
+  useEffect(() => {
+    let saved: string | null = null;
+    try { saved = window.localStorage.getItem(revealStorageKey); } catch { /* Start without a persisted latch. */ }
+    revealedEpochRef.current = saved;
+    setRevealedEpoch(saved);
+  }, [revealStorageKey]);
 
   const suspendAudibleMedia = useCallback(() => {
     const mediaElements = Array.from(contentRef.current?.querySelectorAll<HTMLMediaElement>("audio, video") ?? []);
@@ -79,12 +120,16 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
       try {
         const response = await fetch(`/api/screen-workflow?screen=${screen}${watching.current ? "&handoff=1" : ""}`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
         if (!response.ok) throw new Error();
-        const next = await response.json() as WorkflowView;
+        const polled = await response.json() as WorkflowView;
         if (!disposed && !inFlight.current) {
           const old = latest.current;
-          if (next.state?.sessionId !== old?.state?.sessionId || (next.state?.revision ?? 0) >= (old?.state?.revision ?? 0)) {
+          const next = mergeWorkflowView(old, polled);
+          const savedEpoch = revealedEpochRef.current;
+          if (next.state && savedEpoch && savedEpoch !== workflowEpoch(next.state)) clearReveal();
+          if (workflowViewChanged(old, next)) {
             latest.current = next; setView(next);
           }
+          if (screenCanReveal(next, screen)) rememberReveal(next);
           setConnected(true);
         }
       } catch { if (!disposed) setConnected(false); }
@@ -92,7 +137,7 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
     };
     void poll();
     return () => { disposed = true; clearTimeout(timer); };
-  }, [screen]);
+  }, [clearReveal, rememberReveal, screen]);
 
   useEffect(() => {
     const check = () => {
@@ -135,11 +180,19 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
     !view?.state?.applied.includes(target) && !view?.readyDisplays?.includes(target)) ?? [];
   useEffect(() => {
     if (!handoff) return;
-    if (handoff.sessionId !== sessionId || handoff.run !== run) {
-      watching.current = false; setHandoff(null); setConfirmed(false);
-    } else if (handoff.saved && minimumElapsed && waiting.length === 0) {
-      setConfirmed(true);
-    }
+    const stale = handoff.sessionId !== sessionId || handoff.run !== run;
+    const readyToConfirm = !stale && handoff.saved && minimumElapsed && waiting.length === 0;
+    if (!stale && !readyToConfirm) return;
+    if (stale) watching.current = false;
+    const timer = window.setTimeout(() => {
+      if (stale) {
+        setHandoff(null);
+        setConfirmed(false);
+      } else {
+        setConfirmed(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [handoff, sessionId, run, minimumElapsed, waiting.length]);
 
   useEffect(() => {
@@ -160,10 +213,10 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
         run: workflowRun(view.state), targets: [], saved: false });
     }
     try {
-      // Stop sound on the screen being handed off. Retained screens restore
-      // exactly the media that was audible on the viewer's next interaction.
-      // Screen 12 is the final published output, so it keeps playing.
-      if (screen <= 11) suspendAudibleMedia();
+      // Stop sound only on screens that hand off to a new editing step.
+      // Screens 11 and 12 are final programme outputs and keep playing after
+      // their Broadcast/Publish action confirms successfully.
+      if (screen <= 10) suspendAudibleMedia();
       if (screen === 5) window.dispatchEvent(new Event("apply-screen-audio"));
       if (screen === 6) window.dispatchEvent(new Event("apply-screen-brightness"));
       if (screen === 7) window.dispatchEvent(new Event("apply-screen-background"));
@@ -171,7 +224,10 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
       if (screen === 9) window.dispatchEvent(new Event("apply-screen-industry"));
       if (screen === 10) window.dispatchEvent(new Event("apply-screen-brand"));
       await flushScreenSelections();
-      if (retained) {
+      // A reveal latch only keeps content mounted across refreshes. It does
+      // not mean this workflow step was applied. Only skip the workflow POST
+      // when the server has actually recorded this screen as applied.
+      if (applied) {
         setHandoff(current => current && { ...current, saved: true });
         return;
       }
@@ -181,6 +237,7 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
       });
       const next = await response.json();
       if (!response.ok) throw new Error(next.error || "Unable to save progress");
+      if (screenCanReveal(next, screen)) rememberReveal(next);
       latest.current = next; setView(next);
       if (screen <= 10) {
         const targets = (next.active as number[]).filter(target => !view.active.includes(target));
@@ -192,7 +249,8 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
 
   const showApplied = handoff ? confirmed : applied && !dirty && !error;
   const applying = Boolean(handoff && !confirmed);
-  const showContent = visible || Boolean(handoff);
+  const showContent = visible || latched || Boolean(handoff);
+  const workflowResolved = view !== null;
   return (
     <div className={`${poppins.className} relative min-h-screen bg-black text-white`}>
       {showContent ? (
@@ -207,16 +265,19 @@ function ScreenWorkflowGate({ screen, children }: { screen: number; children: Re
             >{children}</div>
           </WorkflowDirtyContext.Provider>
         </WorkflowReadyContext.Provider>
-      ) : (
-        <div className="fixed inset-0 flex items-center justify-center bg-black">
-          {/* Keep the existing branded intro looping while this display waits. */}
-          <img src="/amagi-logo-white.svg" alt="Amagi" className="w-64 max-w-[60vw]" />
-          {!(screen === 12 && applied) && <video autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover" onError={event => { event.currentTarget.style.display = "none"; }}>
-            <source src="/bg-video/1.1.mp4" type="video/mp4" />
-          </video>}
+      ) : workflowResolved ? (
+        <div className="fixed inset-0 bg-black">
+          <video autoPlay muted loop playsInline preload="auto" aria-label="Amagi demo logo" className="h-full w-full object-cover" onError={event => { event.currentTarget.style.display = "none"; }}>
+            <source src="/bg-video/amagi_demo_logo.mp4" type="video/mp4" />
+          </video>
         </div>
+      ) : (
+        // Do not flash the branded waiting loop while the first workflow
+        // request is unresolved. The correct content or waiting state replaces
+        // this neutral surface without mounting and immediately remounting it.
+        <div className="fixed inset-0 bg-black" aria-label="Loading screen state" />
       )}
-      {showContent && <div className={`fixed right-6 z-[9999] flex max-w-sm flex-col items-end gap-3 ${screen === 11 ? "top-6" : "bottom-6"}`}>
+      {showContent && <div className={`fixed right-6 z-[9999] flex max-w-sm origin-bottom-right flex-col items-end gap-3 ${screen === 11 ? "top-6" : "bottom-6"} ${screen <= 10 ? "scale-75" : ""}`}>
         <p role="status" className="rounded-lg bg-black/80 px-3 py-2 text-sm empty:hidden">
           {error || (applying && minimumElapsed && waiting.length ? `Waiting for Screen ${waiting.join(" and ")}…` : applying || confirmed ? "" : !connected ? "Connecting to screens…" : busy ? "Saving…" : active && !enabled ? "Preparing content…" : "")}
         </p>

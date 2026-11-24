@@ -6,7 +6,7 @@ import { Icon, SectionHeading, SettingsPanel } from "./settings-primitives";
 export type AdminRoleView = { id: string; slug: string; name: string; description: string | null; permissions: string[]; isSystem: boolean; _count: { users: number } };
 const groups = [
   ["Workspace", ["dashboard.read", "settings.read", "settings.manage"]],
-  ["Studio & screens", ["studio.read", "studio.control", "screens.read", "screens.manage", "logs.read"]],
+  ["Studio & screens", ["studio.read", "studio.control", "screens.read", "screens.manage"]],
   ["Records", ["feedback.read", "feedback.manage", "consents.read", "consents.manage"]],
   ["Access control", ["users.read", "users.create", "users.update", "users.disable", "roles.read", "roles.manage"]],
 ] as const;

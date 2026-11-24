@@ -8,6 +8,7 @@ import { useSelectedBrightness } from "@/lib/use-selected-brightness";
 import { fetchCurrentSession } from "@/lib/current-session";
 import { useScreenPublication } from "@/lib/use-screen-publication";
 import { abroSans } from "@/lib/abro-sans";
+import SoundToggle from "@/components/sound-toggle";
 
 const MIN_BRIGHTNESS = 0;
 const MAX_BRIGHTNESS = 200;
@@ -37,6 +38,7 @@ export default function Screen6BrightnessPlayer() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const publication = useScreenPublication<{ videoUrl: string; filename: string }>(6);
   const [comparing, setComparing] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
 
   const changeBrightness = useCallback((value: number) => setDraft(clampBrightness(value)), []);
   useEffect(() => {
@@ -61,6 +63,20 @@ export default function Screen6BrightnessPlayer() {
     if (!videoUrl || !videoRef.current) return;
     videoRef.current.play().catch(() => {});
   }, [videoUrl]);
+
+  const toggleSound = useCallback(() => {
+    const video = videoRef.current;
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    if (!video) return;
+    video.muted = !next;
+    if (next) {
+      void video.play().catch(() => {
+        video.muted = true;
+        setSoundEnabled(false);
+      });
+    }
+  }, [soundEnabled]);
 
   useEffect(() => {
     let disposed = false;
@@ -91,7 +107,7 @@ export default function Screen6BrightnessPlayer() {
         onPointerCancel={() => setComparing(false)} onBlur={() => setComparing(false)}
         onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); setComparing(true); } }}
         onKeyUp={event => { if (event.key === " " || event.key === "Enter") setComparing(false); }}>
-        {videoUrl && <video ref={videoRef} key={videoUrl} src={videoUrl} muted autoPlay loop playsInline
+        {videoUrl && <video ref={videoRef} key={videoUrl} src={videoUrl} muted={!soundEnabled} autoPlay loop playsInline
           style={{ filter: `brightness(${comparing ? 100 : brightness}%)` }} />}
       </button>
       <div className={styles.badge}><i aria-hidden="true" /><strong className={`${abroSans.className} font-normal`}>Edited video</strong><span>{remoteBrightness}% on air</span></div>
@@ -107,10 +123,7 @@ export default function Screen6BrightnessPlayer() {
           min={MIN_BRIGHTNESS} max={MAX_BRIGHTNESS} value={brightness}
           onChange={event => changeBrightness(Number(event.target.value))} />
       </div>
-      <div className={styles.footer}>
-        <span>{publication.status === "failed" ? "Next reel failed · showing last good reel" : publication.status === "preparing" ? `Preparing next reel${publication.progress ? " · " + publication.progress.completed + "/" + publication.progress.total : "…"}` : "Hold the video to compare"}</span>
-        {brightness !== 100 && <button type="button" onClick={() => changeBrightness(100)}>Reset to 100%</button>}
-      </div>
+      <SoundToggle enabled={soundEnabled} onToggle={toggleSound} />
     </main>
   );
 }

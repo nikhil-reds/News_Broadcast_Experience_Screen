@@ -4,6 +4,19 @@ const QWEN_TRANSLATION_URL = (
 export const QWEN_TRANSLATION_MODEL =
   process.env.QWEN_TRANSLATION_MODEL || process.env.QWEN_MODEL || "qwen2.5:3b";
 export const QWEN_MODEL = QWEN_TRANSLATION_MODEL;
+const QWEN_REQUEST_TIMEOUT_MS = parseInt(
+  process.env.QWEN_REQUEST_TIMEOUT_MS || String(10 * 60 * 1000),
+  10
+);
+const QWEN_NUM_PREDICT = parseInt(process.env.QWEN_NUM_PREDICT || "1024", 10);
+const QWEN_KEEP_ALIVE = process.env.QWEN_KEEP_ALIVE || "30m";
+
+class QwenTimeoutError extends Error {
+  constructor() {
+    super(`Qwen request timed out after ${Math.round(QWEN_REQUEST_TIMEOUT_MS / 60000)} minutes`);
+    this.name = "QwenTimeoutError";
+  }
+}
 
 const LANGUAGE_RULES: Record<string, string> = {
   German: "Write idiomatic, grammatically correct standard German as a native broadcast journalist. Translate meaning, not word order; use correct articles, cases, adjective endings, and natural verb placement. Preserve names, numbers, dates, and terminology consistently. Output German sentences only—never English, Dutch, literal machine phrasing, or translator commentary.",
@@ -33,8 +46,7 @@ function validateTranslation(texts: string[], sourceTexts: string[], targetLangu
 /** Call the Qwen (ollama) model with a prompt and return the raw response text. */
 export async function callQwen(prompt: string, json: boolean): Promise<string> {
   const controller = new AbortController();
-  // Qwen on CPU can be slow; allow up to 5 minutes.
-  const timeoutId = setTimeout(() => controller.abort(), 300000);
+  const timeoutId = setTimeout(() => controller.abort(), QWEN_REQUEST_TIMEOUT_MS);
   try {
     const res = await fetch(`${QWEN_TRANSLATION_URL}/api/generate`, {
       method: "POST",
@@ -43,14 +55,20 @@ export async function callQwen(prompt: string, json: boolean): Promise<string> {
         model: QWEN_TRANSLATION_MODEL,
         prompt,
         stream: false,
+        keep_alive: QWEN_KEEP_ALIVE,
         ...(json ? { format: "json" } : {}),
-        options: { temperature: 0.1, num_ctx: 8192 },
+        options: { temperature: 0.1, num_ctx: 8192, num_predict: QWEN_NUM_PREDICT },
       }),
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`Qwen HTTP ${res.status}`);
     const body = await res.json();
     return String(body.response || "").trim();
+  } catch (error) {
+    if (controller.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+      throw new QwenTimeoutError();
+    }
+    throw error;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -79,7 +97,8 @@ export async function translateBatch(
       const translated = arr.map((t) => String(t).trim());
       if (validateTranslation(translated, texts, targetLanguage)) return translated;
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof QwenTimeoutError) throw error;
     /* fall through to per-item */
   }
   return null;
@@ -97,7 +116,8 @@ export async function translateOne(text: string, targetLanguage: string): Promis
   try {
     const raw = await callQwen(prompt, false);
     return validateTranslation([raw], [text], targetLanguage) ? raw : text;
-  } catch {
+  } catch (error) {
+    if (error instanceof QwenTimeoutError) throw error;
     return text;
   }
 }
@@ -140,7 +160,8 @@ export async function translateText(text: string, targetLanguage: string): Promi
       const translated = parsed.translation.trim();
       if (validateTranslation([translated], [text], targetLanguage)) return translated;
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof QwenTimeoutError) throw error;
     /* fall through to plain-text prompt */
   }
 

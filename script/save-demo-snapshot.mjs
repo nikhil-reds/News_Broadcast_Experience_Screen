@@ -9,7 +9,10 @@ import Redis from "ioredis";
 import { Client } from "minio";
 
 process.loadEnvFile();
-const root = resolve("public/demo/snapshot");
+const target = process.argv[3] || "snapshot";
+if (!new Set(["snapshot", "latest", "newest"]).has(target)) throw new Error(`Unsupported demo snapshot target: ${target}`);
+const root = resolve("public", "demo", target);
+const publicUrlRoot = `/demo/${target}`;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const redis = new Redis({ host: process.env.REDIS_HOST || "localhost", port: Number(process.env.REDIS_PORT || 6379), maxRetriesPerRequest: 1 });
 redis.on("error", () => {});
@@ -34,7 +37,7 @@ async function copyAsset(bucket, key, preserveName) {
     await pipeline(await minio.getObject(bucket, key), createWriteStream(destination + ".partial"));
     await rename(destination + ".partial", destination);
   }
-  const url = `/demo/snapshot/assets/${name.split("/").map(encodeURIComponent).join("/")}`;
+  const url = `${publicUrlRoot}/assets/${name.split("/").map(encodeURIComponent).join("/")}`;
   assets[identity] = url;
   copied++;
   return url;
@@ -108,5 +111,5 @@ try {
   await mkdir(root, { recursive: true });
   await writeFile(join(root, "snapshot.json.partial"), JSON.stringify(snapshot, null, 2) + "\n");
   await rename(join(root, "snapshot.json.partial"), join(root, "snapshot.json"));
-  console.log(`Saved session ${id}: ${copied} completed assets, ${Object.keys(transcripts).length} transcripts, ${Object.keys(composites).length} backgrounds. No workers queued.`);
+  console.log(`Saved session ${id} to public/demo/${target}: ${copied} completed assets, ${Object.keys(transcripts).length} transcripts, ${Object.keys(composites).length} backgrounds. No workers queued.`);
 } finally { await pool.end(); redis.disconnect(); }

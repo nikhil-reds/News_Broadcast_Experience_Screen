@@ -5,7 +5,7 @@ import { poppins } from "@/lib/poppins";
 
 export const metadata: Metadata = {
   title: "Broadcast Outputs | News Simulation",
-  description: "Preview all six responsive broadcast outputs.",
+  description: "Preview all seven responsive broadcast outputs.",
 };
 
 type BroadcastOutput = {
@@ -25,6 +25,7 @@ const outputs: readonly BroadcastOutput[] = [
   { number: "04", name: "Landscape Tablet", ratio: "4:3", detail: "Horizontal tablet", frame: "h-[13rem] aspect-[4/3]" },
   { number: "05", name: "Landscape Tablet + Audio", ratio: "4:3", detail: "Tablet with broadcast audio", frame: "h-[13rem] aspect-[4/3]", audio: true },
   { number: "06", name: "TV / Large Display", ratio: "16:9", detail: "Landscape television", frame: "h-[10.5rem] aspect-video" },
+  { number: "07", name: "Portrait Mobile + Audio", ratio: "9:16", detail: "Vertical phone with broadcast audio", frame: "h-[14.5rem] aspect-[9/16]", notch: true, audio: true },
 ];
 
 export default function BroadcastPage() {
@@ -49,9 +50,11 @@ export default function BroadcastPage() {
           <div className="flex flex-wrap items-center gap-2.5 text-xs text-[#d0ccd6]">
             <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[.07] px-4 py-2.5 shadow-[inset_0_1px_rgba(255,255,255,.06)]">
               <i className="size-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,.8)]" aria-hidden="true" />
-              6 live outputs
+              7 live outputs
             </span>
-            <span className="rounded-full border border-white/10 bg-white/[.045] px-4 py-2.5 shadow-[inset_0_1px_rgba(255,255,255,.05)]">Responsive previews</span>
+            <span className="rounded-full border border-white/10 bg-white/[.045] px-4 py-2.5 shadow-[inset_0_1px_rgba(255,255,255,.05)]">3 Mobile</span>
+            <span className="rounded-full border border-white/10 bg-white/[.045] px-4 py-2.5 shadow-[inset_0_1px_rgba(255,255,255,.05)]">3 Tablet</span>
+            <span className="rounded-full border border-white/10 bg-white/[.045] px-4 py-2.5 shadow-[inset_0_1px_rgba(255,255,255,.05)]">1 Big display</span>
           </div>
         </header>
 

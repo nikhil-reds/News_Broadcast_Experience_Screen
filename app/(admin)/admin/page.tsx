@@ -96,7 +96,6 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
       <section className={styles.failureBanner} aria-label="Failures needing review">
         <i aria-hidden="true" />
         <p><strong>{failedSessions}</strong> sessions and <strong>{failedTasks}</strong> tasks failed in this period</p>
-        <Link href="/admin/generation-logs?status=failed">Review failures</Link>
       </section>
 
       <section className={styles.primaryGrid} aria-label="Pipeline summary">

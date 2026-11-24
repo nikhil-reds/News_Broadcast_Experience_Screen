@@ -1,10 +1,9 @@
 "use client";
 import { useWorkflowDirty, useWorkflowReady } from "@/lib/workflow-ready";
 import { selectionFetch } from "@/lib/screen-selection-writes";
-import { DEFAULT_VOICE_ID, VOICE_PROFILES, isVoiceId, voiceProfile, type VoiceId } from "@/lib/voice-profiles";
+import { DEFAULT_VOICE_ID, isVoiceId, type VoiceId } from "@/lib/voice-profiles";
 import { abroSans } from "@/lib/abro-sans";
-
-
+import SoundToggle from "@/components/sound-toggle";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./screen5.module.css";
 import { fetchCurrentSession } from "@/lib/current-session";
@@ -55,11 +54,15 @@ export default function Screen5Page() {
   const [languages, setLanguages] = useState<AudioLanguageEntry[]>(FALLBACK_LANGUAGES);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [previewPlaying, setPreviewPlaying] = useState(false);
   const [programmePlaying, setProgrammePlaying] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const skipClick = useRef(false);
-  const dragStart = useRef<number | null>(null);
-  const wheelTime = useRef(0);
+  const dragStart = useRef<{ x: number; index: number; step: number } | null>(null);
+  const wheelDelta = useRef(0);
+  const wheelReset = useRef<number | undefined>(undefined);
+  const soundEnabledRef = useRef(true);
   const selectionDirtyRef = useRef(false);
   const [voiceId, setVoiceId] = useState<VoiceId>(DEFAULT_VOICE_ID);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -67,11 +70,10 @@ export default function Screen5Page() {
   const [status, setStatus] = useState("Choose a language");
   const [retry, setRetry] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const previewRef = useRef<HTMLAudioElement | null>(null);
   const versionRef = useRef(0);
   const changedRef = useRef(false);
   const [saved, setSaved] = useState({ langCode: "en", voiceId: DEFAULT_VOICE_ID as VoiceId });
-  useWorkflowDirty(FALLBACK_LANGUAGES[highlightedIndex].langCode !== saved.langCode || voiceId !== saved.voiceId);
+  useWorkflowDirty(FALLBACK_LANGUAGES[highlightedIndex].langCode !== saved.langCode);
   const active = languages[activeIndex] ?? languages[0];
   const activeUrl = active?.original ? selectedUrl : active?.voiceId === voiceId ? active.url ?? "" : "";
   useWorkflowReady(Boolean(sessionId && activeUrl) && highlightedIndex === activeIndex && (active?.original || (active?.voiceId === voiceId && active?.ready)));
@@ -138,7 +140,7 @@ export default function Screen5Page() {
       socket.onclose = () => { if (!disposed) timer = window.setTimeout(() => void connect().catch(() => {}), WS_RECONNECT_MS); };
     };
     void connect().catch(() => setError("Unable to connect to session selection"));
-    return () => { disposed = true; window.clearTimeout(timer); socket?.close(); previewRef.current?.pause(); };
+    return () => { disposed = true; window.clearTimeout(timer); socket?.close(); };
   }, []);
 
   useEffect(() => {
@@ -167,6 +169,7 @@ export default function Screen5Page() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [highlightedIndex, moveTo]);
+  useEffect(() => () => window.clearTimeout(wheelReset.current), []);
   useEffect(() => {
     if (!changedRef.current) return;
     const timer = window.setTimeout(() => {
@@ -178,8 +181,6 @@ export default function Screen5Page() {
   useEffect(() => {
     const commit = () => {
       const audio = audioRef.current;
-      previewRef.current?.pause();
-      setPreviewPlaying(false);
       if (audio) {
         audio.pause();
         audio.muted = true;
@@ -240,66 +241,95 @@ export default function Screen5Page() {
   }, [selectedUrl, languageCode, languageName, voiceId, retry]);
 
   useEffect(() => {
-    previewRef.current?.pause();
-    const resetPreview = window.setTimeout(() => setPreviewPlaying(false), 0);
     const audio = audioRef.current;
-    if (!audio) return () => window.clearTimeout(resetPreview);
+    if (!audio) return;
     audio.pause();
-    if (activeUrl) { audio.load(); void audio.play().catch(() => {}); }
-    return () => window.clearTimeout(resetPreview);
+    audio.muted = !soundEnabledRef.current;
+    if (activeUrl) {
+      audio.load();
+      void audio.play().catch(() => {
+        audio.muted = true;
+        soundEnabledRef.current = false;
+        setSoundEnabled(false);
+        void audio.play().catch(() => {});
+      });
+    }
   }, [activeUrl]);
 
-  function chooseVoice(id: VoiceId) {
-    selectionDirtyRef.current = true;
-    previewRef.current?.pause(); audioRef.current?.pause(); setPreviewPlaying(false);
-    setVoiceId(id); setError(null);
-
+  function toggleSound() {
+    const next = !soundEnabledRef.current;
+    soundEnabledRef.current = next;
+    setSoundEnabled(next);
+    const audio = audioRef.current;
+    if (!next) {
+      if (audio) audio.muted = true;
+      return;
+    }
+    if (!audio) return;
+    audio.muted = false;
+    void audio.play().catch(() => {
+      audio.muted = true;
+      soundEnabledRef.current = false;
+      setSoundEnabled(false);
+    });
   }
-  function previewVoice() {
-    audioRef.current?.pause();
-    if (previewPlaying) { previewRef.current?.pause(); setPreviewPlaying(false); return; }
-    previewRef.current?.pause();
-    const sample = new Audio(languageCode !== "en" && activeUrl ? activeUrl : `/chatterbox-service/voices/${voiceId}.wav`);
-    previewRef.current = sample;
-    sample.onended = () => setPreviewPlaying(false);
-    sample.onpause = () => setPreviewPlaying(false);
-    void sample.play().then(() => setPreviewPlaying(true)).catch(() => { setPreviewPlaying(false); setError("Unable to play voice preview"); });
+  function endDrag(element?: HTMLElement, pointerId?: number) {
+    if (element && pointerId !== undefined && element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+    dragStart.current = null;
+    setDragOffset(0);
+    setIsDragging(false);
   }
   const selectedLanguage = FALLBACK_LANGUAGES[highlightedIndex];
   const nativeNames: Record<string, string> = { en: "English", de: "Deutsch", hi: "हिन्दी", fr: "Français", es: "Español" };
-  const gender = voiceProfile(voiceId).gender;
   const lines: Record<string,string> = { en: "Hello, I’ll be your voice for this broadcast.", de: "Hallo, ich bin Ihre Stimme für diese Sendung.", hi: "नमस्ते, इस प्रसारण में मैं आपकी आवाज़ हूँ।", fr: "Bonjour, je serai votre voix pour cette émission.", es: "Hola, seré tu voz para esta emisión." };
-  return <main className={styles.stage} data-playing={previewPlaying || programmePlaying}>
+  return <main className={styles.stage} data-playing={programmePlaying}>
     <div className={styles.aurora} aria-hidden="true"><i /><i /><i /></div>
     <header className={styles.header}>
       <div className={styles.badge}><span aria-hidden="true" />Multi language</div>
-      <div className={styles.voice} role="group" aria-label="Voice">
-        {VOICE_PROFILES.map(voice => <button key={voice.id} type="button" aria-pressed={voiceId === voice.id}
-          onClick={() => chooseVoice(voice.id)}>{voice.gender === "male" ? "Male" : "Female"}</button>)}
-      </div>
     </header>
     <section className={styles.hero} aria-label="Selected language">
       <h1 key={selectedLanguage.langCode} className={`${abroSans.className} ${styles.name}`}>{selectedLanguage.language}</h1>
       <p className={styles.native} lang={selectedLanguage.langCode}>{nativeNames[selectedLanguage.langCode]}</p>
       <p className={styles.description}>{lines[selectedLanguage.langCode]}</p>
-      <button className={styles.listen} type="button" onClick={previewVoice} disabled={highlightedIndex !== activeIndex || (languageCode !== "en" && !activeUrl)}>
-        <span className={styles.disc} aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          {previewPlaying ? <rect x="4" y="4" width="8" height="8" rx="1" /> : <path d="M5 2v12l9-6z" />}
-        </svg></span>
-        {previewPlaying ? "Stop preview" : `Hear ${gender} voice`}
-      </button>
       <div className={styles.status} role="status">
         {error ? <span className={styles.error}>{error} <button onClick={() => setRetry(n => n + 1)}>Retry</button></span> :
-          status !== "Ready" && status !== "Original recording" ? status : languageCode === "en" && activeUrl ? <button type="button" onClick={() => { previewRef.current?.pause(); const audio = audioRef.current; if (!audio) return; if (audio.paused) void audio.play().catch(() => setError("Unable to play original recording")); else audio.pause(); }}>{programmePlaying ? "Pause" : "Play"} original recording</button> : ""}
+          status !== "Ready" && status !== "Original recording" ? status : ""}
       </div>
     </section>
-    <nav className={styles.bezel} aria-label="Choose broadcast language"
-      onPointerDown={event => { skipClick.current = false; dragStart.current = event.clientX; }}
-      onPointerUp={event => {
-        if (dragStart.current !== null && Math.abs(event.clientX - dragStart.current) > 40) { skipClick.current = true; moveTo(highlightedIndex + (event.clientX < dragStart.current ? 1 : -1)); }
-        dragStart.current = null;
-      }} onPointerCancel={() => { dragStart.current = null; }}
-      onWheel={event => { if (Date.now() - wheelTime.current > 350 && Math.abs(event.deltaY) > 15) { wheelTime.current = Date.now(); moveTo(highlightedIndex + Math.sign(event.deltaY)); } }}>
+    <nav className={styles.bezel} data-dragging={isDragging} aria-label="Choose broadcast language"
+      onPointerDown={event => {
+        if (event.button !== 0) return;
+        skipClick.current = false;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragStart.current = { x: event.clientX, index: highlightedIndex, step: 0 };
+        setIsDragging(true);
+      }}
+      onPointerMove={event => {
+        const drag = dragStart.current;
+        if (!drag) return;
+        const dx = event.clientX - drag.x;
+        const step = Math.trunc(-dx / 56);
+        if (step !== drag.step) {
+          drag.step = step;
+          moveTo(drag.index + step);
+        }
+        setDragOffset(dx + step * 56);
+        if (Math.abs(dx) > 8) skipClick.current = true;
+      }}
+      onPointerUp={event => endDrag(event.currentTarget, event.pointerId)}
+      onPointerCancel={event => endDrag(event.currentTarget, event.pointerId)}
+      onWheel={event => {
+        event.preventDefault();
+        const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+        wheelDelta.current += delta;
+        const steps = Math.trunc(wheelDelta.current / 42);
+        if (steps) {
+          moveTo(highlightedIndex + steps);
+          wheelDelta.current -= steps * 42;
+        }
+        window.clearTimeout(wheelReset.current);
+        wheelReset.current = window.setTimeout(() => { wheelDelta.current = 0; }, 140);
+      }}>
       <div className={styles.ticks} aria-hidden="true">{Array.from({length: 41}, (_, index) => {
         const x = (index - 20) / 20;
         return <i key={index} style={{left: `${index * 2.5}%`, top: `${x * x * 60}px`, transform: `rotate(${x * 22}deg)`}} />;
@@ -307,12 +337,14 @@ export default function Screen5Page() {
       <div className={styles.needle} aria-hidden="true" />
       <div className={styles.languages}>{FALLBACK_LANGUAGES.map((language, index) => {
         const offset = wrapIndex(index - highlightedIndex + 2, FALLBACK_LANGUAGES.length) - 2;
+        const visualOffset = offset + dragOffset / 56;
         return <button key={language.langCode} type="button" aria-pressed={index === highlightedIndex}
           className={styles.language} onClick={() => { if (!skipClick.current) moveTo(index); skipClick.current = false; }}
-          style={{left: `${50 + offset * 19}%`, top: `${42 + offset * offset * 15}px`, opacity: index === highlightedIndex ? 1 : 0.5}}>{language.language}</button>;
+          style={{left: `${50 + visualOffset * 19}%`, top: `${32 + visualOffset * visualOffset * 11}px`, opacity: index === highlightedIndex ? 1 : 0.42}}>{language.language}</button>;
       })}</div>
       <span className={styles.hint}>Drag to tune · ← →</span>
     </nav>
     <audio ref={audioRef} src={activeUrl || undefined} loop onPlaying={() => setProgrammePlaying(true)} onPause={() => setProgrammePlaying(false)} preload="auto" className={styles.audio} aria-label="Selected language and voice" />
+    <SoundToggle enabled={soundEnabled} onToggle={toggleSound} />
   </main>;
 }

@@ -10,9 +10,10 @@ import { AD_INDUSTRIES } from "@/lib/ad-catalog";
 const STATE_KEY = "broadcast:saved-demo:state";
 const LOCK_KEY = "broadcast:saved-demo:lock";
 export const DEMO_DURATION_MS = 15 * 60_000;
+export type DemoSource = "saved" | "latest" | "newest";
 export interface DemoState {
   active: boolean; sessionId: string | null; startedAt: string | null; endsAt: string | null;
-  stoppedReason: string | null; revision: number;
+  stoppedReason: string | null; revision: number; source: DemoSource | null;
 }
 export interface DemoPlayback extends DemoState {
   session: SavedDemoPackage["session"] | null;
@@ -22,21 +23,25 @@ export interface DemoPlayback extends DemoState {
 }
 const inactive = (revision = 0, stoppedReason: string | null = null): DemoPlayback => ({
   active: false, sessionId: null, startedAt: null, endsAt: null, stoppedReason, revision,
-  session: null, workflow: null, readyDisplays: [], resumeSessionId: null,
+  source: null, session: null, workflow: null, readyDisplays: [], resumeSessionId: null,
 });
 function publicState(state: DemoPlayback): DemoState {
-  const { active, sessionId, startedAt, endsAt, stoppedReason, revision } = state;
-  return { active, sessionId, startedAt, endsAt, stoppedReason, revision };
+  const { active, sessionId, startedAt, endsAt, stoppedReason, revision, source = null } = state;
+  return { active, sessionId, startedAt, endsAt, stoppedReason, revision, source };
 }
-let cachedPackage: { mtime: number; data: SavedDemoPackage } | undefined;
-export async function savedDemoPackage(): Promise<SavedDemoPackage> {
-  const path = join(process.cwd(), "public", "demo", "snapshot", "snapshot.json");
+const cachedPackages: Partial<Record<DemoSource, { mtime: number; data: SavedDemoPackage }>> = {};
+export async function savedDemoPackage(source: DemoSource = "saved"): Promise<SavedDemoPackage> {
+  const directory = source === "saved" ? "snapshot" : source;
+  const path = join(process.cwd(), "public", "demo", directory, "snapshot.json");
   const info = await stat(path).catch(() => null);
-  if (!info) throw new Error("Save the current footage with npm run demo:save before starting Demo.");
+  if (!info) throw new Error(source === "saved"
+    ? "Save the current footage with npm run demo:save before starting Demo."
+    : `The fixed ${source === "newest" ? "Newest" : "Latest"} Demo package is missing. Create public/demo/${directory} before starting it.`);
+  const cachedPackage = cachedPackages[source];
   if (cachedPackage?.mtime === info.mtimeMs) return cachedPackage.data;
   const data = JSON.parse(await readFile(path, "utf8")) as SavedDemoPackage;
   if (data.version !== 2 || !data.recordings?.length || !data.audioFiles?.length) throw new Error("The saved demo package is incomplete.");
-  cachedPackage = { mtime: info.mtimeMs, data };
+  cachedPackages[source] = { mtime: info.mtimeMs, data };
   return data;
 }
 async function readState(): Promise<DemoPlayback> {
@@ -59,8 +64,8 @@ export async function getDemoPlayback(): Promise<DemoPlayback> {
 }
 export async function getDemoState(): Promise<DemoState> { return publicState(await getDemoPlayback()); }
 
-export async function startDemo(): Promise<DemoState> {
-  const snapshot = await savedDemoPackage();
+export async function startDemo(source: DemoSource = "saved"): Promise<DemoState> {
+  const snapshot = await savedDemoPackage(source);
   await Promise.all(Object.values(snapshot.assets).map(url => stat(join(process.cwd(), "public", decodeURIComponent(url))).then(info => {
     if (!info.size) throw new Error("A saved demo asset is empty. Save the demo package again.");
   })));
@@ -72,6 +77,7 @@ export async function startDemo(): Promise<DemoState> {
     const state: DemoPlayback = {
       active: true, sessionId: id, startedAt: new Date(now).toISOString(), endsAt: new Date(now + DEMO_DURATION_MS).toISOString(),
       stoppedReason: null, revision: existing.revision + 1,
+      source,
       resumeSessionId: await redisConnection.get("broadcast:active-session-id"),
       session: { ...snapshot.session, id },
       workflow: { sessionId: id, revision: 0, applied: [], restartAt: now, publishedAt: null }, readyDisplays: [],

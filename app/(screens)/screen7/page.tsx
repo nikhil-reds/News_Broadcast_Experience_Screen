@@ -13,6 +13,7 @@ import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 import { DEFAULT_VOICE_ID, isVoiceId, type VoiceId } from "@/lib/voice-profiles";
 import { useSelectedBrightness } from "@/lib/use-selected-brightness";
 import { abroSans } from "@/lib/abro-sans";
+import SoundToggle from "@/components/sound-toggle";
 
 type ComposeStatus = "waiting" | "active" | "delayed" | "paused" | "completed" | "fallback-ready" | "failed";
 
@@ -116,6 +117,8 @@ export default function Screen7Page() {
   // Screen 7 keeps audio separate from the visual composite so Screen 5's
   // selected language can drive playback. Autoplay can still need a gesture.
   const [soundBlocked, setSoundBlocked] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const soundEnabledRef = useRef(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -175,15 +178,14 @@ export default function Screen7Page() {
   const selectedAudioUrl = english
     ? null
     : selectedAudioEntry?.voiceId === voiceId ? selectedAudioEntry.url : null;
-  const selectedAudioLabel = selectedAudioEntry?.original
-    ? "Original audio"
-    : selectedAudioEntry?.ready && selectedAudioEntry.voiceId === voiceId && selectedAudioEntry.url
-      ? `${selectedAudioEntry.language} ${voiceId === "indian-male-01" ? "male" : "female"} audio`
-      : `Preparing ${selectedAudioEntry?.language ?? "selected"} voice`
-
   const playSelectedAudio = useCallback(() => {
     const video = videoRef.current;
     if (!video || video.readyState < 2) return;
+    if (!soundEnabledRef.current) {
+      video.muted = true;
+      audioRef.current?.pause();
+      return;
+    }
     video.muted = !english;
     const media = english ? video : audioRef.current;
     if (!media || (!english && (!selectedAudioUrl || video.paused))) return;
@@ -199,6 +201,19 @@ export default function Screen7Page() {
       }
     });
   }, [english, selectedAudioUrl]);
+  const toggleSound = useCallback(() => {
+    const currentlyAudible = soundEnabledRef.current && !soundBlocked;
+    const next = !currentlyAudible;
+    soundEnabledRef.current = next;
+    setSoundEnabled(next);
+    setSoundBlocked(false);
+    if (!next) {
+      if (videoRef.current) videoRef.current.muted = true;
+      audioRef.current?.pause();
+      return;
+    }
+    playSelectedAudio();
+  }, [playSelectedAudio, soundBlocked]);
   const persistBackgroundSelection = (backgroundId: string) => {
     if (sessionIdRef.current) {
       patchSession(sessionIdRef.current, { selectedBackgroundId: backgroundId });
@@ -824,7 +839,7 @@ export default function Screen7Page() {
                 src={videoSrc}
                 autoPlay
                 loop
-                muted={!english}
+                muted={!soundEnabled || !english}
                 playsInline
                 onError={handleVideoError}
                 onLoadedData={() => {
@@ -838,7 +853,7 @@ export default function Screen7Page() {
                 style={{ filter: `brightness(${brightness}%)` }}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-600 text-sm">
+              <div className="w-full h-full flex items-center justify-center text-slate-600 text-[11px]">
                 {sourceFilename ? "Preparing first edited-background composite…" : "Waiting for edited video…"}
               </div>
             )}
@@ -858,18 +873,18 @@ export default function Screen7Page() {
                 style={{filter: `brightness(${brightness}%)`}} />
             )}
             {isProcessing && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-slate-950/80 backdrop-blur-sm">
-                <span className="w-12 h-12 rounded-full border-[3px] border-emerald-400 border-t-transparent animate-spin" />
-                <div className="w-56 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/80 backdrop-blur-sm">
+                <span className="h-9 w-9 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                <div className="h-1 w-42 rounded-full bg-slate-800 overflow-hidden">
                   <div className="h-full w-1/3 rounded-full bg-emerald-500 animate-[loaderSlide_1.1s_ease-in-out_infinite]" />
                 </div>
-                <p className="text-sm text-slate-200">
+                <p className="text-[11px] text-slate-200">
                   Preparing background… {elapsedSeconds}s
                 </p>
                 <button
                   type="button"
                   onClick={cancelWaiting}
-                  className="rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-emerald-400"
+                  className="rounded border border-slate-600 px-2.5 py-1 text-[10px] text-slate-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-emerald-400"
                 >
                   Stop waiting
                 </button>
@@ -878,12 +893,12 @@ export default function Screen7Page() {
           </div>
 
         {errorMessage && (
-          <div className="absolute left-1/2 top-20 z-20 -translate-x-1/2 rounded-xl border border-rose-500/30 bg-rose-950/85 p-3.5 text-xs text-rose-300 backdrop-blur-md">
+          <div className="absolute left-1/2 top-15 z-20 -translate-x-1/2 rounded-lg border border-rose-500/30 bg-rose-950/85 p-2.5 text-[10px] text-rose-300 backdrop-blur-md">
             {errorMessage}
           </div>
         )}
         {fallbackMessage && !errorMessage && (
-          <div className="absolute left-1/2 top-20 z-20 -translate-x-1/2 rounded-xl border border-amber-500/30 bg-amber-950/85 p-3.5 text-xs text-amber-200 backdrop-blur-md">
+          <div className="absolute left-1/2 top-15 z-20 -translate-x-1/2 rounded-lg border border-amber-500/30 bg-amber-950/85 p-2.5 text-[10px] text-amber-200 backdrop-blur-md">
             {fallbackMessage}
           </div>
         )}
@@ -899,9 +914,7 @@ export default function Screen7Page() {
             {preview?.id === bg.id && <b aria-hidden="true">✓</b>}
           </button>)}
         </nav>
-        <button className={styles.audio} type="button" onClick={playSelectedAudio} aria-label={soundBlocked ? "Enable selected audio" : selectedAudioLabel}>
-          <span aria-hidden="true">♫</span> Audio · {selectedAudioLabel}{soundBlocked && " · Enable sound"}
-        </button>
+        <SoundToggle enabled={soundEnabled && !soundBlocked} onToggle={toggleSound} />
         <div className={styles.hint}>Swipe to change, hold to compare</div>
       </main>
     </div>

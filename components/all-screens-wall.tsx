@@ -40,7 +40,7 @@ export default function AllScreensWall() {
             ) : (
             <button key={screen.number} type="button" onClick={() => setSelected(screen.number)} className="group relative min-h-0 min-w-0 overflow-hidden rounded-lg border border-slate-800 bg-slate-950 text-left transition duration-200 hover:z-10 hover:scale-[1.025] hover:border-cyan-400 hover:shadow-[0_0_22px_-10px_rgba(34,211,238,0.9)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300">
               <div className="absolute inset-0 overflow-hidden bg-slate-950">
-                <video src="/bg-video/1.1.mp4" autoPlay loop muted playsInline className="pointer-events-none h-full w-full object-cover" />
+                <video src="/bg-video/amagi_demo_logo.mp4" autoPlay loop muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" />
                 <div className="pointer-events-none absolute inset-0 bg-slate-950/20 transition group-hover:bg-slate-950/5" />
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between bg-slate-950/85 px-2 py-1.5"><span className="font-mono text-[10px] text-cyan-300">{String(screen.number).padStart(2, "0")}</span><span className="truncate pl-2 text-xs font-bold text-slate-100">{screen.title}</span></div>
               </div>

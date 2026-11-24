@@ -8,6 +8,7 @@ import React, {
   useRef,
 } from "react";
 import { abroSans } from "@/lib/abro-sans";
+import SoundToggle from "@/components/sound-toggle";
 import styles from "./transcription.module.css";
 
 interface TranscriptSegment {
@@ -357,8 +358,10 @@ export default function Screen4Page() {
   const [isLoadingScript, setIsLoadingScript] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   const audioRef = useRef<HTMLVideoElement | null>(null);
+  const soundEnabledRef = useRef(true);
   const teleprompterChunks = useMemo(() => createTeleprompterChunks(segments), [segments]);
   const playbackUrl = useMemo(
     () => (selectedUrl ? toAnalysableAudioUrl(selectedUrl) : null),
@@ -463,31 +466,41 @@ export default function Screen4Page() {
     audio.loop = true;
     audio.load();
     const beginPlayback = async () => {
+      audio.muted = !soundEnabledRef.current;
       try { await audio.play(); }
       catch {
         // Browsers can block audible autoplay. Keep captions looping silently
-        // until the viewer's next interaction permits sound.
+        // until the viewer explicitly enables sound with the sound control.
         if (disposed) return;
         audio.muted = true;
+        soundEnabledRef.current = false;
+        setSoundEnabled(false);
         await audio.play().catch(() => {});
       }
       if (disposed) audio.pause();
     };
-    const enableSound = () => {
-      if (disposed) return;
-      audio.muted = false;
-      void beginPlayback();
-    };
     void beginPlayback();
-    window.addEventListener("pointerdown", enableSound);
-    window.addEventListener("keydown", enableSound);
     return () => {
       disposed = true;
-      window.removeEventListener("pointerdown", enableSound);
-      window.removeEventListener("keydown", enableSound);
       audio.pause();
     };
   }, [selectedUrl]);
+
+  const toggleSound = useCallback(() => {
+    const audio = audioRef.current;
+    const next = !soundEnabledRef.current;
+    soundEnabledRef.current = next;
+    setSoundEnabled(next);
+    if (!audio) return;
+    audio.muted = !next;
+    if (next) {
+      void audio.play().catch(() => {
+        audio.muted = true;
+        soundEnabledRef.current = false;
+        setSoundEnabled(false);
+      });
+    }
+  }, []);
 
   const index = getActiveChunkIndex(teleprompterChunks, currentTime);
   const segment = teleprompterChunks[index];
@@ -540,7 +553,6 @@ export default function Screen4Page() {
         </div>
       </header>
       <section className={styles.captions}>
-        <span className={styles.speaker}><b aria-hidden="true"><i /><i /><i /></b>Master audio</span>
         <p className={styles.previous} key={`previous-${index}`} aria-hidden="true">{teleprompterChunks[index - 1]?.text}</p>
         <p className={styles.caption} key={`${selectedUrl}-${index}`} aria-hidden="true">
           {segment ? words.map((word, wordIndex) => (
@@ -556,6 +568,7 @@ export default function Screen4Page() {
         </p>
       </section>
       <Screen4Waveform audioRef={audioRef} isPlaying={isPlaying} sourceUrl={playbackUrl} />
+      <SoundToggle enabled={soundEnabled} onToggle={toggleSound} />
     </main>
   );
 }

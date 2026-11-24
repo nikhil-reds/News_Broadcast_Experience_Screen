@@ -1,401 +1,565 @@
 {
   "version": 2,
-  "sourceSessionId": "925ca97d-1cb3-4cab-b9c7-7023cd7fed20",
-  "createdAt": "2026-11-05T06:08:32.784Z",
+  "sourceSessionId": "7ca81bf3-a503-449c-95ef-5a8d1aa98591",
+  "createdAt": "2026-11-24T12:17:00.793Z",
   "session": {
-    "id": "925ca97d-1cb3-4cab-b9c7-7023cd7fed20",
-    "seq": 147,
+    "id": "7ca81bf3-a503-449c-95ef-5a8d1aa98591",
+    "seq": 11,
     "status": "ready",
     "pipelineStatus": "ready",
-    "selectedBackgroundId": "bg-markets-1920x1080",
-    "selectedSubtitleLanguage": "German",
-    "selectedAudioLanguage": "French",
-    "selectedBrightness": 56,
-    "startedAt": "2026-10-27T07:29:28.922Z",
-    "endedAt": "2026-10-27T07:29:54.529Z"
+    "selectedBackgroundId": "bg-newsroom-1920x1080",
+    "selectedSubtitleLanguage": "English",
+    "selectedAudioLanguage": "English",
+    "selectedBrightness": 100,
+    "startedAt": "2026-11-24T06:40:54.672Z",
+    "endedAt": "2026-11-24T06:41:25.807Z"
   },
   "recordings": [
     {
-      "filename": "highlight-2026-10-27T12-59-54-536Z.mp4",
-      "url": "/demo/snapshot/assets/09e370b4b21ede069401/highlight-2026-10-27T12-59-54-536Z.mp4",
-      "size": 5560377,
-      "createdAt": "2026-10-27T07:29:58.397Z"
+      "filename": "highlight-2026-11-24T12-11-25-395Z.mp4",
+      "url": "/demo/snapshot/assets/1819f52f519d1c18f900/highlight-2026-11-24T12-11-25-395Z.mp4",
+      "size": 3162785,
+      "createdAt": "2026-11-24T06:41:42.724Z"
     },
     {
-      "filename": "camera-recording-2026-10-27T12-59-54-536Z.mp4",
-      "url": "/demo/snapshot/assets/954d103de6b325de11e5/camera-recording-2026-10-27T12-59-54-536Z.mp4",
-      "size": 7281973,
-      "createdAt": "2026-10-27T07:29:54.807Z"
+      "filename": "camera-recording-2026-11-24T12-11-25-395Z.mp4",
+      "url": "/demo/snapshot/assets/567c39d61706a65aaad1/camera-recording-2026-11-24T12-11-25-395Z.mp4",
+      "size": 9779390,
+      "createdAt": "2026-11-24T06:41:25.798Z"
     },
     {
-      "filename": "camera2-recording-2026-10-27T12-59-54-537Z.mp4",
-      "url": "/demo/snapshot/assets/78d9237c3262e8930744/camera2-recording-2026-10-27T12-59-54-537Z.mp4",
-      "size": 6950147,
-      "createdAt": "2026-10-27T07:29:54.734Z"
+      "filename": "camera3-recording-2026-11-24T12-11-25-396Z.mp4",
+      "url": "/demo/snapshot/assets/8024deefe0bf479f9967/camera3-recording-2026-11-24T12-11-25-396Z.mp4",
+      "size": 9324895,
+      "createdAt": "2026-11-24T06:41:25.764Z"
     },
     {
-      "filename": "camera3-recording-2026-10-27T12-59-54-537Z.mp4",
-      "url": "/demo/snapshot/assets/95d6f805e522a7b2a3ad/camera3-recording-2026-10-27T12-59-54-537Z.mp4",
-      "size": 6859766,
-      "createdAt": "2026-10-27T07:29:54.732Z"
+      "filename": "camera2-recording-2026-11-24T12-11-25-396Z.mp4",
+      "url": "/demo/snapshot/assets/0de3171d87f89ca6da57/camera2-recording-2026-11-24T12-11-25-396Z.mp4",
+      "size": 9284104,
+      "createdAt": "2026-11-24T06:41:25.727Z"
     }
   ],
   "audioFiles": [
     {
-      "filename": "master-audio-2026-10-27T12-59-54-538Z.wav",
-      "url": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav",
-      "size": 371457,
-      "createdAt": "2026-10-27T07:29:54.752Z"
+      "filename": "master-audio-2026-11-24T12-11-25-397Z.wav",
+      "url": "/demo/snapshot/assets/13a690d295add1542107/master-audio-2026-11-24T12-11-25-397Z.wav",
+      "size": 494267,
+      "createdAt": "2026-11-24T06:41:25.693Z"
     }
   ],
   "translations": [
     {
-      "language": "French",
-      "langCode": "fr",
-      "voiceId": "indian-male-01",
-      "url": "/demo/snapshot/assets/6ba53f755e52b7532ef2/39f6794e-306f-42ed-b151-ad5ffcf36a2c.fr.indian-male-01.356712d031b258600f068983b6381f4c2b87fce03bf0cc297430265ff8bc0eb7.wav"
-    },
-    {
-      "language": "Spanish",
-      "langCode": "es",
-      "voiceId": "indian-male-01",
-      "url": "/demo/snapshot/assets/a7c6ce494a3580c8a3ac/186aef7c-93c1-4856-86da-47534b9aa535.es.indian-male-01.54a7663ddf9a8aedb93f8ca1c2f5ea8276f6d8fcb96867684aeccb9e14dbffbe.wav"
-    },
-    {
       "language": "Hindi",
       "langCode": "hi",
       "voiceId": "indian-male-01",
-      "url": "/demo/snapshot/assets/212f8a71e07161163c8e/4c35f086-9d82-4b29-9143-8c44e3caa73d.hi.indian-male-01.c688e9272a1e6a041fe4875aeaf1251fbae4018724e8b64e1dc009e6b7740a50.wav"
+      "url": "/demo/snapshot/assets/ab11ecf10d599d987637/8e2f6785-c014-4f6c-82b9-bd3c271d344c.hi.indian-male-01.a495b81936b1f089a825f7bcd520a15942e7a231131ba2a959ef4ce9cb8c2843.wav"
     },
     {
       "language": "German",
       "langCode": "de",
       "voiceId": "indian-male-01",
-      "url": "/demo/snapshot/assets/6a1469d5d0c516152233/853f3a3a-d8c3-4d3c-a8ac-6e96f3d17783.de.indian-male-01.defbad2e64c1644f1c299c23106f78742e2ff86a30a44a759d9a80f3d6c701e0.wav"
+      "url": "/demo/snapshot/assets/e466b32338d2faaba425/08814e1d-239d-4444-8525-412dc98ddc59.de.indian-male-01.920e63b60754a21b67eaff0e5db9f6f5eb2475390d6d483ebdafcd403c35f0b8.wav"
+    },
+    {
+      "language": "Spanish",
+      "langCode": "es",
+      "voiceId": "indian-male-01",
+      "url": "/demo/snapshot/assets/45b048a865bbed5d1cc9/af8a5574-af0d-4d1f-a510-6cec6e4ff694.es.indian-male-01.26e9921bd5bbb8d4dc9f7cd7069afbb25c71a4aaf263f8ef762f634690d89dce.wav"
+    },
+    {
+      "language": "French",
+      "langCode": "fr",
+      "voiceId": "indian-male-01",
+      "url": "/demo/snapshot/assets/993ff28e1c9104abfb21/96757952-f8e9-431c-bcbd-2e1296d402f1.fr.indian-male-01.9f570720ace051ce6aaaf6f229c40d37fb2a60743e0dae6cbf6121c726fc3f03.wav"
     }
   ],
   "transcripts": {
     "English": {
-      "text": "So, hi, I'm Vikram, working as a hardware engineer. I work on setting up hardware devices, connecting sensors, testing Raspberry Pi systems, and troubleshooting hardware issues. I also help us to integrate the devices with the software platforms and ensures everything runs smoothly during testing.",
+      "text": "Good morning, I'm Gayatri. You're watching Metro Morning News. We start with a major transit update this morning. Commuters across the city face faster trips starting today as the new green-line rail extension opens to the public. Officials say that the eight-kilometer stretch connects four busy neighborhoods to the central business district. Trains will run every six minutes during peak hours. Transit leaders expect the line to ease road traffic by up to 15%. Stay tuned for more on the story.",
       "language": "en",
-      "duration": 23.04,
+      "duration": 30.66,
       "segments": [
         {
           "id": 0,
-          "start": 1.62,
-          "end": 4.88,
-          "text": "So, hi, I'm Vikram, working as a hardware engineer."
+          "start": 0.85,
+          "end": 4.67,
+          "text": "Good morning, I'm Gayatri. You're watching Metro Morning News."
         },
         {
           "id": 1,
-          "start": 5.62,
-          "end": 13.24,
-          "text": "I work on setting up hardware devices, connecting sensors, testing Raspberry Pi systems, and troubleshooting hardware issues."
+          "start": 5.21,
+          "end": 7.83,
+          "text": "We start with a major transit update this morning."
         },
         {
           "id": 2,
-          "start": 14.18,
-          "end": 20.72,
-          "text": "I also help us to integrate the devices with the software platforms and ensures everything runs smoothly during testing."
+          "start": 8.31,
+          "end": 14.65,
+          "text": "Commuters across the city face faster trips starting today as the new green-line rail extension opens to the public."
+        },
+        {
+          "id": 3,
+          "start": 15.05,
+          "end": 20.45,
+          "text": "Officials say that the eight-kilometer stretch connects four busy neighborhoods to the central business district."
+        },
+        {
+          "id": 4,
+          "start": 20.85,
+          "end": 23.33,
+          "text": "Trains will run every six minutes during peak hours."
+        },
+        {
+          "id": 5,
+          "start": 23.83,
+          "end": 27.69,
+          "text": "Transit leaders expect the line to ease road traffic by up to 15%."
+        },
+        {
+          "id": 6,
+          "start": 27.69,
+          "end": 29.85,
+          "text": "Stay tuned for more on the story."
         }
       ],
-      "createdAt": "2026-10-27T07:29:58.033Z",
-      "sourceAudio": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav"
-    },
-    "German": {
-      "text": "Also, hallo, ich bin Vikram, ich arbeite als Hardwareingenieur. Ich arbeite daran, Hardwaregeräte einzurichten, Sensoren zu verbinden, Raspberry Pi-Systeme zu testen und Hardwareprobleme zu beheben. Ich helfe auch, die Geräte mit den Softwareplattformen zu integrieren und sorge dafür, dass alles während der Tests läuft.",
-      "language": "de",
-      "duration": 23.04,
-      "segments": [
-        {
-          "id": 0,
-          "start": 1.62,
-          "end": 4.88,
-          "text": "Also, hallo, ich bin Vikram, ich arbeite als Hardwareingenieur."
-        },
-        {
-          "id": 1,
-          "start": 5.62,
-          "end": 13.24,
-          "text": "Ich arbeite daran, Hardwaregeräte einzurichten, Sensoren zu verbinden, Raspberry Pi-Systeme zu testen und Hardwareprobleme zu beheben."
-        },
-        {
-          "id": 2,
-          "start": 14.18,
-          "end": 20.72,
-          "text": "Ich helfe auch, die Geräte mit den Softwareplattformen zu integrieren und sorge dafür, dass alles während der Tests läuft."
-        }
-      ],
-      "createdAt": "2026-10-27T07:30:03.463Z",
-      "sourceAudio": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav"
-    },
-    "Hindi": {
-      "text": "मेरा मैनेजर विक्रम हूं, एक डिवाइस इंजीनियर हूं। मैं डिवाइसों को बनाने, सेन्सरों को जोड़ने, रॉबिटरी पी (Raspberry Pi) सिस्टमों को तिथिता करने और डिवाइस के लिए सेटिंग टेस्ट करने के लिए डिवाइस के साथ सेवा प्लेटफार्मों के साथ संबद्धता की जांच करने के लिए मदद करता हूं। मैं भी डिवाइसों को सेवा प्लेटफार्मों से जोड़ने की जांच करता हूं और तिथिता करने के दौरान सभी को संतुलित रखने की जांच करता हूं।",
-      "language": "hi",
-      "duration": 23.04,
-      "segments": [
-        {
-          "id": 0,
-          "start": 1.62,
-          "end": 4.88,
-          "text": "मेरा मैनेजर विक्रम हूं, एक डिवाइस इंजीनियर हूं।"
-        },
-        {
-          "id": 1,
-          "start": 5.62,
-          "end": 13.24,
-          "text": "मैं डिवाइसों को बनाने, सेन्सरों को जोड़ने, रॉबिटरी पी (Raspberry Pi) सिस्टमों को तिथिता करने और डिवाइस के लिए सेटिंग टेस्ट करने के लिए डिवाइस के साथ सेवा प्लेटफार्मों के साथ संबद्धता की जांच करने के लिए मदद करता हूं।"
-        },
-        {
-          "id": 2,
-          "start": 14.18,
-          "end": 20.72,
-          "text": "मैं भी डिवाइसों को सेवा प्लेटफार्मों से जोड़ने की जांच करता हूं और तिथिता करने के दौरान सभी को संतुलित रखने की जांच करता हूं।"
-        }
-      ],
-      "createdAt": "2026-10-27T07:31:00.355Z",
-      "sourceAudio": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav"
-    },
-    "Spanish": {
-      "text": "Hola, soy Vikram, trabajando como ingeniero de hardware. Trabajo en la configuración de dispositivos de hardware, la conexión de sensores, el sistema de Raspberry Pi y la solución de problemas de hardware. También me encargo de integrar los dispositivos con las plataformas de software y aseguro que todo funcione correctamente durante los tests.",
-      "language": "es",
-      "duration": 23.04,
-      "segments": [
-        {
-          "id": 0,
-          "start": 1.62,
-          "end": 4.88,
-          "text": "Hola, soy Vikram, trabajando como ingeniero de hardware."
-        },
-        {
-          "id": 1,
-          "start": 5.62,
-          "end": 13.24,
-          "text": "Trabajo en la configuración de dispositivos de hardware, la conexión de sensores, el sistema de Raspberry Pi y la solución de problemas de hardware."
-        },
-        {
-          "id": 2,
-          "start": 14.18,
-          "end": 20.72,
-          "text": "También me encargo de integrar los dispositivos con las plataformas de software y aseguro que todo funcione correctamente durante los tests."
-        }
-      ],
-      "createdAt": "2026-10-27T07:31:16.546Z",
-      "sourceAudio": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav"
+      "createdAt": "2026-11-24T06:41:32.602Z",
+      "sourceAudio": "/demo/snapshot/assets/13a690d295add1542107/master-audio-2026-11-24T12-11-25-397Z.wav"
     },
     "French": {
-      "text": "Bonjour, bonjour, je suis Vikram, je travaille en tant qu'ingénieur en matériel. Je travaille sur l'installation des dispositifs matériels, la connexion des capteurs, le test des systèmes Raspberry Pi, et la résolution des problèmes matériels. Je m'assure également que les dispositifs sont intégrés aux plateformes logicielles et que tout fonctionne correctement pendant les tests.",
+      "text": "Bonjour, je suis Gayatri. Vous regardez Metro Morning News. Nous commençons par une mise à jour importante des transports ce matin. Commuteurs dans toute la ville bénéficient de trajets plus rapides à partir de aujourd'hui avec l'ouverture au public de l'extension du métro vert. Les autorités affirment que la stretch de huit kilomètres relie quatre quartiers fréquemment fréquentés au centre-ville. Les trains circuleront toutes six minutes pendant les heures de pointe. Les leaders du réseau prévoient que la ligne réduira la circulation routière de jusqu'à 15 %. Restez au courant pour plus sur l'histoire.",
       "language": "fr",
-      "duration": 23.04,
+      "duration": 30.66,
       "segments": [
         {
           "id": 0,
-          "start": 1.62,
-          "end": 4.88,
-          "text": "Bonjour, bonjour, je suis Vikram, je travaille en tant qu'ingénieur en matériel."
+          "start": 0.85,
+          "end": 4.67,
+          "text": "Bonjour, je suis Gayatri. Vous regardez Metro Morning News."
         },
         {
           "id": 1,
-          "start": 5.62,
-          "end": 13.24,
-          "text": "Je travaille sur l'installation des dispositifs matériels, la connexion des capteurs, le test des systèmes Raspberry Pi, et la résolution des problèmes matériels."
+          "start": 5.21,
+          "end": 7.83,
+          "text": "Nous commençons par une mise à jour importante des transports ce matin."
         },
         {
           "id": 2,
-          "start": 14.18,
-          "end": 20.72,
-          "text": "Je m'assure également que les dispositifs sont intégrés aux plateformes logicielles et que tout fonctionne correctement pendant les tests."
+          "start": 8.31,
+          "end": 14.65,
+          "text": "Commuteurs dans toute la ville bénéficient de trajets plus rapides à partir de aujourd'hui avec l'ouverture au public de l'extension du métro vert."
+        },
+        {
+          "id": 3,
+          "start": 15.05,
+          "end": 20.45,
+          "text": "Les autorités affirment que la stretch de huit kilomètres relie quatre quartiers fréquemment fréquentés au centre-ville."
+        },
+        {
+          "id": 4,
+          "start": 20.85,
+          "end": 23.33,
+          "text": "Les trains circuleront toutes six minutes pendant les heures de pointe."
+        },
+        {
+          "id": 5,
+          "start": 23.83,
+          "end": 27.69,
+          "text": "Les leaders du réseau prévoient que la ligne réduira la circulation routière de jusqu'à 15 %."
+        },
+        {
+          "id": 6,
+          "start": 27.69,
+          "end": 29.85,
+          "text": "Restez au courant pour plus sur l'histoire."
         }
       ],
-      "createdAt": "2026-10-27T07:31:29.500Z",
-      "sourceAudio": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav"
+      "createdAt": "2026-11-24T06:43:07.176Z",
+      "sourceAudio": "/demo/snapshot/assets/13a690d295add1542107/master-audio-2026-11-24T12-11-25-397Z.wav"
+    },
+    "Spanish": {
+      "text": "¡Buenos días, soy Gayatri. Estás viendo Metro Morning News. Iniciamos con una actualización importante de tránsito esta mañana. Compradores de la ciudad experimentarán viajes más rápidos a partir de hoy con la apertura al público de la nueva extensión del tranvía verde. Los funcionarios indican que la extensión de ocho kilómetros une cuatro barrios populares con el distrito central de negocios. Los trenes circularán cada seis minutos durante las horas punta. Los líderes de la transit esperan que la línea ease hasta un 15% de la congestión vial. ¡Manténganse al tanto para más información sobre la historia.",
+      "language": "es",
+      "duration": 30.66,
+      "segments": [
+        {
+          "id": 0,
+          "start": 0.85,
+          "end": 4.67,
+          "text": "¡Buenos días, soy Gayatri. Estás viendo Metro Morning News."
+        },
+        {
+          "id": 1,
+          "start": 5.21,
+          "end": 7.83,
+          "text": "Iniciamos con una actualización importante de tránsito esta mañana."
+        },
+        {
+          "id": 2,
+          "start": 8.31,
+          "end": 14.65,
+          "text": "Compradores de la ciudad experimentarán viajes más rápidos a partir de hoy con la apertura al público de la nueva extensión del tranvía verde."
+        },
+        {
+          "id": 3,
+          "start": 15.05,
+          "end": 20.45,
+          "text": "Los funcionarios indican que la extensión de ocho kilómetros une cuatro barrios populares con el distrito central de negocios."
+        },
+        {
+          "id": 4,
+          "start": 20.85,
+          "end": 23.33,
+          "text": "Los trenes circularán cada seis minutos durante las horas punta."
+        },
+        {
+          "id": 5,
+          "start": 23.83,
+          "end": 27.69,
+          "text": "Los líderes de la transit esperan que la línea ease hasta un 15% de la congestión vial."
+        },
+        {
+          "id": 6,
+          "start": 27.69,
+          "end": 29.85,
+          "text": "¡Manténganse al tanto para más información sobre la historia."
+        }
+      ],
+      "createdAt": "2026-11-24T06:43:22.375Z",
+      "sourceAudio": "/demo/snapshot/assets/13a690d295add1542107/master-audio-2026-11-24T12-11-25-397Z.wav"
+    },
+    "German": {
+      "text": "Guten Morgen, ich bin Gayatri. Sie schauen die Metro Morgen Nachrichten an. Wir beginnen mit einem wichtigen Update der Verkehrslage heute Morgen. Kommunizenten in der Stadt sehen sich heute Morgen mit schnellerer Fahrt vor, da die neue Grünen-Linie-Bahn-Verbindung zum öffentlichen Verkehr gestartet wird. Behörden sagen, dass die acht-kilometer lange Strecke vier ansammlige Wohnviertel mit dem zentralen Geschäftszentrum verbindet. Bahnwagen werden jeden sechsten Minutentakt während der Hochfahrzeiten laufen. Verkehrsführer erwarten, dass die Linie bis zu 15% der Straßenverkehr erleichtern wird. Halten Sie sich auf dem Laufenden für mehr über die Geschichte.",
+      "language": "de",
+      "duration": 30.66,
+      "segments": [
+        {
+          "id": 0,
+          "start": 0.85,
+          "end": 4.67,
+          "text": "Guten Morgen, ich bin Gayatri. Sie schauen die Metro Morgen Nachrichten an."
+        },
+        {
+          "id": 1,
+          "start": 5.21,
+          "end": 7.83,
+          "text": "Wir beginnen mit einem wichtigen Update der Verkehrslage heute Morgen."
+        },
+        {
+          "id": 2,
+          "start": 8.31,
+          "end": 14.65,
+          "text": "Kommunizenten in der Stadt sehen sich heute Morgen mit schnellerer Fahrt vor, da die neue Grünen-Linie-Bahn-Verbindung zum öffentlichen Verkehr gestartet wird."
+        },
+        {
+          "id": 3,
+          "start": 15.05,
+          "end": 20.45,
+          "text": "Behörden sagen, dass die acht-kilometer lange Strecke vier ansammlige Wohnviertel mit dem zentralen Geschäftszentrum verbindet."
+        },
+        {
+          "id": 4,
+          "start": 20.85,
+          "end": 23.33,
+          "text": "Bahnwagen werden jeden sechsten Minutentakt während der Hochfahrzeiten laufen."
+        },
+        {
+          "id": 5,
+          "start": 23.83,
+          "end": 27.69,
+          "text": "Verkehrsführer erwarten, dass die Linie bis zu 15% der Straßenverkehr erleichtern wird."
+        },
+        {
+          "id": 6,
+          "start": 27.69,
+          "end": 29.85,
+          "text": "Halten Sie sich auf dem Laufenden für mehr über die Geschichte."
+        }
+      ],
+      "createdAt": "2026-11-24T06:43:31.846Z",
+      "sourceAudio": "/demo/snapshot/assets/13a690d295add1542107/master-audio-2026-11-24T12-11-25-397Z.wav"
+    },
+    "Hindi": {
+      "text": "बोर्डमैं, मैं गयाट्री हूं। आप रेडियो मैन नॉव्ह्स देख रहे हैं। यह सुबह का आर्थितीय बतावट शुरू हो रहा है। स्थानियों के यात्रियों ने वर्गीकरण रेल की नई हरी लाइन की नवीनता आज से जल्दी से यात्रा करने की जगह मिली है। अधिकारी ने कहा कि आठ किलोमीटर की लम्बी लम्बाई नाई चार भारी नगरीय जगहों से केंट्रल व्यवस्थापन जिले तक जोड़ती है। रेलवे क्रांतियों की भरपूर बजावों के दौरान हर सोलह मिनट की आम्शिकता से चलेंगे। तार्टन नेता यहाँ तर情 लाइन को रोड टास्पिकर 15% तक कम कर सकता है। धर्म से रहें अगले भविष्य के बारे में बातचीत के लिए।",
+      "language": "hi",
+      "duration": 30.66,
+      "segments": [
+        {
+          "id": 0,
+          "start": 0.85,
+          "end": 4.67,
+          "text": "बोर्डमैं, मैं गयाट्री हूं। आप रेडियो मैन नॉव्ह्स देख रहे हैं।"
+        },
+        {
+          "id": 1,
+          "start": 5.21,
+          "end": 7.83,
+          "text": "यह सुबह का आर्थितीय बतावट शुरू हो रहा है।"
+        },
+        {
+          "id": 2,
+          "start": 8.31,
+          "end": 14.65,
+          "text": "स्थानियों के यात्रियों ने वर्गीकरण रेल की नई हरी लाइन की नवीनता आज से जल्दी से यात्रा करने की जगह मिली है।"
+        },
+        {
+          "id": 3,
+          "start": 15.05,
+          "end": 20.45,
+          "text": "अधिकारी ने कहा कि आठ किलोमीटर की लम्बी लम्बाई नाई चार भारी नगरीय जगहों से केंट्रल व्यवस्थापन जिले तक जोड़ती है।"
+        },
+        {
+          "id": 4,
+          "start": 20.85,
+          "end": 23.33,
+          "text": "रेलवे क्रांतियों की भरपूर बजावों के दौरान हर सोलह मिनट की आम्शिकता से चलेंगे।"
+        },
+        {
+          "id": 5,
+          "start": 23.83,
+          "end": 27.69,
+          "text": "तार्टन नेता यहाँ तर情 लाइन को रोड टास्पिकर 15% तक कम कर सकता है।"
+        },
+        {
+          "id": 6,
+          "start": 27.69,
+          "end": 29.85,
+          "text": "धर्म से रहें अगले भविष्य के बारे में बातचीत के लिए।"
+        }
+      ],
+      "createdAt": "2026-11-24T06:44:41.136Z",
+      "sourceAudio": "/demo/snapshot/assets/13a690d295add1542107/master-audio-2026-11-24T12-11-25-397Z.wav"
     }
   },
   "cues": {
     "English": [
       {
-        "start": 1.62,
-        "end": 4.88,
-        "text": "So, hi, I'm Vikram, working as a hardware engineer."
+        "start": 0.85,
+        "end": 4.67,
+        "text": "Good morning, I'm Gayatri. You're watching Metro Morning News."
       },
       {
-        "start": 5.62,
-        "end": 7.776,
-        "text": "I work on setting up hardware devices, connecting sensors, testing Raspberry Pi systems, and troubleshooting hardware issues."
+        "start": 5.21,
+        "end": 7.83,
+        "text": "We start with a major transit update this morning."
       },
       {
-        "start": 7.776,
-        "end": 13.239999999999998,
-        "text": "I work on setting up hardware devices, connecting sensors, testing Raspberry Pi systems, and troubleshooting hardware issues."
+        "start": 8.310000000000002,
+        "end": 14.649999999999999,
+        "text": "Commuters across the city face faster trips starting today as the new green-line rail extension opens to the public."
       },
       {
-        "start": 14.18,
-        "end": 15.550999999999998,
-        "text": "I also help us to integrate the devices with the software platforms and ensures everything runs smoothly during testing."
+        "start": 15.05,
+        "end": 16,
+        "text": "Officials say that the eight-kilometer stretch connects four busy neighborhoods to the central business district."
       },
       {
-        "start": 15.551,
-        "end": 20.72,
-        "text": "I also help us to integrate the devices with the software platforms and ensures everything runs smoothly during testing."
-      }
-    ],
-    "German": [
-      {
-        "start": 1.62,
-        "end": 4.88,
-        "text": "Also, hallo, ich bin Vikram, ich arbeite als Hardwareingenieur."
+        "start": 16,
+        "end": 20.450000000000003,
+        "text": "Officials say that the eight-kilometer stretch connects four busy neighborhoods to the central business district."
       },
       {
-        "start": 5.62,
-        "end": 7.776,
-        "text": "Ich arbeite daran, Hardwaregeräte einzurichten, Sensoren zu verbinden, Raspberry Pi-Systeme zu testen und Hardwareprobleme zu beheben."
+        "start": 20.85,
+        "end": 23.33,
+        "text": "Trains will run every six minutes during peak hours."
       },
       {
-        "start": 7.776,
-        "end": 13.239999999999998,
-        "text": "Ich arbeite daran, Hardwaregeräte einzurichten, Sensoren zu verbinden, Raspberry Pi-Systeme zu testen und Hardwareprobleme zu beheben."
-      },
-      {
-        "start": 14.18,
-        "end": 15.550999999999998,
-        "text": "Ich helfe auch, die Geräte mit den Softwareplattformen zu integrieren und sorge dafür, dass alles während der Tests läuft."
-      },
-      {
-        "start": 15.551,
-        "end": 20.72,
-        "text": "Ich helfe auch, die Geräte mit den Softwareplattformen zu integrieren und sorge dafür, dass alles während der Tests läuft."
-      }
-    ],
-    "Hindi": [
-      {
-        "start": 1.62,
-        "end": 4.88,
-        "text": "मेरा मैनेजर विक्रम हूं, एक डिवाइस इंजीनियर हूं।"
-      },
-      {
-        "start": 5.62,
-        "end": 7.776,
-        "text": "मैं डिवाइसों को बनाने, सेन्सरों को जोड़ने, रॉबिटरी पी (Raspberry Pi) सिस्टमों को तिथिता करने और डिवाइस के लिए सेटिंग टेस्ट करने के लिए डिवाइस के साथ सेवा प्लेटफार्मों के साथ संबद्धता की जांच करने के लिए मदद करता हूं।"
-      },
-      {
-        "start": 7.776,
-        "end": 13.239999999999998,
-        "text": "मैं डिवाइसों को बनाने, सेन्सरों को जोड़ने, रॉबिटरी पी (Raspberry Pi) सिस्टमों को तिथिता करने और डिवाइस के लिए सेटिंग टेस्ट करने के लिए डिवाइस के साथ सेवा प्लेटफार्मों के साथ संबद्धता की जांच करने के लिए मदद करता हूं।"
-      },
-      {
-        "start": 14.18,
-        "end": 15.550999999999998,
-        "text": "मैं भी डिवाइसों को सेवा प्लेटफार्मों से जोड़ने की जांच करता हूं और तिथिता करने के दौरान सभी को संतुलित रखने की जांच करता हूं।"
-      },
-      {
-        "start": 15.551,
-        "end": 20.72,
-        "text": "मैं भी डिवाइसों को सेवा प्लेटफार्मों से जोड़ने की जांच करता हूं और तिथिता करने के दौरान सभी को संतुलित रखने की जांच करता हूं।"
-      }
-    ],
-    "Spanish": [
-      {
-        "start": 1.62,
-        "end": 4.88,
-        "text": "Hola, soy Vikram, trabajando como ingeniero de hardware."
-      },
-      {
-        "start": 5.62,
-        "end": 7.776,
-        "text": "Trabajo en la configuración de dispositivos de hardware, la conexión de sensores, el sistema de Raspberry Pi y la solución de problemas de hardware."
-      },
-      {
-        "start": 7.776,
-        "end": 13.239999999999998,
-        "text": "Trabajo en la configuración de dispositivos de hardware, la conexión de sensores, el sistema de Raspberry Pi y la solución de problemas de hardware."
-      },
-      {
-        "start": 14.18,
-        "end": 15.550999999999998,
-        "text": "También me encargo de integrar los dispositivos con las plataformas de software y aseguro que todo funcione correctamente durante los tests."
-      },
-      {
-        "start": 15.551,
-        "end": 20.72,
-        "text": "También me encargo de integrar los dispositivos con las plataformas de software y aseguro que todo funcione correctamente durante los tests."
+        "start": 23.83,
+        "end": 24,
+        "text": "Transit leaders expect the line to ease road traffic by up to 15%."
       }
     ],
     "French": [
       {
-        "start": 1.62,
-        "end": 4.88,
-        "text": "Bonjour, bonjour, je suis Vikram, je travaille en tant qu'ingénieur en matériel."
+        "start": 0.85,
+        "end": 4.67,
+        "text": "Bonjour, je suis Gayatri. Vous regardez Metro Morning News."
       },
       {
-        "start": 5.62,
-        "end": 7.776,
-        "text": "Je travaille sur l'installation des dispositifs matériels, la connexion des capteurs, le test des systèmes Raspberry Pi, et la résolution des problèmes matériels."
+        "start": 5.21,
+        "end": 7.83,
+        "text": "Nous commençons par une mise à jour importante des transports ce matin."
       },
       {
-        "start": 7.776,
-        "end": 13.239999999999998,
-        "text": "Je travaille sur l'installation des dispositifs matériels, la connexion des capteurs, le test des systèmes Raspberry Pi, et la résolution des problèmes matériels."
+        "start": 8.310000000000002,
+        "end": 14.649999999999999,
+        "text": "Commuteurs dans toute la ville bénéficient de trajets plus rapides à partir de aujourd'hui avec l'ouverture au public de l'extension du métro vert."
       },
       {
-        "start": 14.18,
-        "end": 15.550999999999998,
-        "text": "Je m'assure également que les dispositifs sont intégrés aux plateformes logicielles et que tout fonctionne correctement pendant les tests."
+        "start": 15.05,
+        "end": 16,
+        "text": "Les autorités affirment que la stretch de huit kilomètres relie quatre quartiers fréquemment fréquentés au centre-ville."
       },
       {
-        "start": 15.551,
-        "end": 20.72,
-        "text": "Je m'assure également que les dispositifs sont intégrés aux plateformes logicielles et que tout fonctionne correctement pendant les tests."
+        "start": 16,
+        "end": 20.450000000000003,
+        "text": "Les autorités affirment que la stretch de huit kilomètres relie quatre quartiers fréquemment fréquentés au centre-ville."
+      },
+      {
+        "start": 20.85,
+        "end": 23.33,
+        "text": "Les trains circuleront toutes six minutes pendant les heures de pointe."
+      },
+      {
+        "start": 23.83,
+        "end": 24,
+        "text": "Les leaders du réseau prévoient que la ligne réduira la circulation routière de jusqu'à 15 %."
+      }
+    ],
+    "Spanish": [
+      {
+        "start": 0.85,
+        "end": 4.67,
+        "text": "¡Buenos días, soy Gayatri. Estás viendo Metro Morning News."
+      },
+      {
+        "start": 5.21,
+        "end": 7.83,
+        "text": "Iniciamos con una actualización importante de tránsito esta mañana."
+      },
+      {
+        "start": 8.310000000000002,
+        "end": 14.649999999999999,
+        "text": "Compradores de la ciudad experimentarán viajes más rápidos a partir de hoy con la apertura al público de la nueva extensión del tranvía verde."
+      },
+      {
+        "start": 15.05,
+        "end": 16,
+        "text": "Los funcionarios indican que la extensión de ocho kilómetros une cuatro barrios populares con el distrito central de negocios."
+      },
+      {
+        "start": 16,
+        "end": 20.450000000000003,
+        "text": "Los funcionarios indican que la extensión de ocho kilómetros une cuatro barrios populares con el distrito central de negocios."
+      },
+      {
+        "start": 20.85,
+        "end": 23.33,
+        "text": "Los trenes circularán cada seis minutos durante las horas punta."
+      },
+      {
+        "start": 23.83,
+        "end": 24,
+        "text": "Los líderes de la transit esperan que la línea ease hasta un 15% de la congestión vial."
+      }
+    ],
+    "German": [
+      {
+        "start": 0.85,
+        "end": 4.67,
+        "text": "Guten Morgen, ich bin Gayatri. Sie schauen die Metro Morgen Nachrichten an."
+      },
+      {
+        "start": 5.21,
+        "end": 7.83,
+        "text": "Wir beginnen mit einem wichtigen Update der Verkehrslage heute Morgen."
+      },
+      {
+        "start": 8.310000000000002,
+        "end": 14.649999999999999,
+        "text": "Kommunizenten in der Stadt sehen sich heute Morgen mit schnellerer Fahrt vor, da die neue Grünen-Linie-Bahn-Verbindung zum öffentlichen Verkehr gestartet wird."
+      },
+      {
+        "start": 15.05,
+        "end": 16,
+        "text": "Behörden sagen, dass die acht-kilometer lange Strecke vier ansammlige Wohnviertel mit dem zentralen Geschäftszentrum verbindet."
+      },
+      {
+        "start": 16,
+        "end": 20.450000000000003,
+        "text": "Behörden sagen, dass die acht-kilometer lange Strecke vier ansammlige Wohnviertel mit dem zentralen Geschäftszentrum verbindet."
+      },
+      {
+        "start": 20.85,
+        "end": 23.33,
+        "text": "Bahnwagen werden jeden sechsten Minutentakt während der Hochfahrzeiten laufen."
+      },
+      {
+        "start": 23.83,
+        "end": 24,
+        "text": "Verkehrsführer erwarten, dass die Linie bis zu 15% der Straßenverkehr erleichtern wird."
+      }
+    ],
+    "Hindi": [
+      {
+        "start": 0.85,
+        "end": 4.67,
+        "text": "बोर्डमैं, मैं गयाट्री हूं। आप रेडियो मैन नॉव्ह्स देख रहे हैं।"
+      },
+      {
+        "start": 5.21,
+        "end": 7.83,
+        "text": "यह सुबह का आर्थितीय बतावट शुरू हो रहा है।"
+      },
+      {
+        "start": 8.310000000000002,
+        "end": 14.649999999999999,
+        "text": "स्थानियों के यात्रियों ने वर्गीकरण रेल की नई हरी लाइन की नवीनता आज से जल्दी से यात्रा करने की जगह मिली है।"
+      },
+      {
+        "start": 15.05,
+        "end": 16,
+        "text": "अधिकारी ने कहा कि आठ किलोमीटर की लम्बी लम्बाई नाई चार भारी नगरीय जगहों से केंट्रल व्यवस्थापन जिले तक जोड़ती है।"
+      },
+      {
+        "start": 16,
+        "end": 20.450000000000003,
+        "text": "अधिकारी ने कहा कि आठ किलोमीटर की लम्बी लम्बाई नाई चार भारी नगरीय जगहों से केंट्रल व्यवस्थापन जिले तक जोड़ती है।"
+      },
+      {
+        "start": 20.85,
+        "end": 23.33,
+        "text": "रेलवे क्रांतियों की भरपूर बजावों के दौरान हर सोलह मिनट की आम्शिकता से चलेंगे।"
+      },
+      {
+        "start": 23.83,
+        "end": 24,
+        "text": "तार्टन नेता यहाँ तर情 लाइन को रोड टास्पिकर 15% तक कम कर सकता है।"
       }
     ]
   },
   "composites": {
     "bg-newsroom-1920x1080": {
-      "url": "/demo/snapshot/assets/1136287dfa8f98cb288d.mp4",
-      "fallback": null,
-      "fallbackReason": null
+      "url": "/demo/snapshot/assets/745ed5729adac0cbb115.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
     },
     "bg-markets-1920x1080": {
-      "url": "/demo/snapshot/assets/9c712173a3e6ac4cd741.mp4",
-      "fallback": null,
-      "fallbackReason": null
+      "url": "/demo/snapshot/assets/e3d31ba1d821e91279df.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
     },
     "bg-sports-1920x1080": {
-      "url": "/demo/snapshot/assets/c3363ee8d7e42d86bfaa.mp4",
-      "fallback": null,
-      "fallbackReason": null
+      "url": "/demo/snapshot/assets/4237be2832f5d7bad8aa.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
     },
     "bg-weather-1920x1080": {
-      "url": "/demo/snapshot/assets/bf054fde47f4faaba843.mp4",
-      "fallback": null,
-      "fallbackReason": null
+      "url": "/demo/snapshot/assets/f930f8da0e48536f01b7.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
     }
   },
-  "selections": {
-    "background": "bg-markets-1920x1080",
-    "subtitle-language": "de",
-    "industry": "retail-ecommerce",
-    "industry-preview": "retail-ecommerce",
-    "brand": "amazon"
-  },
+  "selections": {},
   "voiceId": "indian-male-01",
   "assets": {
-    "videos/highlight-2026-10-27T12-59-54-536Z.mp4": "/demo/snapshot/assets/09e370b4b21ede069401/highlight-2026-10-27T12-59-54-536Z.mp4",
-    "videos/camera-recording-2026-10-27T12-59-54-536Z.mp4": "/demo/snapshot/assets/954d103de6b325de11e5/camera-recording-2026-10-27T12-59-54-536Z.mp4",
-    "videos/camera2-recording-2026-10-27T12-59-54-537Z.mp4": "/demo/snapshot/assets/78d9237c3262e8930744/camera2-recording-2026-10-27T12-59-54-537Z.mp4",
-    "videos/camera3-recording-2026-10-27T12-59-54-537Z.mp4": "/demo/snapshot/assets/95d6f805e522a7b2a3ad/camera3-recording-2026-10-27T12-59-54-537Z.mp4",
-    "audio/master-audio-2026-10-27T12-59-54-538Z.wav": "/demo/snapshot/assets/53cbdeb17f08ca67fa81/master-audio-2026-10-27T12-59-54-538Z.wav",
-    "tts-audio/39f6794e-306f-42ed-b151-ad5ffcf36a2c.fr.indian-male-01.356712d031b258600f068983b6381f4c2b87fce03bf0cc297430265ff8bc0eb7.wav": "/demo/snapshot/assets/6ba53f755e52b7532ef2/39f6794e-306f-42ed-b151-ad5ffcf36a2c.fr.indian-male-01.356712d031b258600f068983b6381f4c2b87fce03bf0cc297430265ff8bc0eb7.wav",
-    "tts-audio/186aef7c-93c1-4856-86da-47534b9aa535.es.indian-male-01.54a7663ddf9a8aedb93f8ca1c2f5ea8276f6d8fcb96867684aeccb9e14dbffbe.wav": "/demo/snapshot/assets/a7c6ce494a3580c8a3ac/186aef7c-93c1-4856-86da-47534b9aa535.es.indian-male-01.54a7663ddf9a8aedb93f8ca1c2f5ea8276f6d8fcb96867684aeccb9e14dbffbe.wav",
-    "tts-audio/4c35f086-9d82-4b29-9143-8c44e3caa73d.hi.indian-male-01.c688e9272a1e6a041fe4875aeaf1251fbae4018724e8b64e1dc009e6b7740a50.wav": "/demo/snapshot/assets/212f8a71e07161163c8e/4c35f086-9d82-4b29-9143-8c44e3caa73d.hi.indian-male-01.c688e9272a1e6a041fe4875aeaf1251fbae4018724e8b64e1dc009e6b7740a50.wav",
-    "tts-audio/853f3a3a-d8c3-4d3c-a8ac-6e96f3d17783.de.indian-male-01.defbad2e64c1644f1c299c23106f78742e2ff86a30a44a759d9a80f3d6c701e0.wav": "/demo/snapshot/assets/6a1469d5d0c516152233/853f3a3a-d8c3-4d3c-a8ac-6e96f3d17783.de.indian-male-01.defbad2e64c1644f1c299c23106f78742e2ff86a30a44a759d9a80f3d6c701e0.wav",
-    "transcripts/master-audio-2026-10-27T12-59-54-538Z.wav.de.txt": "/demo/snapshot/assets/778ea46f965b842f9f82.txt",
-    "transcripts/master-audio-2026-10-27T12-59-54-538Z.wav.hi.txt": "/demo/snapshot/assets/7e05c92f0119770ad402.txt",
-    "transcripts/master-audio-2026-10-27T12-59-54-538Z.wav.es.txt": "/demo/snapshot/assets/cc05890673c4bb75ab3e.txt",
-    "transcripts/master-audio-2026-10-27T12-59-54-538Z.wav.fr.txt": "/demo/snapshot/assets/49dfb99bac4131930433.txt",
-    "transcripts/highlight-2026-10-27T12-59-54-536Z.mp4.json": "/demo/snapshot/assets/dc4456eededf6fdecd7a.json",
-    "videos/composites/rvm-v1/highlight-2026-10-27T12-59-54-536Z/bg-newsroom-1920x1080.mp4": "/demo/snapshot/assets/1136287dfa8f98cb288d.mp4",
-    "videos/composites/rvm-v1/highlight-2026-10-27T12-59-54-536Z/bg-markets-1920x1080.mp4": "/demo/snapshot/assets/9c712173a3e6ac4cd741.mp4",
-    "videos/composites/rvm-v1/highlight-2026-10-27T12-59-54-536Z/bg-sports-1920x1080.mp4": "/demo/snapshot/assets/c3363ee8d7e42d86bfaa.mp4",
-    "videos/composites/rvm-v1/highlight-2026-10-27T12-59-54-536Z/bg-weather-1920x1080.mp4": "/demo/snapshot/assets/bf054fde47f4faaba843.mp4"
+    "videos/highlight-2026-11-24T12-11-25-395Z.mp4": "/demo/snapshot/assets/1819f52f519d1c18f900/highlight-2026-11-24T12-11-25-395Z.mp4",
+    "videos/camera-recording-2026-11-24T12-11-25-395Z.mp4": "/demo/snapshot/assets/567c39d61706a65aaad1/camera-recording-2026-11-24T12-11-25-395Z.mp4",
+    "videos/camera3-recording-2026-11-24T12-11-25-396Z.mp4": "/demo/snapshot/assets/8024deefe0bf479f9967/camera3-recording-2026-11-24T12-11-25-396Z.mp4",
+    "videos/camera2-recording-2026-11-24T12-11-25-396Z.mp4": "/demo/snapshot/assets/0de3171d87f89ca6da57/camera2-recording-2026-11-24T12-11-25-396Z.mp4",
+    "audio/master-audio-2026-11-24T12-11-25-397Z.wav": "/demo/snapshot/assets/13a690d295add1542107/master-audio-2026-11-24T12-11-25-397Z.wav",
+    "tts-audio/8e2f6785-c014-4f6c-82b9-bd3c271d344c.hi.indian-male-01.a495b81936b1f089a825f7bcd520a15942e7a231131ba2a959ef4ce9cb8c2843.wav": "/demo/snapshot/assets/ab11ecf10d599d987637/8e2f6785-c014-4f6c-82b9-bd3c271d344c.hi.indian-male-01.a495b81936b1f089a825f7bcd520a15942e7a231131ba2a959ef4ce9cb8c2843.wav",
+    "tts-audio/08814e1d-239d-4444-8525-412dc98ddc59.de.indian-male-01.920e63b60754a21b67eaff0e5db9f6f5eb2475390d6d483ebdafcd403c35f0b8.wav": "/demo/snapshot/assets/e466b32338d2faaba425/08814e1d-239d-4444-8525-412dc98ddc59.de.indian-male-01.920e63b60754a21b67eaff0e5db9f6f5eb2475390d6d483ebdafcd403c35f0b8.wav",
+    "tts-audio/af8a5574-af0d-4d1f-a510-6cec6e4ff694.es.indian-male-01.26e9921bd5bbb8d4dc9f7cd7069afbb25c71a4aaf263f8ef762f634690d89dce.wav": "/demo/snapshot/assets/45b048a865bbed5d1cc9/af8a5574-af0d-4d1f-a510-6cec6e4ff694.es.indian-male-01.26e9921bd5bbb8d4dc9f7cd7069afbb25c71a4aaf263f8ef762f634690d89dce.wav",
+    "tts-audio/96757952-f8e9-431c-bcbd-2e1296d402f1.fr.indian-male-01.9f570720ace051ce6aaaf6f229c40d37fb2a60743e0dae6cbf6121c726fc3f03.wav": "/demo/snapshot/assets/993ff28e1c9104abfb21/96757952-f8e9-431c-bcbd-2e1296d402f1.fr.indian-male-01.9f570720ace051ce6aaaf6f229c40d37fb2a60743e0dae6cbf6121c726fc3f03.wav",
+    "transcripts/master-audio-2026-11-24T12-11-25-397Z.wav.fr.txt": "/demo/snapshot/assets/af8bd7da291b96cf56de.txt",
+    "transcripts/master-audio-2026-11-24T12-11-25-397Z.wav.es.txt": "/demo/snapshot/assets/582d8318a8524bdd7d37.txt",
+    "transcripts/master-audio-2026-11-24T12-11-25-397Z.wav.de.txt": "/demo/snapshot/assets/d0a7604073c9a9be283f.txt",
+    "transcripts/master-audio-2026-11-24T12-11-25-397Z.wav.hi.txt": "/demo/snapshot/assets/4de0273b2cbba3cec571.txt",
+    "transcripts/highlight-2026-11-24T12-11-25-395Z.mp4.json": "/demo/snapshot/assets/e42c4055b6d7885405ae.json",
+    "videos/composites/rvm-v1/highlight-2026-11-24T12-11-25-395Z/bg-newsroom-1920x1080.mp4": "/demo/snapshot/assets/745ed5729adac0cbb115.mp4",
+    "videos/composites/rvm-v1/highlight-2026-11-24T12-11-25-395Z/bg-markets-1920x1080.mp4": "/demo/snapshot/assets/e3d31ba1d821e91279df.mp4",
+    "videos/composites/rvm-v1/highlight-2026-11-24T12-11-25-395Z/bg-sports-1920x1080.mp4": "/demo/snapshot/assets/4237be2832f5d7bad8aa.mp4",
+    "videos/composites/rvm-v1/highlight-2026-11-24T12-11-25-395Z/bg-weather-1920x1080.mp4": "/demo/snapshot/assets/f930f8da0e48536f01b7.mp4"
   }
 }

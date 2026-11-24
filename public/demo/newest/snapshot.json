@@ -1,0 +1,535 @@
+{
+  "version": 2,
+  "sourceSessionId": "553281a8-449d-47c0-ac63-4454024ec7f1",
+  "createdAt": "2026-11-24T12:34:21.466Z",
+  "session": {
+    "id": "553281a8-449d-47c0-ac63-4454024ec7f1",
+    "seq": 13,
+    "status": "ready",
+    "pipelineStatus": "ready",
+    "selectedBackgroundId": "bg-newsroom-1920x1080",
+    "selectedSubtitleLanguage": "English",
+    "selectedAudioLanguage": "English",
+    "selectedBrightness": 100,
+    "startedAt": "2026-11-24T06:52:04.570Z",
+    "endedAt": "2026-11-24T06:52:37.393Z"
+  },
+  "recordings": [
+    {
+      "filename": "highlight-2026-11-24T12-22-37-040Z.mp4",
+      "url": "/demo/newest/assets/289b8c0761e376ec8cfe/highlight-2026-11-24T12-22-37-040Z.mp4",
+      "size": 3890243,
+      "createdAt": "2026-11-24T06:52:48.837Z"
+    },
+    {
+      "filename": "camera-recording-2026-11-24T12-22-37-040Z.mp4",
+      "url": "/demo/newest/assets/0048c0e81c9c526a523d/camera-recording-2026-11-24T12-22-37-040Z.mp4",
+      "size": 10335523,
+      "createdAt": "2026-11-24T06:52:37.354Z"
+    },
+    {
+      "filename": "camera2-recording-2026-11-24T12-22-37-040Z.mp4",
+      "url": "/demo/newest/assets/08544a1d17dde2f52ff7/camera2-recording-2026-11-24T12-22-37-040Z.mp4",
+      "size": 9812194,
+      "createdAt": "2026-11-24T06:52:37.306Z"
+    },
+    {
+      "filename": "camera3-recording-2026-11-24T12-22-37-040Z.mp4",
+      "url": "/demo/newest/assets/f8860a58f92f054e6f19/camera3-recording-2026-11-24T12-22-37-040Z.mp4",
+      "size": 9848967,
+      "createdAt": "2026-11-24T06:52:37.295Z"
+    }
+  ],
+  "audioFiles": [
+    {
+      "filename": "master-audio-2026-11-24T12-22-37-041Z.wav",
+      "url": "/demo/newest/assets/677ec3521af5b984ac5b/master-audio-2026-11-24T12-22-37-041Z.wav",
+      "size": 515341,
+      "createdAt": "2026-11-24T06:52:37.268Z"
+    }
+  ],
+  "translations": [
+    {
+      "language": "Spanish",
+      "langCode": "es",
+      "voiceId": "indian-male-01",
+      "url": "/demo/newest/assets/796623aff113b34dc93c/bbd04b56-87ad-419d-aec6-01b72f99969c.es.indian-male-01.124647190b9e5a5fd0719812e1ad36d0ce0b0ab4f09454bfd8a58a6529976b20.wav"
+    },
+    {
+      "language": "Hindi",
+      "langCode": "hi",
+      "voiceId": "indian-male-01",
+      "url": "/demo/newest/assets/3e827af4a7d7f6445e82/e511463e-73d4-46bc-b7b7-23aa8a83d40a.hi.indian-male-01.04ee4413378a292a66dab602a717551ac362c398cd9b2ad060c8088a15f52ed9.wav"
+    },
+    {
+      "language": "French",
+      "langCode": "fr",
+      "voiceId": "indian-male-01",
+      "url": "/demo/newest/assets/e04f256c5f0e16663c2b/70b4eef4-78b4-471b-aa9e-37a1a6b6bb64.fr.indian-male-01.a400aaac011994c89496d7a521bd4155f3a2981242327699842e92df9f1d43cf.wav"
+    },
+    {
+      "language": "German",
+      "langCode": "de",
+      "voiceId": "indian-male-01",
+      "url": "/demo/newest/assets/e00a8014d6e1e024f201/5f160b19-4c31-43b6-aefb-09f72bc89cd8.de.indian-male-01.9e508c1352dbaa6fee0a51ad7659c0eae4e262b979a88208352f50d92c890b98.wav"
+    }
+  ],
+  "transcripts": {
+    "English": {
+      "text": "Good morning, I'm Amulia. You're watching Metro Morning News. We start with a major transit update this morning. Commuters across the city face faster trips starting today as the new green line rail extension opens to the public. Officials say the 8 km stretch connects four busy neighbourhoods to the central business district. Trains will run every six minutes during peak hours. Transit leaders expect the line to ease road traffic by up to 15%. Stay tuned for more on the story.",
+      "language": "en",
+      "duration": 32.46,
+      "segments": [
+        {
+          "id": 0,
+          "start": 1.04,
+          "end": 6.62,
+          "text": "Good morning, I'm Amulia. You're watching Metro Morning News. We start with a major"
+        },
+        {
+          "id": 1,
+          "start": 6.62,
+          "end": 11.82,
+          "text": "transit update this morning. Commuters across the city face faster trips starting today"
+        },
+        {
+          "id": 2,
+          "start": 11.82,
+          "end": 17.48,
+          "text": "as the new green line rail extension opens to the public. Officials say the 8 km stretch"
+        },
+        {
+          "id": 3,
+          "start": 17.48,
+          "end": 22.78,
+          "text": "connects four busy neighbourhoods to the central business district. Trains will run every"
+        },
+        {
+          "id": 4,
+          "start": 22.78,
+          "end": 27.72,
+          "text": "six minutes during peak hours. Transit leaders expect the line to ease road traffic"
+        },
+        {
+          "id": 5,
+          "start": 27.72,
+          "end": 30.98,
+          "text": "by up to 15%. Stay tuned for more on the story."
+        }
+      ],
+      "createdAt": "2026-11-24T06:52:41.147Z",
+      "sourceAudio": "/demo/newest/assets/677ec3521af5b984ac5b/master-audio-2026-11-24T12-22-37-041Z.wav"
+    },
+    "German": {
+      "text": "Guten Morgen, ich bin Amulia. Sie schauen derzeit die Metro Morgengesprächskomposition an. Wir beginnen mit einem wichtigen Update der Transportschicht heute Morgen. Reisende durch die Stadt erleben heute schnelleres Verkehrsablauf. als die neue grüne Linie-Bahn-Verlängerung der Öffnungszeit der Öffentlichkeit entgeht. Behaupten Behörden die 8 km lange Strecke. verbindet vier ansammlungen von Betonungsorten mit dem zentralen Geschäftsviertel. Züge werden jeden sechs Minuten während der Hochfahrzeugsperre. Die Verkehrsleiter erwarten, dass der Linie die Straßenverkehrsbelastung entlastet wird. halten Sie sich auf 15 Prozent auf. Warten Sie auf weitere Informationen zu der Geschichte.",
+      "language": "de",
+      "duration": 32.46,
+      "segments": [
+        {
+          "id": 0,
+          "start": 1.04,
+          "end": 6.62,
+          "text": "Guten Morgen, ich bin Amulia. Sie schauen derzeit die Metro Morgengesprächskomposition an. Wir beginnen mit einem wichtigen"
+        },
+        {
+          "id": 1,
+          "start": 6.62,
+          "end": 11.82,
+          "text": "Update der Transportschicht heute Morgen. Reisende durch die Stadt erleben heute schnelleres Verkehrsablauf."
+        },
+        {
+          "id": 2,
+          "start": 11.82,
+          "end": 17.48,
+          "text": "als die neue grüne Linie-Bahn-Verlängerung der Öffnungszeit der Öffentlichkeit entgeht. Behaupten Behörden die 8 km lange Strecke."
+        },
+        {
+          "id": 3,
+          "start": 17.48,
+          "end": 22.78,
+          "text": "verbindet vier ansammlungen von Betonungsorten mit dem zentralen Geschäftsviertel. Züge werden jeden"
+        },
+        {
+          "id": 4,
+          "start": 22.78,
+          "end": 27.72,
+          "text": "sechs Minuten während der Hochfahrzeugsperre. Die Verkehrsleiter erwarten, dass der Linie die Straßenverkehrsbelastung entlastet wird."
+        },
+        {
+          "id": 5,
+          "start": 27.72,
+          "end": 30.98,
+          "text": "halten Sie sich auf 15 Prozent auf. Warten Sie auf weitere Informationen zu der Geschichte."
+        }
+      ],
+      "createdAt": "2026-11-24T06:53:19.528Z",
+      "sourceAudio": "/demo/newest/assets/677ec3521af5b984ac5b/master-audio-2026-11-24T12-22-37-041Z.wav"
+    },
+    "French": {
+      "text": "Bonjour, je suis Amulia. Vous regardez Metro Morning News. Nous commençons par un événement majeur mise à jour du trafic ce matin. Les voyageurs de la ville connaissent des trajets plus rapides à partir de maintenant. avec l'ouverture au public de la nouvelle extension du métro vert. Les autorités indiquent que la stretch de 8 km. connecte quatre quartiers actifs au centre-ville. Des trains circuleront toutes les six minutes durant les heures de pointe. Les leaders de la mobilité prévoient que la ligne aidera à réduire la circulation routière. Restez informés pour plus sur l'histoire. Les chiffres peuvent grimper jusqu'à 15%.",
+      "language": "fr",
+      "duration": 32.46,
+      "segments": [
+        {
+          "id": 0,
+          "start": 1.04,
+          "end": 6.62,
+          "text": "Bonjour, je suis Amulia. Vous regardez Metro Morning News. Nous commençons par un événement majeur"
+        },
+        {
+          "id": 1,
+          "start": 6.62,
+          "end": 11.82,
+          "text": "mise à jour du trafic ce matin. Les voyageurs de la ville connaissent des trajets plus rapides à partir de maintenant."
+        },
+        {
+          "id": 2,
+          "start": 11.82,
+          "end": 17.48,
+          "text": "avec l'ouverture au public de la nouvelle extension du métro vert. Les autorités indiquent que la stretch de 8 km."
+        },
+        {
+          "id": 3,
+          "start": 17.48,
+          "end": 22.78,
+          "text": "connecte quatre quartiers actifs au centre-ville. Des trains circuleront toutes les"
+        },
+        {
+          "id": 4,
+          "start": 22.78,
+          "end": 27.72,
+          "text": "six minutes durant les heures de pointe. Les leaders de la mobilité prévoient que la ligne aidera à réduire la circulation routière."
+        },
+        {
+          "id": 5,
+          "start": 27.72,
+          "end": 30.98,
+          "text": "Restez informés pour plus sur l'histoire. Les chiffres peuvent grimper jusqu'à 15%."
+        }
+      ],
+      "createdAt": "2026-11-24T06:53:35.690Z",
+      "sourceAudio": "/demo/newest/assets/677ec3521af5b984ac5b/master-audio-2026-11-24T12-22-37-041Z.wav"
+    },
+    "Hindi": {
+      "text": "प्रिय दोस्तों, यहाँ मैं आम्युलिया हूं। आप रात्रि की मेट्रो मैनर्न न्यूज पर देख रहे हैं। हम आरम्भ में एक महत्वपूर्ण पुणे के शहर में यात्रियों द्वारा व्यक्तित्व की जांच शुभारम्बार शुक्रवार शाम शुरू होगी। व्यक्तित्व की जांच के बाद शहर में यात्रियों को तार्किक रूप से जाने की ताकत शुरू होगी। नई हरी लाइन रेल व्यापक तौर पर खुल गई है। अधिकारी ने कहा कि यह 8 किलोमीटर की लंबाई की छेड़। चार दुर्गम नज़रानों को मेंटल बाज़्याब जिले जोड़ देता है। ट्रेन्स एकत्रित व्यवसायिक जिले से प्रति छह मिनट शहरी भर में। ट्रांस्यट लिंडिंग लेखांकन अपनी राजमार्ग राहनी को सुलभ करने में अपनी राय देंगे योग्यता को लेकिन 15% तक बढ़ाया जाए। बताए जाएंगे यह घोषणा के बारे में।",
+      "language": "hi",
+      "duration": 32.46,
+      "segments": [
+        {
+          "id": 0,
+          "start": 1.04,
+          "end": 6.62,
+          "text": "प्रिय दोस्तों, यहाँ मैं आम्युलिया हूं। आप रात्रि की मेट्रो मैनर्न न्यूज पर देख रहे हैं। हम आरम्भ में एक महत्वपूर्ण"
+        },
+        {
+          "id": 1,
+          "start": 6.62,
+          "end": 11.82,
+          "text": "पुणे के शहर में यात्रियों द्वारा व्यक्तित्व की जांच शुभारम्बार शुक्रवार शाम शुरू होगी। व्यक्तित्व की जांच के बाद शहर में यात्रियों को तार्किक रूप से जाने की ताकत शुरू होगी।"
+        },
+        {
+          "id": 2,
+          "start": 11.82,
+          "end": 17.48,
+          "text": "नई हरी लाइन रेल व्यापक तौर पर खुल गई है। अधिकारी ने कहा कि यह 8 किलोमीटर की लंबाई की छेड़।"
+        },
+        {
+          "id": 3,
+          "start": 17.48,
+          "end": 22.78,
+          "text": "चार दुर्गम नज़रानों को मेंटल बाज़्याब जिले जोड़ देता है। ट्रेन्स एकत्रित व्यवसायिक जिले से प्रति"
+        },
+        {
+          "id": 4,
+          "start": 22.78,
+          "end": 27.72,
+          "text": "छह मिनट शहरी भर में। ट्रांस्यट लिंडिंग लेखांकन अपनी राजमार्ग राहनी को सुलभ करने में अपनी राय देंगे"
+        },
+        {
+          "id": 5,
+          "start": 27.72,
+          "end": 30.98,
+          "text": "योग्यता को लेकिन 15% तक बढ़ाया जाए। बताए जाएंगे यह घोषणा के बारे में।"
+        }
+      ],
+      "createdAt": "2026-11-24T06:54:52.050Z",
+      "sourceAudio": "/demo/newest/assets/677ec3521af5b984ac5b/master-audio-2026-11-24T12-22-37-041Z.wav"
+    },
+    "Spanish": {
+      "text": "¡Buenos días, soy Amulia. Usted está viendo Metro Morning News. Comenzamos con un importante actualización de tránsito esta mañana. Los commuters de la ciudad experimentarán viajes más rápidos a partir de hoy. como abre al público la nueva extensión del tranvía verde. Los funcionarios dicen que la extensión de 8 km. conecta cuatro barrios atareados al distrito central de negocios. Se realizarán trenes cada seis minutos durante las horas pico. Los líderes de la transit esperan que la línea ayude a disminuir el tráfico en carretera. ¡Prepárense para un aumento del hasta 15%. Manténganse conectados para más información sobre la historia.",
+      "language": "es",
+      "duration": 32.46,
+      "segments": [
+        {
+          "id": 0,
+          "start": 1.04,
+          "end": 6.62,
+          "text": "¡Buenos días, soy Amulia. Usted está viendo Metro Morning News. Comenzamos con un importante"
+        },
+        {
+          "id": 1,
+          "start": 6.62,
+          "end": 11.82,
+          "text": "actualización de tránsito esta mañana. Los commuters de la ciudad experimentarán viajes más rápidos a partir de hoy."
+        },
+        {
+          "id": 2,
+          "start": 11.82,
+          "end": 17.48,
+          "text": "como abre al público la nueva extensión del tranvía verde. Los funcionarios dicen que la extensión de 8 km."
+        },
+        {
+          "id": 3,
+          "start": 17.48,
+          "end": 22.78,
+          "text": "conecta cuatro barrios atareados al distrito central de negocios. Se realizarán trenes cada"
+        },
+        {
+          "id": 4,
+          "start": 22.78,
+          "end": 27.72,
+          "text": "seis minutos durante las horas pico. Los líderes de la transit esperan que la línea ayude a disminuir el tráfico en carretera."
+        },
+        {
+          "id": 5,
+          "start": 27.72,
+          "end": 30.98,
+          "text": "¡Prepárense para un aumento del hasta 15%. Manténganse conectados para más información sobre la historia."
+        }
+      ],
+      "createdAt": "2026-11-24T06:55:08.836Z",
+      "sourceAudio": "/demo/newest/assets/677ec3521af5b984ac5b/master-audio-2026-11-24T12-22-37-041Z.wav"
+    }
+  },
+  "cues": {
+    "English": [
+      {
+        "start": 1.04,
+        "end": 6.62,
+        "text": "Good morning, I'm Amulia. You're watching Metro Morning News. We start with a major"
+      },
+      {
+        "start": 6.62,
+        "end": 8,
+        "text": "transit update this morning. Commuters across the city face faster trips starting today"
+      },
+      {
+        "start": 8,
+        "end": 11.82,
+        "text": "transit update this morning. Commuters across the city face faster trips starting today"
+      },
+      {
+        "start": 11.82,
+        "end": 16,
+        "text": "as the new green line rail extension opens to the public. Officials say the 8 km stretch"
+      },
+      {
+        "start": 16,
+        "end": 17.480000000000004,
+        "text": "as the new green line rail extension opens to the public. Officials say the 8 km stretch"
+      },
+      {
+        "start": 17.480000000000004,
+        "end": 22.78,
+        "text": "connects four busy neighbourhoods to the central business district. Trains will run every"
+      },
+      {
+        "start": 22.78,
+        "end": 24,
+        "text": "six minutes during peak hours. Transit leaders expect the line to ease road traffic"
+      }
+    ],
+    "German": [
+      {
+        "start": 1.04,
+        "end": 6.62,
+        "text": "Guten Morgen, ich bin Amulia. Sie schauen derzeit die Metro Morgengesprächskomposition an. Wir beginnen mit einem wichtigen"
+      },
+      {
+        "start": 6.62,
+        "end": 8,
+        "text": "Update der Transportschicht heute Morgen. Reisende durch die Stadt erleben heute schnelleres Verkehrsablauf."
+      },
+      {
+        "start": 8,
+        "end": 11.82,
+        "text": "Update der Transportschicht heute Morgen. Reisende durch die Stadt erleben heute schnelleres Verkehrsablauf."
+      },
+      {
+        "start": 11.82,
+        "end": 16,
+        "text": "als die neue grüne Linie-Bahn-Verlängerung der Öffnungszeit der Öffentlichkeit entgeht. Behaupten Behörden die 8 km lange Strecke."
+      },
+      {
+        "start": 16,
+        "end": 17.480000000000004,
+        "text": "als die neue grüne Linie-Bahn-Verlängerung der Öffnungszeit der Öffentlichkeit entgeht. Behaupten Behörden die 8 km lange Strecke."
+      },
+      {
+        "start": 17.480000000000004,
+        "end": 22.78,
+        "text": "verbindet vier ansammlungen von Betonungsorten mit dem zentralen Geschäftsviertel. Züge werden jeden"
+      },
+      {
+        "start": 22.78,
+        "end": 24,
+        "text": "sechs Minuten während der Hochfahrzeugsperre. Die Verkehrsleiter erwarten, dass der Linie die Straßenverkehrsbelastung entlastet wird."
+      }
+    ],
+    "French": [
+      {
+        "start": 1.04,
+        "end": 6.62,
+        "text": "Bonjour, je suis Amulia. Vous regardez Metro Morning News. Nous commençons par un événement majeur"
+      },
+      {
+        "start": 6.62,
+        "end": 8,
+        "text": "mise à jour du trafic ce matin. Les voyageurs de la ville connaissent des trajets plus rapides à partir de maintenant."
+      },
+      {
+        "start": 8,
+        "end": 11.82,
+        "text": "mise à jour du trafic ce matin. Les voyageurs de la ville connaissent des trajets plus rapides à partir de maintenant."
+      },
+      {
+        "start": 11.82,
+        "end": 16,
+        "text": "avec l'ouverture au public de la nouvelle extension du métro vert. Les autorités indiquent que la stretch de 8 km."
+      },
+      {
+        "start": 16,
+        "end": 17.480000000000004,
+        "text": "avec l'ouverture au public de la nouvelle extension du métro vert. Les autorités indiquent que la stretch de 8 km."
+      },
+      {
+        "start": 17.480000000000004,
+        "end": 22.78,
+        "text": "connecte quatre quartiers actifs au centre-ville. Des trains circuleront toutes les"
+      },
+      {
+        "start": 22.78,
+        "end": 24,
+        "text": "six minutes durant les heures de pointe. Les leaders de la mobilité prévoient que la ligne aidera à réduire la circulation routière."
+      }
+    ],
+    "Hindi": [
+      {
+        "start": 1.04,
+        "end": 6.62,
+        "text": "प्रिय दोस्तों, यहाँ मैं आम्युलिया हूं। आप रात्रि की मेट्रो मैनर्न न्यूज पर देख रहे हैं। हम आरम्भ में एक महत्वपूर्ण"
+      },
+      {
+        "start": 6.62,
+        "end": 8,
+        "text": "पुणे के शहर में यात्रियों द्वारा व्यक्तित्व की जांच शुभारम्बार शुक्रवार शाम शुरू होगी। व्यक्तित्व की जांच के बाद शहर में यात्रियों को तार्किक रूप से जाने की ताकत शुरू होगी।"
+      },
+      {
+        "start": 8,
+        "end": 11.82,
+        "text": "पुणे के शहर में यात्रियों द्वारा व्यक्तित्व की जांच शुभारम्बार शुक्रवार शाम शुरू होगी। व्यक्तित्व की जांच के बाद शहर में यात्रियों को तार्किक रूप से जाने की ताकत शुरू होगी।"
+      },
+      {
+        "start": 11.82,
+        "end": 16,
+        "text": "नई हरी लाइन रेल व्यापक तौर पर खुल गई है। अधिकारी ने कहा कि यह 8 किलोमीटर की लंबाई की छेड़।"
+      },
+      {
+        "start": 16,
+        "end": 17.480000000000004,
+        "text": "नई हरी लाइन रेल व्यापक तौर पर खुल गई है। अधिकारी ने कहा कि यह 8 किलोमीटर की लंबाई की छेड़।"
+      },
+      {
+        "start": 17.480000000000004,
+        "end": 22.78,
+        "text": "चार दुर्गम नज़रानों को मेंटल बाज़्याब जिले जोड़ देता है। ट्रेन्स एकत्रित व्यवसायिक जिले से प्रति"
+      },
+      {
+        "start": 22.78,
+        "end": 24,
+        "text": "छह मिनट शहरी भर में। ट्रांस्यट लिंडिंग लेखांकन अपनी राजमार्ग राहनी को सुलभ करने में अपनी राय देंगे"
+      }
+    ],
+    "Spanish": [
+      {
+        "start": 1.04,
+        "end": 6.62,
+        "text": "¡Buenos días, soy Amulia. Usted está viendo Metro Morning News. Comenzamos con un importante"
+      },
+      {
+        "start": 6.62,
+        "end": 8,
+        "text": "actualización de tránsito esta mañana. Los commuters de la ciudad experimentarán viajes más rápidos a partir de hoy."
+      },
+      {
+        "start": 8,
+        "end": 11.82,
+        "text": "actualización de tránsito esta mañana. Los commuters de la ciudad experimentarán viajes más rápidos a partir de hoy."
+      },
+      {
+        "start": 11.82,
+        "end": 16,
+        "text": "como abre al público la nueva extensión del tranvía verde. Los funcionarios dicen que la extensión de 8 km."
+      },
+      {
+        "start": 16,
+        "end": 17.480000000000004,
+        "text": "como abre al público la nueva extensión del tranvía verde. Los funcionarios dicen que la extensión de 8 km."
+      },
+      {
+        "start": 17.480000000000004,
+        "end": 22.78,
+        "text": "conecta cuatro barrios atareados al distrito central de negocios. Se realizarán trenes cada"
+      },
+      {
+        "start": 22.78,
+        "end": 24,
+        "text": "seis minutos durante las horas pico. Los líderes de la transit esperan que la línea ayude a disminuir el tráfico en carretera."
+      }
+    ]
+  },
+  "composites": {
+    "bg-newsroom-1920x1080": {
+      "url": "/demo/newest/assets/07257230dd5740701a09.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+    },
+    "bg-markets-1920x1080": {
+      "url": "/demo/newest/assets/2e0de8f7fe6d52624638.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+    },
+    "bg-sports-1920x1080": {
+      "url": "/demo/newest/assets/2f4f391187c9279ef3e0.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+    },
+    "bg-weather-1920x1080": {
+      "url": "/demo/newest/assets/4f8efc142cf381ea5b59.mp4",
+      "fallback": "chromakey",
+      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+    }
+  },
+  "selections": {},
+  "voiceId": "indian-male-01",
+  "assets": {
+    "videos/highlight-2026-11-24T12-22-37-040Z.mp4": "/demo/newest/assets/289b8c0761e376ec8cfe/highlight-2026-11-24T12-22-37-040Z.mp4",
+    "videos/camera-recording-2026-11-24T12-22-37-040Z.mp4": "/demo/newest/assets/0048c0e81c9c526a523d/camera-recording-2026-11-24T12-22-37-040Z.mp4",
+    "videos/camera2-recording-2026-11-24T12-22-37-040Z.mp4": "/demo/newest/assets/08544a1d17dde2f52ff7/camera2-recording-2026-11-24T12-22-37-040Z.mp4",
+    "videos/camera3-recording-2026-11-24T12-22-37-040Z.mp4": "/demo/newest/assets/f8860a58f92f054e6f19/camera3-recording-2026-11-24T12-22-37-040Z.mp4",
+    "audio/master-audio-2026-11-24T12-22-37-041Z.wav": "/demo/newest/assets/677ec3521af5b984ac5b/master-audio-2026-11-24T12-22-37-041Z.wav",
+    "tts-audio/bbd04b56-87ad-419d-aec6-01b72f99969c.es.indian-male-01.124647190b9e5a5fd0719812e1ad36d0ce0b0ab4f09454bfd8a58a6529976b20.wav": "/demo/newest/assets/796623aff113b34dc93c/bbd04b56-87ad-419d-aec6-01b72f99969c.es.indian-male-01.124647190b9e5a5fd0719812e1ad36d0ce0b0ab4f09454bfd8a58a6529976b20.wav",
+    "tts-audio/e511463e-73d4-46bc-b7b7-23aa8a83d40a.hi.indian-male-01.04ee4413378a292a66dab602a717551ac362c398cd9b2ad060c8088a15f52ed9.wav": "/demo/newest/assets/3e827af4a7d7f6445e82/e511463e-73d4-46bc-b7b7-23aa8a83d40a.hi.indian-male-01.04ee4413378a292a66dab602a717551ac362c398cd9b2ad060c8088a15f52ed9.wav",
+    "tts-audio/70b4eef4-78b4-471b-aa9e-37a1a6b6bb64.fr.indian-male-01.a400aaac011994c89496d7a521bd4155f3a2981242327699842e92df9f1d43cf.wav": "/demo/newest/assets/e04f256c5f0e16663c2b/70b4eef4-78b4-471b-aa9e-37a1a6b6bb64.fr.indian-male-01.a400aaac011994c89496d7a521bd4155f3a2981242327699842e92df9f1d43cf.wav",
+    "tts-audio/5f160b19-4c31-43b6-aefb-09f72bc89cd8.de.indian-male-01.9e508c1352dbaa6fee0a51ad7659c0eae4e262b979a88208352f50d92c890b98.wav": "/demo/newest/assets/e00a8014d6e1e024f201/5f160b19-4c31-43b6-aefb-09f72bc89cd8.de.indian-male-01.9e508c1352dbaa6fee0a51ad7659c0eae4e262b979a88208352f50d92c890b98.wav",
+    "transcripts/master-audio-2026-11-24T12-22-37-041Z.wav.de.txt": "/demo/newest/assets/6f340a0b3614c5033132.txt",
+    "transcripts/master-audio-2026-11-24T12-22-37-041Z.wav.fr.txt": "/demo/newest/assets/7aebd318b31c9a71d134.txt",
+    "transcripts/master-audio-2026-11-24T12-22-37-041Z.wav.hi.txt": "/demo/newest/assets/d844d1a7ee57df361baf.txt",
+    "transcripts/master-audio-2026-11-24T12-22-37-041Z.wav.es.txt": "/demo/newest/assets/af955ea23076af6ae77d.txt",
+    "transcripts/highlight-2026-11-24T12-22-37-040Z.mp4.json": "/demo/newest/assets/142cd15bcc8207cff76f.json",
+    "videos/composites/rvm-v1/highlight-2026-11-24T12-22-37-040Z/bg-newsroom-1920x1080.mp4": "/demo/newest/assets/07257230dd5740701a09.mp4",
+    "videos/composites/rvm-v1/highlight-2026-11-24T12-22-37-040Z/bg-markets-1920x1080.mp4": "/demo/newest/assets/2e0de8f7fe6d52624638.mp4",
+    "videos/composites/rvm-v1/highlight-2026-11-24T12-22-37-040Z/bg-sports-1920x1080.mp4": "/demo/newest/assets/2f4f391187c9279ef3e0.mp4",
+    "videos/composites/rvm-v1/highlight-2026-11-24T12-22-37-040Z/bg-weather-1920x1080.mp4": "/demo/newest/assets/4f8efc142cf381ea5b59.mp4"
+  }
+}
