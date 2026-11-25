@@ -19,6 +19,7 @@
 # next.js
 /.next/
 /out/
+/.runtime-logs/
 
 # production
 /build
@@ -65,4 +66,5 @@ __pycache__/
 
 
 amagi_news_simulation_complete_offline/
+/amagi_news_simulation_complete_offline*.zip
 
