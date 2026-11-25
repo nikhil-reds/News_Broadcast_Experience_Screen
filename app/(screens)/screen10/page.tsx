@@ -11,20 +11,12 @@ import shared from "../screen9/industry.module.css";
 import styles from "./brand.module.css";
 
 const copy: Record<string, [string, string]> = {
-  amazon: ["Online marketplace", "Online shopping across everyday categories."],
-  blinkit: ["Quick commerce", "Quick-commerce grocery delivery."],
-  itc: ["Everyday goods", "Food, personal care and household essentials."],
-  nestle: ["Food and beverages", "Food and beverages for everyday life."],
-  pepsico: ["Snacks and drinks", "Snack foods and refreshment brands."],
-  tropicana: ["Fruit juices", "Fruit juices and juice drinks."],
-  unilever: ["Consumer goods", "Personal care and household products."],
-  apple: ["Personal technology", "Phones, computers and connected devices."],
-  boat: ["Audio and wearables", "Headphones, speakers and wearable devices."],
-  samsung: ["Consumer electronics", "Mobile devices, displays and appliances."],
-  sony: ["Electronics", "Audio, imaging and entertainment technology."],
-  hdfc: ["Banking services", "Personal and business banking services."],
-  icici: ["Financial services", "Banking, cards and financial services."],
-  sbi: ["Banking services", "Retail and commercial banking services."],
+  aashirvaad: ["Shudh Chakki Atta", "Aashirvaad whole wheat atta."],
+  dove: ["Body wash", "Dove personal care and body wash."],
+  samsung: ["Galaxy smartphone", "Samsung Galaxy smartphone campaign."],
+  sony: ["Wireless headphones", "Sony wireless audio campaign."],
+  axis: ["Credit card", "Axis Bank credit card campaign."],
+  hdfc: ["Credit card", "HDFC Bank credit card campaign."],
 };
 
 export default function Screen10Page() {
