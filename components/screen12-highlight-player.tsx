@@ -6,30 +6,25 @@ import Image from "next/image";
 import { useSelectedBackground } from "@/lib/use-selected-background";
 import { useSelectedBrightness } from "@/lib/use-selected-brightness";
 import { useSelectedSubtitleLanguage } from "@/lib/use-selected-subtitle-language";
-import { AD_INDUSTRIES, getAdsByBrandId } from "@/lib/ad-catalog";
+import { AD_INDUSTRIES, getAdsByBrandId, adVideoBounds, type AdLayout } from "@/lib/ad-catalog";
 import { useRealtimeSelection } from "@/lib/use-realtime-selection";
 import { useSelectedAudio } from "@/lib/use-selected-audio";
-
-const L_BAND_VIDEO_BOUNDS = { top: "0%", right: "0%", bottom: "19.4%", left: "13.5%" };
-const FULL_VIDEO_BOUNDS = { top: "0%", right: "0%", bottom: "0%", left: "0%" };
 
 type PlayoutScene = {
   id: string;
   durationMs: number;
   image?: string;
   alt?: string;
+  layout?: AdLayout;
 };
 
 function buildPlayoutSequence(brandId: string): readonly PlayoutScene[] {
   const brandAds = getAdsByBrandId(brandId);
-  // Most campaigns include an L-band creative designed for Screen 12. A
-  // campaign such as Tropicana has only a composite creative, however; never
-  // replace a valid selected brand with an unrelated/default advertisement.
-  const ads = brandAds.filter((ad) => ad.id.endsWith("-l-band"));
+  const ads = brandAds.filter((ad) => ad.layout === "l-band");
   const selectedBrandAds = ads.length > 0 ? ads : brandAds;
   if (!selectedBrandAds.length) return [{ id: "full-only", durationMs: 6_000 }];
   return selectedBrandAds.flatMap((ad) => [
-    { id: ad.id, durationMs: 8_000, image: ad.image, alt: ad.alt },
+    { ...ad, durationMs: 8_000 },
     { id: `${ad.id}-programme`, durationMs: 6_000 },
   ]);
 }
@@ -44,7 +39,6 @@ export default function Screen12HighlightPlayer() {
   const audio = useSelectedAudio();
   const playoutSequence = useMemo(() => buildPlayoutSequence(brandId), [brandId]);
   const scene = playoutSequence[sceneIndex] ?? playoutSequence[0];
-  const isLBand = Boolean(scene.image);
   const onRemoteBrand = useCallback((value: string) => {
     if (!getAdsByBrandId(value).length) return;
     setBrandId((current) => {
@@ -72,7 +66,7 @@ export default function Screen12HighlightPlayer() {
 
       <section
         className="absolute z-10 overflow-hidden bg-black transition-all duration-700 ease-in-out"
-        style={isLBand ? L_BAND_VIDEO_BOUNDS : FULL_VIDEO_BOUNDS}
+        style={adVideoBounds(scene)}
       >
         <RecordingLooper
           source={{ highlight: true }}
