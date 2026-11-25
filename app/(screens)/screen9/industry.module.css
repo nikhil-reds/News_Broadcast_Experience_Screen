@@ -4,7 +4,7 @@
 .badge i,.marker i {width:6px;height:6px;border-radius:50%;background:#f65f50;box-shadow:0 0 0 2px #f65f5033}
 .header {text-align:center}.header h1 {margin:0;font-size:clamp(30px,4.2vw,63px);font-weight:100;letter-spacing:-.034em;line-height:1.08}
 .header p {margin:clamp(12px,2.55vh,24px) auto 0;color:#ffffff91;font-size:clamp(12px,1.24vw,17px)}
-.cards {width:min(60vw,825px);margin:clamp(29px,6.75vh,75px) auto 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(9px,1.35vw,21px)}
+.cards {width:min(60vw,825px);margin:clamp(29px,6.75vh,75px) auto 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(9px,1.35vw,21px)}
 .card {position:relative;display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:clamp(12px,1.5vw,24px);min-height:clamp(146px,14vw,206px);border-radius:clamp(15px,1.95vw,27px);border:1px solid #ffffff22;background:#ffffff08;color:#ddd;cursor:pointer;transition:transform .22s,background .22s,box-shadow .22s}
 .card svg {width:clamp(24px,2.78vw,42px);height:auto;margin-bottom:auto;color:#ffffffab}
 .card strong {margin-top:18px;font-size:clamp(13px,1.28vw,20px);font-weight:400;line-height:1.2}
