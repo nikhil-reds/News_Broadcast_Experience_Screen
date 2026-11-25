@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "demo:save": "node script/save-demo-snapshot.mjs",
+    "demo:rematte": "tsx script/rematte-saved-demos.ts",
     "demo:test": "node script/test-saved-demo.mjs",
     "test:rbac": "tsx --test test/rbac-policy.test.ts",
     "dev": "npm run build && next start",
