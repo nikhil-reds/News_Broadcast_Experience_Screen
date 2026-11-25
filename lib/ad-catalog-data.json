@@ -1,0 +1,203 @@
+[
+  {
+    "id": "fmcg",
+    "name": "FMCG",
+    "brands": [
+      {
+        "id": "aashirvaad",
+        "name": "Aashirvaad Shudh Chakki Atta",
+        "ads": [
+          {
+            "id": "aashirvaad-1-bottom",
+            "image": "/ads/industries/fmcg/aashirvaad/bottom-1.png",
+            "alt": "Aashirvaad Shudh Chakki Atta bottom advertisement",
+            "layout": "bottom",
+            "source": "FMCG\\Aashirvaad Shudh Chakki Atta\\Aashirvaad Shudh Chakki Atta bottom band.png"
+          },
+          {
+            "id": "aashirvaad-2-l-band",
+            "image": "/ads/industries/fmcg/aashirvaad/l-band-2.png",
+            "alt": "Aashirvaad Shudh Chakki Atta l-band advertisement",
+            "layout": "l-band",
+            "source": "FMCG\\Aashirvaad Shudh Chakki Atta\\Aashirvaad Shudh Chakki Atta l band.png"
+          },
+          {
+            "id": "aashirvaad-3-side",
+            "image": "/ads/industries/fmcg/aashirvaad/side-3.png",
+            "alt": "Aashirvaad Shudh Chakki Atta side advertisement",
+            "layout": "side",
+            "source": "FMCG\\Aashirvaad Shudh Chakki Atta\\Aashirvaad Shudh Chakki Atta side band.png"
+          },
+          {
+            "id": "aashirvaad-4-side-frame",
+            "image": "/ads/industries/fmcg/aashirvaad/side-frame-4.png",
+            "alt": "Aashirvaad Shudh Chakki Atta side-frame advertisement",
+            "layout": "side-frame",
+            "source": "FMCG\\Aashirvaad Shudh Chakki Atta\\dove body wash side shape  band.png"
+          },
+          {
+            "id": "aashirvaad-5-side-frame",
+            "image": "/ads/industries/fmcg/aashirvaad/side-frame-5.png",
+            "alt": "Aashirvaad Shudh Chakki Atta side-frame advertisement",
+            "layout": "side-frame",
+            "source": "FMCG\\Aashirvaad Shudh Chakki Atta\\Untitled-2.png"
+          }
+        ]
+      },
+      {
+        "id": "dove",
+        "name": "Dove Body Wash",
+        "ads": [
+          {
+            "id": "dove-1-bottom",
+            "image": "/ads/industries/fmcg/dove/bottom-1.png",
+            "alt": "Dove Body Wash bottom advertisement",
+            "layout": "bottom",
+            "source": "FMCG\\Dove body wash\\dove body wash bottom band.png"
+          },
+          {
+            "id": "dove-2-l-band",
+            "image": "/ads/industries/fmcg/dove/l-band-2.png",
+            "alt": "Dove Body Wash l-band advertisement",
+            "layout": "l-band",
+            "source": "FMCG\\Dove body wash\\dove body wash l shape  band.png"
+          },
+          {
+            "id": "dove-3-side",
+            "image": "/ads/industries/fmcg/dove/side-3.png",
+            "alt": "Dove Body Wash side advertisement",
+            "layout": "side",
+            "source": "FMCG\\Dove body wash\\dove body wash side shape  band 2.png"
+          },
+          {
+            "id": "dove-4-side",
+            "image": "/ads/industries/fmcg/dove/side-4.png",
+            "alt": "Dove Body Wash side advertisement",
+            "layout": "side",
+            "source": "FMCG\\Dove body wash\\dove body wash side shape  band.png"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "consumer-electronics",
+    "name": "Consumer Electronics",
+    "brands": [
+      {
+        "id": "samsung",
+        "name": "Samsung Galaxy Smartphone",
+        "ads": [
+          {
+            "id": "samsung-1-l-band",
+            "image": "/ads/industries/consumer-electronics/samsung/l-band-1.png",
+            "alt": "Samsung Galaxy Smartphone l-band advertisement",
+            "layout": "l-band",
+            "source": "CONSUMER ELECTRONICS\\Samsung Galaxy smartphone\\Samsung Galaxy smartphone l shape band.png"
+          },
+          {
+            "id": "samsung-2-side",
+            "image": "/ads/industries/consumer-electronics/samsung/side-2.png",
+            "alt": "Samsung Galaxy Smartphone side advertisement",
+            "layout": "side",
+            "source": "CONSUMER ELECTRONICS\\Samsung Galaxy smartphone\\Samsung Galaxy smartphone side  shape band 2.png"
+          },
+          {
+            "id": "samsung-3-side",
+            "image": "/ads/industries/consumer-electronics/samsung/side-3.png",
+            "alt": "Samsung Galaxy Smartphone side advertisement",
+            "layout": "side",
+            "source": "CONSUMER ELECTRONICS\\Samsung Galaxy smartphone\\Samsung Galaxy smartphone side  shape band.png"
+          }
+        ]
+      },
+      {
+        "id": "sony",
+        "name": "Sony Wireless Headphones",
+        "ads": [
+          {
+            "id": "sony-1-l-band",
+            "image": "/ads/industries/consumer-electronics/sony/l-band-1.png",
+            "alt": "Sony Wireless Headphones l-band advertisement",
+            "layout": "l-band",
+            "source": "CONSUMER ELECTRONICS\\Sony wireless headphones\\Sony wireless headphones l shape   band.png"
+          },
+          {
+            "id": "sony-2-side",
+            "image": "/ads/industries/consumer-electronics/sony/side-2.png",
+            "alt": "Sony Wireless Headphones side advertisement",
+            "layout": "side",
+            "source": "CONSUMER ELECTRONICS\\Sony wireless headphones\\Sony wireless headphones side  shape    band 2.png"
+          },
+          {
+            "id": "sony-3-side",
+            "image": "/ads/industries/consumer-electronics/sony/side-3.png",
+            "alt": "Sony Wireless Headphones side advertisement",
+            "layout": "side",
+            "source": "CONSUMER ELECTRONICS\\Sony wireless headphones\\Sony wireless headphonesside  shape   band.png"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "banking-finance",
+    "name": "Banking & Finance",
+    "brands": [
+      {
+        "id": "axis",
+        "name": "Axis Bank Credit Card",
+        "ads": [
+          {
+            "id": "axis-1-l-band",
+            "image": "/ads/industries/banking-finance/axis/l-band-1.png",
+            "alt": "Axis Bank Credit Card l-band advertisement",
+            "layout": "l-band",
+            "source": "BANKING & FINANCE\\Axis Bank credit card\\Axis Bank credit card l shape band.png"
+          },
+          {
+            "id": "axis-2-side",
+            "image": "/ads/industries/banking-finance/axis/side-2.png",
+            "alt": "Axis Bank Credit Card side advertisement",
+            "layout": "side",
+            "source": "BANKING & FINANCE\\Axis Bank credit card\\Axis Bank credit card side  shape band 2.png"
+          },
+          {
+            "id": "axis-3-side",
+            "image": "/ads/industries/banking-finance/axis/side-3.png",
+            "alt": "Axis Bank Credit Card side advertisement",
+            "layout": "side",
+            "source": "BANKING & FINANCE\\Axis Bank credit card\\Axis Bank credit card side  shape band.png"
+          }
+        ]
+      },
+      {
+        "id": "hdfc",
+        "name": "HDFC Bank Credit Card",
+        "ads": [
+          {
+            "id": "hdfc-1-l-band",
+            "image": "/ads/industries/banking-finance/hdfc/l-band-1.png",
+            "alt": "HDFC Bank Credit Card l-band advertisement",
+            "layout": "l-band",
+            "source": "BANKING & FINANCE\\HDFC Bank credit card\\HDFC Bank credit card l shape band.png"
+          },
+          {
+            "id": "hdfc-2-side",
+            "image": "/ads/industries/banking-finance/hdfc/side-2.png",
+            "alt": "HDFC Bank Credit Card side advertisement",
+            "layout": "side",
+            "source": "BANKING & FINANCE\\HDFC Bank credit card\\HDFC Bank credit card side  shape band 2.png"
+          },
+          {
+            "id": "hdfc-3-side",
+            "image": "/ads/industries/banking-finance/hdfc/side-3.png",
+            "alt": "HDFC Bank Credit Card side advertisement",
+            "layout": "side",
+            "source": "BANKING & FINANCE\\HDFC Bank credit card\\HDFC Bank credit card side  shape band.png"
+          }
+        ]
+      }
+    ]
+  }
+]
