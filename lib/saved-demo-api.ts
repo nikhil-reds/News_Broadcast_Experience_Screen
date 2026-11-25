@@ -95,7 +95,11 @@ export async function savedDemoResponse(request: NextRequest): Promise<Response 
   if (path === "/api/save-audio" && method === "GET") return json({ audioFiles: snapshot.audioFiles });
   if (path.startsWith("/api/asset/") || path.startsWith("/api/asset-stream/")) {
     const key = decodeURIComponent(path.replace(/^\/api\/asset(?:-stream)?\//, "")).replace("highlight-demo-", "highlight-");
-    const url = snapshot.assets[key];
+      // Frozen demos always serve their verified matte, including requests from
+      // cached screens that still contain an older matting-version asset key.
+      const backgroundId = key.includes("/composites/")
+        ? key.split("/").at(-1)?.replace(/\.mp4$/, "") : undefined;
+      const url = (backgroundId ? snapshot.composites[backgroundId]?.url : undefined) ?? snapshot.assets[key];
     return url ? NextResponse.redirect(new URL(url, request.url), 307) : unavailable();
   }
   if (path === "/api/audio-language") {
