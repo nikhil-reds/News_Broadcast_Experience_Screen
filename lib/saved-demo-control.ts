@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { redisConnection } from "@/lib/redis";
 import type { ScreenWorkflow } from "@/lib/screen-workflow";
 import type { SavedDemoPackage } from "@/lib/saved-demo-types";
-import { AD_INDUSTRIES } from "@/lib/ad-catalog";
+import { AD_INDUSTRIES, getIndustryById, getBrandById } from "@/lib/ad-catalog";
 
 const STATE_KEY = "broadcast:saved-demo:state";
 const LOCK_KEY = "broadcast:saved-demo:lock";
@@ -88,6 +88,9 @@ export async function startDemo(source: DemoSource = "saved"): Promise<DemoState
       background: snapshot.session.selectedBackgroundId, "subtitle-language": codes[snapshot.session.selectedSubtitleLanguage],
       industry: AD_INDUSTRIES[0].id, brand: AD_INDUSTRIES[0].brands[0].id, ...snapshot.selections,
     };
+    const industry = getIndustryById(defaults.industry);
+    defaults.industry = industry.id;
+    defaults.brand = getBrandById(industry, defaults.brand).id;
     for (const [kind, value] of Object.entries(defaults)) transaction.set(`broadcast:session:${id}:${kind}`, JSON.stringify({ sessionId: id, value, version: 1, updatedAt: state.startedAt }), "EX", 86400);
     transaction.set(`broadcast:session:${id}:audio-language`, JSON.stringify({ sessionId: id, audioLanguage: codes[snapshot.session.selectedAudioLanguage], voiceId: snapshot.voiceId, version: 1, updatedAt: state.startedAt }), "EX", 86400);
     transaction.set(`broadcast:session:${id}:brightness`, JSON.stringify({ sessionId: id, brightness: snapshot.session.selectedBrightness, version: 1, updatedAt: state.startedAt }), "EX", 86400);
