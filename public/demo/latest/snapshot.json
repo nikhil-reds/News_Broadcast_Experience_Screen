@@ -1,7 +1,7 @@
 {
   "version": 2,
   "sourceSessionId": "72d17a44-1c16-4c1c-97dc-8fdc4934919c",
-  "createdAt": "2026-11-24T12:03:40.556Z",
+  "createdAt": "2026-11-25T04:23:51.251Z",
   "session": {
     "id": "72d17a44-1c16-4c1c-97dc-8fdc4934919c",
     "seq": 7,
@@ -295,27 +295,38 @@
   },
   "composites": {
     "bg-newsroom-1920x1080": {
-      "url": "/demo/latest/assets/e53dbd3d2a76540c4aba.mp4",
-      "fallback": "chromakey",
-      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+      "url": "/demo/latest/assets/rvm-v3-1795580579631/bg-newsroom-1920x1080.mp4",
+      "engine": "rvm",
+      "fallback": null,
+      "fallbackReason": null,
+      "mattingVersion": "rvm-v3"
     },
     "bg-markets-1920x1080": {
-      "url": "/demo/latest/assets/c29a26bf2e8a1a7ee4eb.mp4",
-      "fallback": "chromakey",
-      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+      "url": "/demo/latest/assets/rvm-v3-1795580579631/bg-markets-1920x1080.mp4",
+      "engine": "rvm",
+      "fallback": null,
+      "fallbackReason": null,
+      "mattingVersion": "rvm-v3"
     },
     "bg-sports-1920x1080": {
-      "url": "/demo/latest/assets/43df9933da3d9eb12029.mp4",
-      "fallback": "chromakey",
-      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+      "url": "/demo/latest/assets/rvm-v3-1795580579631/bg-sports-1920x1080.mp4",
+      "engine": "rvm",
+      "fallback": null,
+      "fallbackReason": null,
+      "mattingVersion": "rvm-v3"
     },
     "bg-weather-1920x1080": {
-      "url": "/demo/latest/assets/bc72f981a225010f4109.mp4",
-      "fallback": "chromakey",
-      "fallbackReason": "\"C:/Users/RDX/Desktop/News_Broadcast_Experience_Screen/.venv-rvm/Scripts/python.exe\" not found. Set RVM_PYTHON to a Python executable with RVM dependencies installed."
+      "url": "/demo/latest/assets/rvm-v3-1795580579631/bg-weather-1920x1080.mp4",
+      "engine": "rvm",
+      "fallback": null,
+      "fallbackReason": null,
+      "mattingVersion": "rvm-v3"
     }
   },
-  "selections": {},
+  "selections": {
+    "industry": "fmcg",
+    "brand": "aashirvaad"
+  },
   "voiceId": "indian-male-01",
   "assets": {
     "videos/highlight-2026-11-24T11-50-06-672Z.mp4": "/demo/latest/assets/aaaacaffe0faef8e734e/highlight-2026-11-24T11-50-06-672Z.mp4",
