@@ -91,9 +91,25 @@ try {
   const stamp = reel.filename.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9._-]/g, "_");
   for (const bg of backgrounds) {
     const key = `composites/${process.env.GREEN_SCREEN_MATTING_VERSION || "rvm-v1"}/${stamp}/${bg.id}`;
+    const metadata = await jsonObject(videoBucket, `${key}.json`).catch(() => null);
+    if (
+      !metadata ||
+      metadata.engine !== "rvm" ||
+      metadata.fallback != null ||
+      metadata.fallbackReason != null
+    ) {
+      throw new Error(
+        `Refusing to save ${target}: ${bg.id} is not a verified RVM composite ` +
+        `(engine=${metadata?.engine ?? "missing"}, fallback=${metadata?.fallback ?? "missing"}).`
+      );
+    }
     const url = await copyAsset(videoBucket, `${key}.mp4`);
-    const metadata = await jsonObject(videoBucket, `${key}.json`).catch(() => ({}));
-    composites[bg.id] = { url, fallback: metadata.fallback ?? null, fallbackReason: metadata.fallbackReason ?? null };
+    composites[bg.id] = {
+      url,
+      engine: metadata.engine,
+      fallback: null,
+      fallbackReason: null,
+    };
   }
   const selections = {};
   for (const kind of ["background", "subtitle-language", "industry", "industry-preview", "brand"]) {
