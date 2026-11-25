@@ -12,7 +12,6 @@ const details: Record<string, { subtitle: string; description: string; icon: str
   fmcg: { subtitle: "Everyday goods", description: "Food, drinks, personal care and household brands.", icon: "M5 9h14l-2 12H7L5 9Zm3 0V7a4 4 0 0 1 8 0v2M9 13h6" },
   "consumer-electronics": { subtitle: "Devices and gadgets", description: "Phones, TVs, audio, laptops and smart-home brands.", icon: "M9 2h6a1.5 1.5 0 0 1 1.5 1.5v17A1.5 1.5 0 0 1 15 22H9a1.5 1.5 0 0 1-1.5-1.5v-17A1.5 1.5 0 0 1 9 2Zm2 17h2M5 11a4 4 0 0 0-3 4m17-4a4 4 0 0 1 3 4" },
   "banking-finance": { subtitle: "Money and insurance", description: "Banks, cards, insurance and investment brands.", icon: "m2 8 10-6 10 6M4 10v9m5-9v9m6-9v9m5-9v9M2 22h20" },
-  "retail-ecommerce": { subtitle: "Shops and marketplaces", description: "Stores, online marketplaces and delivery apps.", icon: "M2 3h3l3.5 12h10l3-8H6m4 11a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm8 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" },
 };
 
 export default function Screen9Page() {
